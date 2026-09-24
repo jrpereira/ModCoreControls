@@ -1,10 +1,10 @@
-# KEngine Controls (KEC)
+# ModCore Controls (MCC)
 
 KEC separates **actions** (what a mod does) from **controls** (which input calls
 that action). Players can choose an Actions Layout and change bindings without
 requiring each skill or gameplay mod to implement its own input system.
 
-The only UE4SS mod folder is `_KEngineControls`. KEC's Lua library lives in
+The only UE4SS mod folder is `_ModCore_Controls`. KEC's Lua library lives in
 `Scripts/kec/`. Its `dlls/main.dll` is the verified
 [UE4SSLuaEventBridge v1.0.1](https://github.com/jrpereira/UE4SSLuaEventBridge/releases/tag/v1.0.1)
 release DLL. The bridge is a component of KEC, with no separate bridge mod folder.
@@ -14,7 +14,7 @@ release DLL. The bridge is a component of KEC, with no separate bridge mod folde
 The first integration moves the existing quickslot input engine into KEC.
 Its **Extended Controls** mod menu begins with **Actions & Quickslots** and
 owns **Access Method** (Grouped, Flat, Advanced), the controls
-shown for that method, directional actions, and Tap/Hold bindings. KEngineTemplates
+shown for that method, directional actions, and Tap/Hold bindings. ModCoreTemplates
 keeps template selection and wheel visuals. KEC starts its own native quickslot
 input host from saved controls and refreshes it on KEC Apply, whether or not a
 KET visual template is selected. The reusable action/layout API is available
@@ -51,7 +51,7 @@ visibility from ability assignments and equipped skill limits reported by the
 game, with no hardcoded level thresholds. The source files are declarative;
 they do not execute Lua.
 
-`KEngineControls.defaultLayout()`, `skillLayout()`, and `flexiLayout()` load
+`ModCoreControls.defaultLayout()`, `skillLayout()`, and `flexiLayout()` load
 the definitions. `resolveLayout(layout, phase, available)` and
 `flexiGroups(layout, preset, order)` compute their active positions. The
 existing `newTopology({groups=..., dispatch=...})` accepts Basic's groups,
@@ -113,7 +113,7 @@ still required after installation.
 ## Control events
 
 KEC publishes stable string identifiers. A consumer in another UE4SS Lua state
-can load `kec.event_transport` from `_KEngineControls/Scripts` and call
+can load `kec.event_transport` from `_ModCore_Controls/Scripts` and call
 `subscribe(name, callback)`. The returned function unsubscribes. Local users of
 `kec.core` or `kec.topology` can call `:subscribe(name, callback)` on their
 instance. Listener errors do not interrupt input delivery.

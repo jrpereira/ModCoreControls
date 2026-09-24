@@ -51,7 +51,7 @@ function M.subscribe(name, callback, bus)
                 bus:receive(event, unhex(a), unhex(b), unhex(c))
             end)
             if not accepted then
-                print('[KEngineControls] event receive failed: ' .. tostring(problem) .. '\n')
+                print('[ModCoreControls] event receive failed: ' .. tostring(problem) .. '\n')
             end
             return true
         end)

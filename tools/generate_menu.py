@@ -38,7 +38,7 @@ def setting(name, kind, label, group, default, **extra):
     return key
 
 
-section('Mod', dict(Id='KEngineControls', Name='Extended Controls', Version='0.1.0',
+section('Mod', dict(Id='ModCoreControls', Name='ModCore Controls', Version='0.1.0',
                     Description='Choose Grouped, Flat, or Advanced Actions Layout and configure its controls.'))
 section('Category.' + SECTION, dict(ammLevel=3))
 section('Category.Flat', dict(VisibleWhen='KEC_AccessMethod', VisibleValues='1|2', ammLevel=3))

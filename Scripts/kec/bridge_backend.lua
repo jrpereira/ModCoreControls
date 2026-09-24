@@ -29,7 +29,7 @@ function M.new(options)
         local scope, why = bridge.Helpers.OpenInput({
             component_path=component, subsystem_path=subsystem,
             mapping_priority=options.priority or 1000,
-            debug_label='KEngineControls',
+            debug_label='ModCoreControls',
         })
         if not scope then return nil, why end
         for _, item in ipairs(plan) do

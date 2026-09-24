@@ -69,7 +69,7 @@ end
 local shared
 function M.shared()
     if not shared then shared = M.new({onError=function(name, why)
-        print('[KEngineControls] ' .. name .. ' listener failed: ' .. tostring(why) .. '\n')
+        print('[ModCoreControls] ' .. name .. ' listener failed: ' .. tostring(why) .. '\n')
     end}) end
     return shared
 end

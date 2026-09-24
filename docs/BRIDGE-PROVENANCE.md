@@ -8,8 +8,8 @@
 - Lua API: `UE4SSLuaEventBridge`, capability API 4.
 
 The release archive's `_UE4SSLuaEventBridge/dlls/main.dll` is copied byte for
-byte into `_KEngineControls/dlls/main.dll`. Its `enabled.txt` is represented by
+byte into `_ModCore_Controls/dlls/main.dll`. Its `enabled.txt` is represented by
 KEC's own marker. The release's legacy-folder migration runs only from the
-original `_UE4SSLuaEventBridge` location; under `_KEngineControls` it returns
+original `_UE4SSLuaEventBridge` location; under `_ModCore_Controls` it returns
 without changing sibling folders. The old live bridge folder must be disabled
 when KEC is installed to avoid loading the same native component twice.

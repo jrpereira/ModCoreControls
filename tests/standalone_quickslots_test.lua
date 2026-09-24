@@ -14,7 +14,7 @@ local onApply
 ModRef={}
 RegisterConsoleCommandHandler=function() end
 package.loaded.settings_api={subscribe=function(provider,callback)
-    assert(provider=='KEngineControls')
+    assert(provider=='ModCoreControls')
     onApply=callback
 end}
 ExecuteInGameThread=function(callback) callback() end
@@ -25,8 +25,8 @@ assert(applied.settings.access == 1)
 assert(applied.settings.PrimaryWheel == 1)
 assert(type(applied.service.activateQuickslot) == 'function')
 assert(type(applied.service.selectQuickslotGroup) == 'function')
-assert(KEngineControls.quickslotHost)
+assert(ModCoreControls.quickslotHost)
 assert(applied.count==1 and type(onApply)=='function')
-onApply({providerId='KEngineControls'})
+onApply({providerId='ModCoreControls'})
 assert(applied.count==2, 'KEC Apply must refresh controls without KET')
 print('KEC quickslot input starts without a selected visual template')

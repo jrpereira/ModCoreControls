@@ -5,7 +5,7 @@ local root = assert(scripts:match('^(.*)[/\\]Scripts$') or
 package.path = scripts .. '/?.lua;' .. package.path
 local ok, err = pcall(function()
     local layouts = require('kec.layout_templates')
-    KEngineControls = {
+    ModCoreControls = {
         new = require('kec.core').new,
         newTopology = require('kec.topology').new,
         loadLayout = layouts.load,
@@ -22,7 +22,7 @@ local ok, err = pcall(function()
     }
     if type(ExecuteInGameThread) == 'function' then
         local function log(message)
-            print('[KEngineControls] ' .. tostring(message) .. '\n')
+            print('[ModCoreControls] ' .. tostring(message) .. '\n')
         end
         local category = {contexts={'combat','openworld'}, actions={
             {type='Ability',slot='Left'}, {type='Ability',slot='Top'},
@@ -41,10 +41,10 @@ local ok, err = pcall(function()
             local active, why = host:apply(template, settings, service)
             if not active then log('Quickslot controls pending: ' .. tostring(why)) end
         end
-        KEngineControls.quickslotHost = host
+        ModCoreControls.quickslotHost = host
         if ModRef and type(FindAllOf) == 'function' then
             local Transport = require('kec.event_transport')
-            KEngineControls.events:setPublisher(Transport.publisher(function()
+            ModCoreControls.events:setPublisher(Transport.publisher(function()
                 local ok, controllers = pcall(FindAllOf, 'BP_PlayerController_C')
                 if not ok or type(controllers) ~= 'table' then return nil end
                 for _, controller in ipairs(controllers) do
@@ -55,11 +55,11 @@ local ok, err = pcall(function()
         end
         apply()
         local mods = assert(root:match('^(.*)[/\\][^/\\]+$'), 'cannot locate Mods folder')
-        package.path = mods .. '/_KEngineMenu/Scripts/?.lua;' .. package.path
+        package.path = mods .. '/_ModCore_Settings/Scripts/?.lua;' .. package.path
         local present, settingsApi = pcall(require, 'settings_api')
         if present and ModRef and type(RegisterConsoleCommandHandler) == 'function'
             and type(settingsApi.subscribe) == 'function' then
-            settingsApi.subscribe('KEngineControls', function()
+            settingsApi.subscribe('ModCoreControls', function()
                 ExecuteInGameThread(function()
                     local refreshed, why = pcall(apply)
                     if not refreshed then log('Quickslot Apply failed: ' .. tostring(why)) end
@@ -71,7 +71,7 @@ local ok, err = pcall(function()
     end
 end)
 if not ok then
-    print('[KEngineControls] startup failed: ' .. tostring(err) .. '\n')
+    print('[ModCoreControls] startup failed: ' .. tostring(err) .. '\n')
 else
-    print('[KEngineControls] 0.1.0 loaded; quickslot controls active independently of visual templates\n')
+    print('[ModCoreControls] 0.1.0 loaded; quickslot controls active independently of visual templates\n')
 end
