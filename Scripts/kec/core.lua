@@ -31,6 +31,7 @@ function M.new(options)
     options = options or {}
     local actions, layouts, overrides = {}, {}, {}
     local selected, active, backend, context = nil, nil, options.backend, nil
+    local activeGeneration
     local events = options.events or Events.shared()
     local api = {}
 
@@ -129,7 +130,8 @@ function M.new(options)
         return result
     end
 
-    function api:dispatch(actionId, event)
+    local function dispatch(actionId, event, executionContext)
+        if executionContext and not executionContext.isValidGeneration() then return false end
         local action = assert(actions[actionId], 'unknown action: ' .. tostring(actionId))
         local phase = type(event) == 'table' and event.phase or 'Triggered'
         if phase == nil then phase = 'Triggered' end
@@ -138,14 +140,27 @@ function M.new(options)
             events:emit('ControlAction' .. phase, selected, nil, actionId)
         end
         if phase ~= 'Triggered' then return true end
-        return action.execute(event)
+        -- Event listeners may retire the installation before action delivery.
+        if executionContext and not executionContext.isValidGeneration() then return false end
+        return action.execute(event, executionContext)
+    end
+
+    function api:dispatch(actionId, event)
+        -- Explicit dispatch is independent of any backend installation.
+        return dispatch(actionId, event)
     end
 
     function api:activate(activeContext)
         assert(backend and type(backend.install) == 'function', 'input backend required')
         local plan = self:plan(nil, activeContext)
+        -- Pending/failed installations never deliver. Each closure retains its
+        -- own token, so rebinding the same action cannot revive retired work.
+        local generation = {valid=false}
+        local executionContext = {isValidGeneration=function()
+            return generation.valid
+        end}
         local replacement, why = backend:install(plan, function(id, event)
-            return self:dispatch(id, event)
+            return dispatch(id, event, executionContext)
         end)
         if not replacement then return false, why end
         if active then
@@ -154,8 +169,11 @@ function M.new(options)
                 replacement:close()
                 return false, closeWhy
             end
+            activeGeneration.valid = false
             events:emit('ControlContextDetached', context)
         end
+        activeGeneration = generation
+        generation.valid = true
         active, context = replacement, activeContext
         events:emit('ControlContextAttached', context)
         return true
@@ -165,8 +183,10 @@ function M.new(options)
         if not active then return true end
         local closed, why = active:close()
         if not closed then return false, why end
-        events:emit('ControlContextDetached', context)
-        active, context = nil, nil
+        activeGeneration.valid = false
+        local retiredContext = context
+        active, context, activeGeneration = nil, nil, nil
+        events:emit('ControlContextDetached', retiredContext)
         return true
     end
 

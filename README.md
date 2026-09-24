@@ -83,6 +83,29 @@ controls:selectLayout('default')
 controls:activate('combat')
 ```
 
+Backend-delivered action callbacks receive `execute(event, executionContext)`.
+Existing callbacks accepting only `event` need no changes. KEC automatically
+rejects queued delivery from successfully deactivated or replaced installations.
+Consumers scheduling additional work can retain the optional context:
+
+```lua
+execute=function(event, executionContext)
+    queueWork(function()
+        if executionContext and not executionContext.isValidGeneration() then return end
+        dash(event)
+    end)
+end
+```
+
+`isValidGeneration()` describes the installation that delivered the callback,
+not whichever binding is current. Once retired, that context stays invalid even
+when the same action is rebound. Failed installation or failed closure of the
+previous installation leaves the previous generation valid; rejected replacement
+callbacks never become valid. Check again after any delay or yield before doing
+more work. This does not interrupt work already executing. Explicit
+`controls:dispatch(actionId, event)` remains independent of bindings and supplies
+no execution context. Control-event subscriber arguments are unchanged.
+
 The runtime uses Lua 5.4. `tests/` contains offline checks for layout behavior,
 quickslot planning, mapping, lifecycle, and dispatch. In-game acceptance is
 still required after installation.
