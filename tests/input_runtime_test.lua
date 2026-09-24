@@ -19,7 +19,7 @@ local runtime=Runtime({
     valid=function(v)return v and v.valid end,path=function(v)return v and v.name end,unwrap=function(v)return v end,same=function(a,b)return a==b end,
     each=function(values,fn) for i,v in ipairs(values or {}) do fn(i,v) end end,
     retainInactive=function() return objects.inactive or object('inactive') end,
-    constructGate=function(action,marker)return object(action.name..':'..marker) end,
+    constructGate=function(action,marker)local name=action.name..':'..marker;return objects[name] or object(name) end,
     chord=function(trigger)return trigger.ChordAction end,setChord=function(trigger,action)trigger.ChordAction=action end,
     setTriggers=function(action,triggers)action.Triggers=triggers end,rebuild=function() rebuilds=rebuilds+1;return true end,
     input={valid=function(v)return v and v.valid end,retain=function(_,name)return objects[name] or object(name) end,

@@ -73,5 +73,5 @@ end)
 if not ok then
     print('[ModCoreControls] startup failed: ' .. tostring(err) .. '\n')
 else
-    print('[ModCoreControls] 0.1.0 loaded; quickslot controls active independently of visual templates\n')
+    print('[ModCoreControls] 0.1.1 loaded; quickslot controls active independently of visual templates\n')
 end

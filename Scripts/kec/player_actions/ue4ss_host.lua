@@ -43,9 +43,27 @@ function M.new(queue,log,category,events)
   local outer;if kind=='InputAction'then outer=assert(StaticFindObject('/Engine/Transient.IMC_QuickslotsForever'),'missing persistent quickslots context')else local engine=assert(find('Engine'),'Engine unavailable');outer=assert(engine:GetOuter(),'Transient outer unavailable')end
   local o=StaticFindObject(path(outer)..(kind=='InputAction'and':'or'.')..name);if not valid(o)then o=StaticConstructObject(cls(kind),outer,FName(name),0xC0)end;return o
  end
+ -- Native gates are a bounded, named pool (one per allowlisted action).
+ -- Keep them rooted for the process lifetime, including while detached. The
+ -- engine reference in a patched native asset is not our sole lifetime owner.
+ local function retainGate(action,name)
+  local gateClass=cls('InputTriggerChordAction')
+  local gatePath=assert(path(action),'native gate owner unavailable')..':'..name
+  local gate=StaticFindObject(gatePath)
+  if not valid(gate)then
+   -- RF_Transient | RF_MarkAsRootSet. The resulting internal RootSet bit is
+   -- checked below; a Lua userdata reference alone does not retain a UObject.
+   gate=StaticConstructObject(gateClass,action,FName(name),0xC0)
+  end
+  assert(valid(gate),'native gate construction failed: '..gatePath)
+  assert(gate:IsA(gateClass),'unexpected object at native gate path: '..gatePath)
+  assert(gate:HasAnyInternalFlags(0x40000000),
+   'native gate is not rooted; restart the game before enabling controls: '..gatePath)
+  return gate
+ end
  local input={valid=valid,retain=retain,initializeIdentity=function(a)assert(StaticFindObject('/Script/Engine.Default__KismetSystemLibrary')):Conv_ObjectToSoftObjectReference(a)end,retainTrigger=function(a,n)return StaticConstructObject(cls(n),a,0,0x40)end,key=keyCodes.toName,name=FName}
  local byName={};for _,a in ipairs(FindAllOf('InputAction')or{})do local n=full(a)and full(a):match('([^%.:/%s]+)$');if valid(a)and n then byName[n]=a end end
- local runtime=Runtime({category=category,nativeTargets=targets,resolve=function(n)return byName[n]end,valid=valid,path=path,unwrap=unwrap,same=function(a,b)return path(a)==path(b)end,each=each,retainInactive=function()local a=retain('InputAction','IA_KET_NativeActionGate');a.Triggers={};return a end,constructGate=function(a,n)return StaticConstructObject(cls('InputTriggerChordAction'),a,FName(n),0x40)end,chord=function(t)return unwrap(t.ChordAction)end,setChord=function(t,a)t.ChordAction=a end,setTriggers=function(a,v)a.Triggers=v end,rebuild=function()local lib=assert(StaticFindObject('/Script/EnhancedInput.Default__EnhancedInputLibrary'),'EnhancedInputLibrary unavailable');each(playerInput.AppliedInputContexts,function(c)c=unwrap(c);if valid(c)then lib:RequestRebuildControlMappingsUsingContext(c,false)end end);return true end,input=input})
+ local runtime=Runtime({category=category,nativeTargets=targets,resolve=function(n)return byName[n]end,valid=valid,path=path,unwrap=unwrap,same=function(a,b)return path(a)==path(b)end,each=each,retainInactive=function()local a=retain('InputAction','IA_KET_NativeActionGate');a.Triggers={};return a end,constructGate=retainGate,chord=function(t)return unwrap(t.ChordAction)end,setChord=function(t,a)t.ChordAction=a end,setTriggers=function(a,v)a.Triggers=v end,rebuild=function()local lib=assert(StaticFindObject('/Script/EnhancedInput.Default__EnhancedInputLibrary'),'EnhancedInputLibrary unavailable');each(playerInput.AppliedInputContexts,function(c)c=unwrap(c);if valid(c)then lib:RequestRebuildControlMappingsUsingContext(c,false)end end);return true end,input=input})
  local api,internal={},false
  api.events=events
  function api:subscribe(name,callback) return self.events:subscribe(name,callback) end

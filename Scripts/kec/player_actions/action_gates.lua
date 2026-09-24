@@ -45,10 +45,17 @@ return function(e)
                 else changed = true end
             else after[#after + 1] = trigger end
         end
-        if wanted and not gate then
-            gate = e.construct(action, marker)
-            assert(e.valid(gate), 'native action gate construction failed for ' .. e.path(action))
-            after[#after + 1], changed = gate, true
+        if wanted then
+            -- The host retains/reuses the named gate independently of this
+            -- array, and validates ownership even when it is already attached.
+            local retained = e.construct(action, marker)
+            assert(e.valid(retained), 'native action gate construction failed for ' .. e.path(action))
+            if gate then
+                assert(e.same(gate, retained), 'native gate identity changed for ' .. e.path(action))
+            else
+                gate = retained
+                after[#after + 1], changed = gate, true
+            end
         end
         if gate and not e.same(e.chord(gate), inactiveAction) then
             e.setChord(gate, inactiveAction); changed = true

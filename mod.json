@@ -1,0 +1,11 @@
+{
+  "manifest_version": 1,
+  "id": "ModCoreControls",
+  "name": "ModCore Controls",
+  "description": "Define reusable control layouts, action mappings, cancellation of core actions, and extensions to core apps, with thoroughly tested lifecycle management.",
+  "version_source": "mod_settings.ini",
+  "links": {
+    "source": "https://github.com/jrpereira/ModCoreControls",
+    "nexus": "https://www.nexusmods.com/thebloodofdawnwalker/mods/640"
+  }
+}
