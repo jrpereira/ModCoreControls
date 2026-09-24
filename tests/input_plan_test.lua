@@ -1,5 +1,5 @@
 package.path = 'Scripts/?.lua;Scripts/?/init.lua;' .. package.path
-local Plan = require('te.player_actions.plan')
+local Plan = require('kec.player_actions.plan')
 
 local function check(value, message) assert(value, message) end
 local template = {
@@ -11,10 +11,12 @@ local template = {
 }
 
 local direct = Plan.build(template, {access = 0, PrimaryWheel=1, direct = {
-    ['1'] = {{key=49,mode=0},{key=50,mode=1},{key=51,mode=0},{key=52,mode=1}},
+    ['1'] = {{key=49,mode=0,activateKey=164},{key=50,mode=1},{key=51,mode=0},{key=52,mode=1}},
     ['2'] = {{key=49,mode=0},{key=50,mode=1},{key=51,mode=0},{key=52,mode=1}},
 }})
 check(#direct.actions == 8)
+check(direct.actions[1].binding.activateKey == 164
+    and direct.actions[2].binding.activateKey == 0)
 for slot = 1, 4 do
     check(direct.actions[slot].id == 'IA_ActionSlot' .. slot and direct.actions[slot].type == 'ability')
     check(direct.actions[slot + 4].id == 'IA_ActionSlot' .. (slot + 4) and direct.actions[slot + 4].type == 'consumable')

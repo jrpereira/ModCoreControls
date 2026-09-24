@@ -1,8 +1,9 @@
-local Runtime=require('te.player_actions.runtime')
-local Dispatch=require('te.player_actions.dispatch')
-local Delivery=require('te.player_actions.delivery')
-local targets=require('te.player_actions.native_targets')
-local keyCodes=require('te.player_actions.key_codes')
+local Runtime=require('kec.player_actions.runtime')
+local Dispatch=require('kec.player_actions.dispatch')
+local Delivery=require('kec.player_actions.delivery')
+local targets=require('kec.player_actions.native_targets')
+local keyCodes=require('kec.player_actions.key_codes')
+local Events=require('kec.events')
 local M={}
 local function unwrap(v) if v==nil then return end local ok,x=pcall(function()return v:get()end);return ok and x or v end
 local function valid(v)local ok,x=pcall(function()return v~=nil and v:IsValid()end);return ok and x==true end
@@ -11,8 +12,11 @@ local function path(v)local n=full(v);return n and(n:match('^%S+%s+(.+)$')or n)o
 local function each(v,fn)if type(v)=='table'then for k,x in pairs(v)do fn(k,x)end;return true end;return pcall(function()v:ForEach(function(k,x)fn(k,unwrap(x))end)end)end
 local function find(class,pred)local ok,all=pcall(FindAllOf,class);if not ok or type(all)~='table'then return end;for _,v in ipairs(all)do if valid(v)and not(full(v)or''):find('Default__',1,true)and(not pred or pred(v))then return v end end end
 local function prop(o,n)local ok,v=pcall(function()return o[n]end);return ok and unwrap(v)or nil end
-function M.new(queue,log,category)
- if type(FindAllOf)~='function'or type(StaticFindObject)~='function'or type(StaticConstructObject)~='function'or FName==nil then return{deactivate=function()return true end,apply=function()return false,'Enhanced Input runtime unavailable'end}end
+function M.new(queue,log,category,events)
+ events=events or Events.shared()
+ if type(FindAllOf)~='function'or type(StaticFindObject)~='function'or type(StaticConstructObject)~='function'or FName==nil then return{events=events,
+  subscribe=function(_,name,callback)return events:subscribe(name,callback)end,
+  deactivate=function()return true end,apply=function()return false,'Enhanced Input runtime unavailable'end}end
  local playerInput=nil
  local function bridgeApi()
   local bridge=rawget(_G,'UE4SSLuaEventBridge')
@@ -21,8 +25,9 @@ function M.new(queue,log,category)
   end
   local ok,caps=pcall(bridge.GetCapabilities)
   if not ok or type(caps)~='table' or caps.enhanced_input~=true or caps.explicit_target~=true
-      or caps.detailed_errors~=true or tonumber(caps.api or 0)<4 then
-   return nil,'UE4SSLuaEventBridge lacks the required Enhanced Input API'
+      or caps.detailed_errors~=true or tonumber(caps.api or 0)<4
+      or tonumber(bridge.API_VERSION or 0)<4 then
+   return nil,'UE4SSLuaEventBridge lacks the required Enhanced Input API 4'
   end
   if tostring(caps.target_ue4ss_commit or '')~='97b7e501' then
    return nil,'UE4SSLuaEventBridge targets an incompatible UE4SS build'
@@ -40,8 +45,13 @@ function M.new(queue,log,category)
  end
  local input={valid=valid,retain=retain,initializeIdentity=function(a)assert(StaticFindObject('/Script/Engine.Default__KismetSystemLibrary')):Conv_ObjectToSoftObjectReference(a)end,retainTrigger=function(a,n)return StaticConstructObject(cls(n),a,0,0x40)end,key=keyCodes.toName,name=FName}
  local byName={};for _,a in ipairs(FindAllOf('InputAction')or{})do local n=full(a)and full(a):match('([^%.:/%s]+)$');if valid(a)and n then byName[n]=a end end
- local runtime=Runtime({category=category,nativeTargets=targets,resolve=function(n)return byName[n]end,valid=valid,path=path,unwrap=unwrap,same=function(a,b)return path(a)==path(b)end,each=each,retainInactive=function()local a=retain('InputAction','IA_TE_NativeActionGate');a.Triggers={};return a end,constructGate=function(a,n)return StaticConstructObject(cls('InputTriggerChordAction'),a,FName(n),0x40)end,chord=function(t)return unwrap(t.ChordAction)end,setChord=function(t,a)t.ChordAction=a end,setTriggers=function(a,v)a.Triggers=v end,rebuild=function()local lib=assert(StaticFindObject('/Script/EnhancedInput.Default__EnhancedInputLibrary'),'EnhancedInputLibrary unavailable');each(playerInput.AppliedInputContexts,function(c)c=unwrap(c);if valid(c)then lib:RequestRebuildControlMappingsUsingContext(c,false)end end);return true end,input=input})
+ local runtime=Runtime({category=category,nativeTargets=targets,resolve=function(n)return byName[n]end,valid=valid,path=path,unwrap=unwrap,same=function(a,b)return path(a)==path(b)end,each=each,retainInactive=function()local a=retain('InputAction','IA_KET_NativeActionGate');a.Triggers={};return a end,constructGate=function(a,n)return StaticConstructObject(cls('InputTriggerChordAction'),a,FName(n),0x40)end,chord=function(t)return unwrap(t.ChordAction)end,setChord=function(t,a)t.ChordAction=a end,setTriggers=function(a,v)a.Triggers=v end,rebuild=function()local lib=assert(StaticFindObject('/Script/EnhancedInput.Default__EnhancedInputLibrary'),'EnhancedInputLibrary unavailable');each(playerInput.AppliedInputContexts,function(c)c=unwrap(c);if valid(c)then lib:RequestRebuildControlMappingsUsingContext(c,false)end end);return true end,input=input})
  local api,internal={},false
+ api.events=events
+ function api:subscribe(name,callback) return self.events:subscribe(name,callback) end
+ local function contextName(kind)
+  return kind=='RTCombat' and 'combat' or kind=='OW' and 'openworld' or kind
+ end
  local function internalCall(fn)
   internal=true
   local result=table.pack(pcall(fn))
@@ -51,15 +61,56 @@ function M.new(queue,log,category)
  end
  local contextNames={combat={native='IMC_RTCombat.',kind='RTCombat'},openworld={native='IMC_OW.',kind='OW'}}
  local function gameplayInput()
-  -- Resolve the Dawnwalker Blueprint controller directly when possible; some
-  -- UE4SS builds expose it only through the PlayerController base-class scan.
-  local pc=find('BP_PlayerController_C') or find('PlayerController',function(candidate)
-   return (full(candidate)or''):find('BP_PlayerController_C',1,true)~=nil
-  end)
-  playerInput=pc and prop(pc,'PlayerInput')or nil
-  local pawn=pc and (prop(pc,'AcknowledgedPawn') or prop(pc,'Pawn')) or nil
-  local component=pawn and prop(pawn,'InputComponent') or nil
-  return playerInput,component
+  -- A stale controller can survive a map transition. Prefer the controller
+  -- whose player input and pawn input component are both ready.
+  local seen,firstInput,firstComponent={},nil,nil
+  for _,class in ipairs({'BP_PlayerController_C','PlayerController'})do
+   local ok,all=pcall(FindAllOf,class)
+   if ok and type(all)=='table'then
+    for _,pc in ipairs(all)do
+     local name=full(pc)or''
+     if valid(pc)and name:find('BP_PlayerController_C',1,true)
+         and not name:find('Default__',1,true)and not seen[name]then
+      seen[name]=true
+      local input=prop(pc,'PlayerInput')
+      local pawn=prop(pc,'AcknowledgedPawn') or prop(pc,'Pawn')
+      local component=pawn and prop(pawn,'InputComponent')or nil
+      if valid(input)and valid(component)then
+       playerInput=input
+       return input,component,pc
+      end
+      firstInput,firstComponent=firstInput or input,firstComponent or component
+     end
+    end
+   end
+  end
+  playerInput=firstInput
+  return firstInput,firstComponent,nil
+ end
+ local function playerSubsystem(pc)
+  local ok,all=pcall(FindAllOf,'EnhancedInputLocalPlayerSubsystem')
+  if not ok or type(all)~='table'then return nil end
+  local localPlayer=pc and prop(pc,'Player')or nil
+  local ownerPath=valid(localPlayer)and (full(localPlayer)or''):find('LocalPlayer',1,true)
+      and path(localPlayer)or nil
+  local only,count,ownerFound=nil,0,false
+  for _,sub in ipairs(all)do
+   if valid(sub)then
+    count=count+1;only=sub
+    local outer=prop(sub,'Outer')
+    if not valid(outer)then
+     local found,value=pcall(function()return sub:GetOuter()end)
+     if found then outer=unwrap(value)end
+    end
+    if ownerPath and valid(outer)then
+     ownerFound=true
+     if path(outer)==ownerPath then return sub end
+    end
+   end
+  end
+  -- In single-player there is only one local-player subsystem. Do not choose
+  -- arbitrarily when multiple local players are present.
+  return count==1 and not ownerFound and only or nil
  end
  local function targets()
   local wanted,out={},{}
@@ -95,9 +146,13 @@ function M.new(queue,log,category)
   self.active=self.active or {}
   if kind then
    internalCall(function()runtime:deactivate(kind)end)
+   if self.active[kind] then self.events:emit('ControlContextDetached',contextName(kind)) end
    self.active[kind]=nil
   else
-   for activeKind in pairs(self.active)do internalCall(function()runtime:deactivate(activeKind)end)end
+   for activeKind in pairs(self.active)do
+    internalCall(function()runtime:deactivate(activeKind)end)
+    self.events:emit('ControlContextDetached',contextName(activeKind))
+   end
    self.active={}
   end
   if next(self.active)~=nil then return true end
@@ -164,17 +219,23 @@ function M.new(queue,log,category)
   self.active=self.active or {};self.active[kind]=nativePriority
   self.ready=true
   self.subsystem=sub
+  self.events:emit('ControlContextAttached',contextName(kind))
   return true
  end
  function api:sync()
   if not self.template then return self:deactivate() end
-  local input,component=gameplayInput()
-  local sub=find('EnhancedInputLocalPlayerSubsystem')
+  local input,component,pc=gameplayInput()
+  local sub=playerSubsystem(pc)
   if not valid(input) or not valid(component) or not valid(sub) then
    self:deactivate();return false,'gameplay Enhanced Input stack unavailable'
   end
   if self.bound and (self.componentPath~=path(component) or self.subsystem~=sub) then self:deactivate() end
   local wanted=targets();self.active=self.active or {}
+  if next(wanted)~=nil then self.nativeSeen=true end
+  -- The local player's subsystem is the attachment owner. The game's native
+  -- contexts identify gameplay mode when present, but are not a prerequisite
+  -- for adding KEC's own context during the initial player load.
+  if next(wanted)==nil and not self.nativeSeen then wanted.OW=0 end
   if next(wanted)==nil then self:deactivate();return false,'native gameplay context unavailable' end
   for kind in pairs(self.active)do if wanted[kind]==nil or wanted[kind]~=self.active[kind] then self:deactivate(kind)end end
   for kind,priority in pairs(wanted)do
@@ -185,20 +246,53 @@ function M.new(queue,log,category)
   end
   return true
  end
+ local startRetry
  function api:apply(template,settings,service)
   local cleared,why=self:deactivate()
   if not cleared then return false,why end
   self.template,self.settings,self.service=template,settings,service
   self.defaultGroup=1
   self.selectedGroup=self.defaultGroup
-  return self:sync()
+  local active,reason=self:sync()
+  if not active and startRetry then startRetry() end
+  return active,reason
+ end
+ local retryScheduled=false
+ startRetry=function()
+  if retryScheduled or not api.template or type(ExecuteWithDelay)~='function' then return end
+  if api.active and next(api.active)~=nil then return end
+  retryScheduled=true
+  local scheduled,why=pcall(ExecuteWithDelay,500,function()
+   local queued,queueWhy=pcall(queue,function()
+    retryScheduled=false
+    local ran,active,reason=pcall(function()return api:sync()end)
+    if not ran then log('Enhanced Input retry failed: '..tostring(active))
+    elseif active then log('Quickslot controls attached to player input')
+    else startRetry()end
+   end)
+   if not queued then
+    retryScheduled=false
+    log('Enhanced Input retry queue failed: '..tostring(queueWhy))
+   end
+  end)
+  if not scheduled then
+   retryScheduled=false
+   log('Enhanced Input retry timer failed: '..tostring(why))
+  end
  end
  local function wake()
   if internal then return end
   local queued,why=pcall(queue,function()
    local ran,ok,reason=pcall(function()return api:sync()end)
    if not ran then log('Enhanced Input lifecycle sync failed: '..tostring(ok))
-   elseif ok==false then log('Enhanced Input lifecycle sync pending: '..tostring(reason))end
+   elseif ok==false then
+    if reason~=api.lastPendingReason then log('Enhanced Input lifecycle sync pending: '..tostring(reason))end
+    api.lastPendingReason=reason
+    startRetry()
+   else
+    if api.lastPendingReason then log('Quickslot controls attached to player input')end
+    api.lastPendingReason=nil
+   end
   end)
   if not queued then log('Enhanced Input lifecycle wake failed: '..tostring(why))end
  end

@@ -1,4 +1,4 @@
-local Plan = require('te.player_actions.plan')
+local Plan = require('kec.player_actions.plan')
 
 return function(e)
     local contexts, actions = {}, {}
@@ -40,12 +40,30 @@ return function(e)
         for _,d in ipairs(plan.actions) do
             local a=action(d.id); a.ValueType,a.bConsumeInput,a.bTriggerWhenPaused=0,false,false
             if d.binding.mode ~= -1 then trigger(a,d.binding.mode) else a.Triggers={} end
+            if d.binding.activateKey ~= 0 then
+                local activateId='IA_ActivateSlot' .. d.controlIndex
+                local activateAction=action(activateId)
+                activateAction.ValueType,activateAction.bConsumeInput,activateAction.bTriggerWhenPaused=0,false,false
+                activateAction.Triggers={}
+                local chord=e.retainTrigger(a,'InputTriggerChordAction')
+                assert(valid(chord),'input chord trigger unavailable')
+                chord.ChordAction=activateAction
+                local triggers={}
+                for _,existing in ipairs(a.Triggers) do triggers[#triggers+1]=existing end
+                triggers[#triggers+1]=chord
+                a.Triggers=triggers
+                current[activateId]=activateAction
+            end
             current[d.id]=a
         end
         for kind in pairs(names) do
             local c=context(kind); c:UnmapAll()
             for _,d in ipairs(plan.actions) do if applies(d, kind) and d.binding.mode ~= -1 and d.binding.key ~= 0 then
                 c:MapKey(current[d.id], {KeyName=e.name(assert(e.key(d.binding.key), 'unsupported key for '..d.id))})
+                if d.binding.activateKey ~= 0 then
+                    c:MapKey(current['IA_ActivateSlot' .. d.controlIndex],
+                        {KeyName=e.name(assert(e.key(d.binding.activateKey), 'unsupported activate key for '..d.id))})
+                end
             end end
         end
         self.plan,self.actions=plan,current; return current,plan

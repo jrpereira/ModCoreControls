@@ -1,4 +1,4 @@
--- Binds generated actions through LEB after their IMC mappings exist. The
+-- Binds generated actions through the bundled UE4SS Lua Event Bridge after IMC mappings exist. The
 -- binding owner is deliberately separate from InputContext so travel/reload
 -- cleanup never leaves native subscriptions behind.
 return function(e)
@@ -26,7 +26,10 @@ return function(e)
         for _, definition in ipairs(plan.actions) do
             if definition.binding.key ~= 0 and definition.binding.mode ~= -1 then
                 local action = assert(actions[definition.id], 'missing generated action: ' .. definition.id)
-                local phases = definition.binding.mode == 2 and {'Started','Completed','Canceled'} or {'Triggered'}
+                local phases = (definition.slot or definition.targetSlot)
+                    and {'Started','Triggered','Completed','Canceled'}
+                    or definition.binding.mode == 2 and {'Started','Completed','Canceled'}
+                    or {'Triggered'}
                 for _, phase in ipairs(phases) do
                     local handle, bindWhy = e.bridge.BindAction(target, path(action), phase, function(event)
                         callback(definition, phase, event)

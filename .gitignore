@@ -1,0 +1,10 @@
+config.ini
+enabled.txt
+dlls/
+__pycache__/
+*.pyc
+work/
+outputs/
+dist/
+*.zip
+*.log

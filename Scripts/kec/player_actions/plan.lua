@@ -1,7 +1,7 @@
 -- Converts a selected quickslots template and its persisted menu values into
 -- stable Enhanced Input action identities. This is deliberately independent
 -- of UE4SS so it can be validated without a running game.
-local V = require('te.validation')
+local V = require('kec.quickslot_groups')
 local M = {}
 
 local function binding(value, where)
@@ -10,7 +10,10 @@ local function binding(value, where)
         and value.key % 1 == 0, where .. ': invalid key')
     assert(value.mode == 0 or value.mode == 1 or value.mode == 2 or value.mode == -1,
         where .. ': invalid mode')
-    return {key = value.key, mode = value.mode}
+    local activateKey = value.activateKey or 0
+    assert(type(activateKey) == 'number' and activateKey >= 0 and activateKey <= 254
+        and activateKey % 1 == 0, where .. ': invalid activate key')
+    return {key = value.key, mode = value.mode, activateKey = activateKey}
 end
 
 -- QSF historically exposed these identities. Keep them stable so existing
@@ -48,6 +51,7 @@ function M.build(template, settings, category)
                     type = item.value.type,
                     groupIndex = access == 2 and groupIndices[item.key] or #result.actions,
                     slot = slot,
+                    controlIndex = number,
                     contexts = item.value.contexts or (category and category.contexts) or template.contexts,
                     binding = binding(slots[slot], item.key .. ' slot ' .. slot),
                 }
@@ -61,11 +65,14 @@ function M.build(template, settings, category)
                 for slot = 1, item.value.slots do
                     local slotName = item.value.slotNames and item.value.slotNames[slot] or tostring(slot)
                     result.actions[#result.actions + 1] = {
-                        id = 'IA_TE_GroupKey_' .. item.value.type .. '_' .. slotName,
+                        id = 'IA_KET_GroupKey_' .. item.value.type .. '_' .. slotName,
                         group = item.key,
                         type = item.value.type,
                         groupIndex = groupIndex,
                         targetSlot = slot,
+                        actionIndex = settings.assignments and settings.assignments.advanced
+                            and settings.assignments.advanced[item.key]
+                            and settings.assignments.advanced[item.key][slot],
                         contexts = item.value.contexts or (category and category.contexts) or template.contexts,
                         binding = binding(slots[slot], item.key .. ' group key ' .. slot),
                     }
