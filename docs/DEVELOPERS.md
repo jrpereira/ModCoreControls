@@ -43,11 +43,11 @@ Grouped mode presents **Group Key** (Abilities and Consumables) followed by
 trigger positions in that row. Each Tap/Hold picker is paired with its key
 capture.
 
-`templates/default.tpl` defines **Basic Slots**: two four-position ability
+`ModCore/templates/default.tpl` defines **Basic Slots**: two four-position ability
 groups and one four-position consumable group. The second ability group begins
-hidden. `templates/skill_slots.tpl` defines Weapon, day Witchcraft or night
+hidden. `ModCore/templates/skill_slots.tpl` defines Weapon, day Witchcraft or night
 Vampire, and Consumables, with two positions initially shown in each skill
-group. `templates/flexi_slots.tpl` defines the 12x1, 6x2, and 4+2x4 grouping
+group. `ModCore/templates/flexi_slots.tpl` defines the 12x1, 6x2, and 4+2x4 grouping
 presets and the ability/consumable order. Each layout has twelve active
 positions and Basic/Skill provide three group rows: a row key selects the
 group, then numbered keys select its columns. ModCoreControls resolves extra position

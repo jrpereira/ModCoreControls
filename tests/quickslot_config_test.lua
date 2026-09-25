@@ -7,7 +7,7 @@ for line in io.lines('config.ini') do
 end
 local grouped = Config.decode(values)
 assert(grouped.access == 1)
-assert(grouped.groups['1'].mode == -1 and grouped.groups['2'].key == 164)
+assert(grouped.groups['1'].mode == -2 and grouped.groups['2'].key == 164)
 assert(grouped.shared[1].key == 49)
 assert(grouped.direct['1'][1].activateKey == 0)
 values.KEC_Flat1ActivateKey = 164
@@ -22,3 +22,11 @@ assert(Config.decode(values).access == 2)
 values.KEC_Flat1Action = 9 -- retired key in an older config is ignored
 assert(Config.decode(values).assignments.flat[1] == 1)
 print('KEC menu config derives directional assignments for Grouped, Flat, and Advanced')
+
+values.KEC_AccessMethod=0
+values.KEC_Group1Key=81
+values.KEC_Group1Mode=-2
+assert(Config.decode(values).groups['1'].key==81, 'Disabled preserves the saved key')
+values.KEC_Group1Key=0
+values.KEC_Group1Mode=-1
+assert(Config.decode(values).groups['1'].mode==-1, 'Legacy configs remain readable')

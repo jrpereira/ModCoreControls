@@ -2,9 +2,9 @@ package.path = 'Scripts/?.lua;' .. package.path
 local Layouts = require('kec.layout_templates')
 local Topology = require('kec.topology')
 
-local basic = Layouts.load('templates/default.tpl')
-local skill = Layouts.load('templates/skill_slots.tpl')
-local flexi = Layouts.load('templates/flexi_slots.tpl')
+local basic = Layouts.load('ModCore/templates/default.tpl')
+local skill = Layouts.load('ModCore/templates/skill_slots.tpl')
+local flexi = Layouts.load('ModCore/templates/flexi_slots.tpl')
 assert(basic.title == 'Basic Slots' and basic.section == 'Actions & Quickslots')
 assert(skill.title == 'Skill Slots' and flexi.title == 'Flexi Slots')
 assert(#basic.groups == 3 and #Layouts.activeGroups(basic, 'day') == 3)

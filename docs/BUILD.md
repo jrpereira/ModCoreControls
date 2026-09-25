@@ -17,7 +17,7 @@ Run the commands below from the repository root.
 ## Source preparation
 
 The [menu generator](../tools/generate_menu.py) reads the declarative
-[default layout](../templates/default.tpl). Run it only in a development copy:
+[default layout](../ModCore/templates/default.tpl). Run it only in a development copy:
 
 ```sh
 python3 tools/generate_menu.py

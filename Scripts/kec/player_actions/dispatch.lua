@@ -24,7 +24,7 @@ return function(e)
         if not target then return false, openWhy end
         active = {target=target}
         for _, definition in ipairs(plan.actions) do
-            if definition.binding.key ~= 0 and definition.binding.mode ~= -1 then
+            if definition.binding.key ~= 0 and definition.binding.mode >= 0 then
                 local action = assert(actions[definition.id], 'missing generated action: ' .. definition.id)
                 local phases = (definition.slot or definition.targetSlot)
                     and {'Started','Triggered','Completed','Canceled'}

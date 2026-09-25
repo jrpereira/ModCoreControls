@@ -39,7 +39,7 @@ return function(e)
         local plan=Plan.build(template, settings, e.category); local current={}
         for _,d in ipairs(plan.actions) do
             local a=action(d.id); a.ValueType,a.bConsumeInput,a.bTriggerWhenPaused=0,false,false
-            if d.binding.mode ~= -1 then trigger(a,d.binding.mode) else a.Triggers={} end
+            if d.binding.mode >= 0 then trigger(a,d.binding.mode) else a.Triggers={} end
             if d.binding.activateKey ~= 0 then
                 local activateId='IA_ActivateSlot' .. d.controlIndex
                 local activateAction=action(activateId)
@@ -58,7 +58,7 @@ return function(e)
         end
         for kind in pairs(names) do
             local c=context(kind); c:UnmapAll()
-            for _,d in ipairs(plan.actions) do if applies(d, kind) and d.binding.mode ~= -1 and d.binding.key ~= 0 then
+            for _,d in ipairs(plan.actions) do if applies(d, kind) and d.binding.mode >= 0 and d.binding.key ~= 0 then
                 c:MapKey(current[d.id], {KeyName=e.name(assert(e.key(d.binding.key), 'unsupported key for '..d.id))})
                 if d.binding.activateKey ~= 0 then
                     c:MapKey(current['IA_ActivateSlot' .. d.controlIndex],

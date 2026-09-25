@@ -44,3 +44,11 @@ function subsystem:RemoveMappingContext(mapping) if self.mapping == mapping then
 input:attach('OW', subsystem, -1)
 check(subsystem.priority == 999, 'generated quickslots context adds 1000 to native priority')
 print('PASS input context: persistent QSF actions and selected key mappings')
+local disabled = input:configure(template, {access=1,
+    groups={['1']={key=49,mode=-2},['2']={key=164,mode=2}},
+    shared={{key=49,mode=1},{key=0,mode=0},{key=0,mode=0},{key=0,mode=0}}})
+check(#disabled.IA_GroupSlot1.Triggers==0, 'Disabled must not create an input trigger')
+for _,mapping in ipairs(objects.IMC_Quickslots_OW.Mappings) do
+    check(mapping.Action~=disabled.IA_GroupSlot1, 'Disabled saved key must not be mapped')
+end
+check(#objects.IMC_Quickslots_OW.Mappings==2, 'Alternative group and shared slot remain mapped')

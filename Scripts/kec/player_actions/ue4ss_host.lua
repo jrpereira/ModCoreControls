@@ -218,15 +218,15 @@ function M.new(queue,log,category,events)
      self.groupModes[definition.groupIndex]=definition.binding.mode
     end
    end
-   local preferred=settings.PrimaryWheel==1
+   local preferred=(settings.access==1 or settings.PrimaryWheel==1)
        and 'ability' or 'consumable'
    for index,kind in pairs(self.groupTypes)do
     if kind==preferred then self.defaultGroup,self.selectedGroup=index,index end
    end
    for index,mode in pairs(self.groupModes)do
-    if mode==-1 then self.defaultGroup,self.selectedGroup=index,index;break end
+    if mode==-1 or mode==-2 then self.defaultGroup,self.selectedGroup=index,index;break end
    end
-   self.defaultUnbound=self.groupModes[self.defaultGroup]==-1
+   self.defaultUnbound=(self.groupModes[self.defaultGroup]==-1 or self.groupModes[self.defaultGroup]==-2)
   end
   local committed,why=pcall(function()internalCall(function()runtime:commit(kind,sub,nativePriority)end)end)
   if not committed then

@@ -42,9 +42,9 @@ function M.decode(values)
     for index = 1, 2 do
         local group = tostring(index)
         local prefix = 'Group' .. index
-        result.groups[group] = binding(values, prefix, index == 1 and -1 or 0, 2)
+        result.groups[group] = binding(values, prefix, index == 1 and -2 or 0, 2)
         local mode = result.groups[group].mode
-        assert(mode == 0 or mode == 2 or (index == 1 and mode == -1),
+        assert(mode == 0 or mode == 2 or (index == 1 and (mode == -1 or mode == -2)),
             'invalid group mode: ' .. prefix)
         result.assignments.groups[group] = {}
         result.assignments.advanced[group] = {}

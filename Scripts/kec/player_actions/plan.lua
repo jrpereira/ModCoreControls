@@ -8,7 +8,7 @@ local function binding(value, where)
     assert(type(value) == 'table', where .. ': binding is required')
     assert(type(value.key) == 'number' and value.key >= 0 and value.key <= 254
         and value.key % 1 == 0, where .. ': invalid key')
-    assert(value.mode == 0 or value.mode == 1 or value.mode == 2 or value.mode == -1,
+    assert(value.mode == 0 or value.mode == 1 or value.mode == 2 or value.mode == -1 or value.mode == -2,
         where .. ': invalid mode')
     local activateKey = value.activateKey or 0
     assert(type(activateKey) == 'number' and activateKey >= 0 and activateKey <= 254
