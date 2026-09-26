@@ -1,9 +1,10 @@
-local Runtime=require('kec.player_actions.runtime')
-local Dispatch=require('kec.player_actions.dispatch')
-local Delivery=require('kec.player_actions.delivery')
-local targets=require('kec.player_actions.native_targets')
-local keyCodes=require('kec.player_actions.key_codes')
-local Events=require('kec.events')
+local Runtime=require('mcc.player_actions.runtime')
+local Dispatch=require('mcc.player_actions.dispatch')
+local Delivery=require('mcc.player_actions.delivery')
+local targets=require('mcc.player_actions.native_targets')
+local keyCodes=require('mcc.player_actions.key_codes')
+local IndicatorMonitor=require('mcc.player_actions.indicator_monitor')
+local Events=require('mcc.events')
 local M={}
 local function unwrap(v) if v==nil then return end local ok,x=pcall(function()return v:get()end);return ok and x or v end
 local function valid(v)local ok,x=pcall(function()return v~=nil and v:IsValid()end);return ok and x==true end
@@ -40,7 +41,12 @@ function M.new(queue,log,category,events)
  end
  local function cls(n)return assert(StaticFindObject('/Script/EnhancedInput.'..n),'missing Enhanced Input class: '..n)end
  local function retain(kind,name)
-  local outer;if kind=='InputAction'then outer=assert(StaticFindObject('/Engine/Transient.IMC_QuickslotsForever'),'missing persistent quickslots context')else local engine=assert(find('Engine'),'Engine unavailable');outer=assert(engine:GetOuter(),'Transient outer unavailable')end
+  local outer
+  if kind=='InputAction'then
+   outer=retain('InputMappingContext','IMC_MCC_ActionOwner')
+  else
+   local engine=assert(find('Engine'),'Engine unavailable');outer=assert(engine:GetOuter(),'Transient outer unavailable')
+  end
   local o=StaticFindObject(path(outer)..(kind=='InputAction'and':'or'.')..name);if not valid(o)then o=StaticConstructObject(cls(kind),outer,FName(name),0xC0)end;return o
  end
  -- Native gates are a bounded, named pool (one per allowlisted action).
@@ -61,11 +67,48 @@ function M.new(queue,log,category,events)
    'native gate is not rooted; restart the game before enabling controls: '..gatePath)
   return gate
  end
- local input={valid=valid,retain=retain,initializeIdentity=function(a)assert(StaticFindObject('/Script/Engine.Default__KismetSystemLibrary')):Conv_ObjectToSoftObjectReference(a)end,retainTrigger=function(a,n)return StaticConstructObject(cls(n),a,0,0x40)end,key=keyCodes.toName,name=FName}
- local byName={};for _,a in ipairs(FindAllOf('InputAction')or{})do local n=full(a)and full(a):match('([^%.:/%s]+)$');if valid(a)and n then byName[n]=a end end
- local runtime=Runtime({category=category,nativeTargets=targets,resolve=function(n)return byName[n]end,valid=valid,path=path,unwrap=unwrap,same=function(a,b)return path(a)==path(b)end,each=each,retainInactive=function()local a=retain('InputAction','IA_KET_NativeActionGate');a.Triggers={};return a end,constructGate=retainGate,chord=function(t)return unwrap(t.ChordAction)end,setChord=function(t,a)t.ChordAction=a end,setTriggers=function(a,v)a.Triggers=v end,rebuild=function()local lib=assert(StaticFindObject('/Script/EnhancedInput.Default__EnhancedInputLibrary'),'EnhancedInputLibrary unavailable');each(playerInput.AppliedInputContexts,function(c)c=unwrap(c);if valid(c)then lib:RequestRebuildControlMappingsUsingContext(c,false)end end);return true end,input=input})
- local api,internal={},false
+ local input={valid=valid,retain=retain,initializeIdentity=function(a)assert(StaticFindObject('/Script/Engine.Default__KismetSystemLibrary')):Conv_ObjectToSoftObjectReference(a)end,retainTrigger=function(a,n)return StaticConstructObject(cls(n),a,0,0x40)end,key=keyCodes.toName,name=FName,each=each,path=path,unwrap=unwrap}
+ local function resolveNative(wanted)
+  local names,byName={},{}
+  for _,name in ipairs(wanted)do names[name]=true end
+  local actions=FindAllOf('InputAction')or{}
+  for _,action in ipairs(actions)do
+   local name=full(action)and full(action):match('([^%.:/%s]+)$')
+   if valid(action)and names[name]then
+    assert(not byName[name] or path(byName[name])==path(action),
+     'ambiguous native quickslot action: '..tostring(name))
+    byName[name]=action
+   end
+  end
+  return byName
+ end
+ local runtime=Runtime({category=category,nativeTargets=targets,resolveAll=resolveNative,valid=valid,path=path,unwrap=unwrap,same=function(a,b)return path(a)==path(b)end,each=each,retainInactive=function()local a=retain('InputAction','IA_MCC_NativeActionGate');a.Triggers={};return a end,constructGate=retainGate,chord=function(t)return unwrap(t.ChordAction)end,setChord=function(t,a)t.ChordAction=a end,setTriggers=function(a,v)a.Triggers=v end,rebuild=function()local lib=assert(StaticFindObject('/Script/EnhancedInput.Default__EnhancedInputLibrary'),'EnhancedInputLibrary unavailable');assert(each(playerInput.AppliedInputContexts,function(c)c=unwrap(c);if valid(c)then lib:RequestRebuildControlMappingsUsingContext(c,false)end end),'cannot inspect applied input contexts');return true end,input=input})
+ local api,internal,wakeQueued={},false,false
  api.events=events
+ local indicators=IndicatorMonitor.new({valid=valid,path=path,property=prop,
+  same=function(a,b)return path(a)==path(b)end,
+  resolve=function(name)local ok,value=pcall(StaticFindObject,name);return ok and value or nil end,
+  setAction=function(widget,action)widget:SetEnhancedInputAction(action)end,
+  hud=function()
+   if api.service and type(api.service.currentHud)=='function'then
+    return api.service:currentHud()
+   end
+   return find('WBP_GameHUD_C',function(h)
+    return (full(h)or''):find('/Engine/Transient',1,true)~=nil
+   end)
+  end,
+  load=function()
+   if not ModRef then return nil end
+   local ok,value=pcall(function()return ModRef:GetSharedVariable('MCC.IndicatorActions.v1')end)
+   return ok and value or nil
+  end,
+  save=function(value)
+   if not ModRef then return true end
+   local ok=pcall(function()ModRef:SetSharedVariable('MCC.IndicatorActions.v1',value)end)
+   return ok
+  end,
+ })
+ api.indicators=indicators
  function api:subscribe(name,callback) return self.events:subscribe(name,callback) end
  local function contextName(kind)
   return kind=='RTCombat' and 'combat' or kind=='OW' and 'openworld' or kind
@@ -155,34 +198,51 @@ function M.new(queue,log,category,events)
    if generation~=api.generation or not api.ready then return end
    local service=api.service
    if type(service)~='table' then return end
-   local ok,result=pcall(Delivery.deliver,api.template,api,definition,phase,service)
+   local ok,result=pcall(Delivery.deliver,api.template,api,definition,phase,service,
+    function()return api.enabled and api.ready and api.generation==generation end)
    if not ok or result==false then log('Quickslots action dispatch failed: '..tostring(result)) end
   end)
   if not queued then log('Quickslots game-thread dispatch failed: '..tostring(why)) end
  end
- function api:deactivate(kind)
+ local function retire(self,kind)
   self.active=self.active or {}
+  local detached={}
   if kind then
    internalCall(function()runtime:deactivate(kind)end)
-   if self.active[kind] then self.events:emit('ControlContextDetached',contextName(kind)) end
+   if self.active[kind] then detached[#detached+1]=kind end
    self.active[kind]=nil
   else
    for activeKind in pairs(self.active)do
     internalCall(function()runtime:deactivate(activeKind)end)
-    self.events:emit('ControlContextDetached',contextName(activeKind))
+    detached[#detached+1]=activeKind
    end
    self.active={}
   end
-  if next(self.active)~=nil then return true end
-  self.generation=(self.generation or 0)+1
-  self.bound,self.ready=false,false
-  if self.dispatcher then
-   local closed,why=self.dispatcher:close()
-   if not closed then log('Quickslots bridge close failed: '..tostring(why));return false,why end
-   self.dispatcher=nil
-   self.componentPath=nil
+  local closeWhy
+  if next(self.active)==nil then
+   local restored=indicators:restoreAll()
+   if not restored then log('Quickslot binding indicators could not all be restored')end
+   self.generatedActions,self.generatedPlan=nil,nil
+   self.generation=(self.generation or 0)+1
+   self.bound,self.ready=false,false
+   if self.dispatcher then
+    local closed,why=self.dispatcher:close()
+    if not closed then closeWhy=why;log('Quickslots bridge close failed: '..tostring(why))
+    else self.dispatcher=nil;self.componentPath=nil end
+   end
   end
+  for _,activeKind in ipairs(detached)do
+   self.events:emit('ControlContextDetached',contextName(activeKind))
+  end
+  if closeWhy then return false,closeWhy end
   return true
+ end
+ function api:deactivate(kind)
+  if not kind then
+   self.enabled=false
+   self.template,self.settings,self.service=nil,nil,nil
+  end
+  return retire(self,kind)
  end
  function api:activate(kind,nativePriority,sub,component)
   local template,settings=self.template,self.settings
@@ -210,6 +270,7 @@ function M.new(queue,log,category,events)
     return false,closed and bindWhy or tostring(bindWhy)..'; cleanup: '..tostring(closeWhy)
    end
    self.dispatcher,self.bound,self.ready,self.componentPath=dispatcher,true,false,path(component)
+   self.generatedActions,self.generatedPlan=actions,plan
    self.groupTypes={}
    self.groupModes={}
    for _,definition in ipairs(plan.actions)do
@@ -224,14 +285,13 @@ function M.new(queue,log,category,events)
     if kind==preferred then self.defaultGroup,self.selectedGroup=index,index end
    end
    for index,mode in pairs(self.groupModes)do
-    if mode==-1 or mode==-2 then self.defaultGroup,self.selectedGroup=index,index;break end
+    if mode==-2 then self.defaultGroup,self.selectedGroup=index,index;break end
    end
-   self.defaultUnbound=(self.groupModes[self.defaultGroup]==-1 or self.groupModes[self.defaultGroup]==-2)
   end
   local committed,why=pcall(function()internalCall(function()runtime:commit(kind,sub,nativePriority)end)end)
   if not committed then
    pcall(function()runtime:deactivate(kind)end)
-   self:deactivate()
+   retire(self)
    return false,why
   end
   self.active=self.active or {};self.active[kind]=nativePriority
@@ -241,78 +301,76 @@ function M.new(queue,log,category,events)
   return true
  end
  function api:sync()
-  if not self.template then return self:deactivate() end
+  if not self.enabled or not self.template then return false,'controls disabled' end
   local input,component,pc=gameplayInput()
-  local sub=playerSubsystem(pc)
-  if not valid(input) or not valid(component) or not valid(sub) then
-   self:deactivate();return false,'gameplay Enhanced Input stack unavailable'
+  if not valid(input) or not valid(component) then
+   retire(self);return false,'gameplay Enhanced Input stack unavailable'
   end
-  if self.bound and (self.componentPath~=path(component) or self.subsystem~=sub) then self:deactivate() end
+  local sub=playerSubsystem(pc)
+  if not valid(sub) then
+   retire(self);return false,'gameplay Enhanced Input stack unavailable'
+  end
+  if self.bound and (self.componentPath~=path(component) or self.subsystem~=sub) then retire(self) end
   local wanted=targets();self.active=self.active or {}
   if next(wanted)~=nil then self.nativeSeen=true end
   -- The local player's subsystem is the attachment owner. The game's native
   -- contexts identify gameplay mode when present, but are not a prerequisite
-  -- for adding KEC's own context during the initial player load.
+  -- for adding MCC's own context during the initial player load.
   if next(wanted)==nil and not self.nativeSeen then wanted.OW=0 end
-  if next(wanted)==nil then self:deactivate();return false,'native gameplay context unavailable' end
-  for kind in pairs(self.active)do if wanted[kind]==nil or wanted[kind]~=self.active[kind] then self:deactivate(kind)end end
+  if next(wanted)==nil then retire(self);return false,'native gameplay context unavailable' end
+  for kind in pairs(self.active)do
+   if wanted[kind]==nil or wanted[kind]~=self.active[kind]
+       or (type(runtime.hasMapping)=='function' and not runtime:hasMapping(kind,input)) then
+    retire(self,kind)
+   end
+  end
   for kind,priority in pairs(wanted)do
    if self.active[kind]==nil then
     local ok,why=self:activate(kind,priority,sub,component)
     if not ok then return false,why end
    end
   end
+  if next(self.active)~=nil and type(runtime.ready)=='function' then
+   local ok,why=pcall(function()runtime:ready()end)
+   if not ok then retire(self);return false,why end
+  end
+  if next(self.active)~=nil and self.generatedActions then
+   local ok,complete=pcall(indicators.refresh,indicators,self.generatedActions,self.generatedPlan)
+   if not ok then log('Quickslot binding indicator update failed: '..tostring(complete))end
+  end
   return true
  end
- local startRetry
  function api:apply(template,settings,service)
-  local cleared,why=self:deactivate()
+  local cleared,why=retire(self)
   if not cleared then return false,why end
+  self.enabled=true
   self.template,self.settings,self.service=template,settings,service
+  self.lastPendingReason=nil
   self.defaultGroup=1
   self.selectedGroup=self.defaultGroup
   local active,reason=self:sync()
-  if not active and startRetry then startRetry() end
+  if not active then self.lastPendingReason=reason end
   return active,reason
  end
- local retryScheduled=false
- startRetry=function()
-  if retryScheduled or not api.template or type(ExecuteWithDelay)~='function' then return end
-  if api.active and next(api.active)~=nil then return end
-  retryScheduled=true
-  local scheduled,why=pcall(ExecuteWithDelay,500,function()
-   local queued,queueWhy=pcall(queue,function()
-    retryScheduled=false
-    local ran,active,reason=pcall(function()return api:sync()end)
-    if not ran then log('Enhanced Input retry failed: '..tostring(active))
-    elseif active then log('Quickslot controls attached to player input')
-    else startRetry()end
-   end)
-   if not queued then
-    retryScheduled=false
-    log('Enhanced Input retry queue failed: '..tostring(queueWhy))
-   end
-  end)
-  if not scheduled then
-   retryScheduled=false
-   log('Enhanced Input retry timer failed: '..tostring(why))
-  end
- end
  local function wake()
-  if internal then return end
+  if internal or not api.enabled or wakeQueued then return end
+  wakeQueued=true
   local queued,why=pcall(queue,function()
+   wakeQueued=false
+   if not api.enabled then return end
    local ran,ok,reason=pcall(function()return api:sync()end)
    if not ran then log('Enhanced Input lifecycle sync failed: '..tostring(ok))
    elseif ok==false then
-    if reason~=api.lastPendingReason then log('Enhanced Input lifecycle sync pending: '..tostring(reason))end
+    if reason~='gameplay Enhanced Input stack unavailable' then
+     if reason~=api.lastPendingReason then log('Enhanced Input lifecycle sync pending: '..tostring(reason))end
+    end
     api.lastPendingReason=reason
-    startRetry()
    else
     if api.lastPendingReason then log('Quickslot controls attached to player input')end
     api.lastPendingReason=nil
    end
   end)
-  if not queued then log('Enhanced Input lifecycle wake failed: '..tostring(why))end
+  if not queued then wakeQueued=false;log('Enhanced Input lifecycle wake failed: '..tostring(why))end
  end
  local function hook(path,after)
   local ok,why=pcall(RegisterHook,path,function()end,after)
@@ -320,7 +378,15 @@ function M.new(queue,log,category,events)
   return ok
  end
  local function notify(path)
-  local ok,why=pcall(NotifyOnNewObject,path,function(object)if valid(unwrap(object))then wake()end end)
+  local ok,why=pcall(NotifyOnNewObject,path,function(object)
+   if valid(unwrap(object))then
+    wake()
+    if type(ExecuteWithDelay)=='function' then
+     pcall(ExecuteWithDelay,100,function()wake()end)
+     pcall(ExecuteWithDelay,500,function()wake()end)
+    end
+   end
+  end)
   if not ok then log('Enhanced Input creation notification unavailable: '..path..': '..tostring(why))end
  end
  hook('/Script/EnhancedInput.EnhancedInputSubsystemInterface:AddMappingContext',wake)
@@ -331,10 +397,16 @@ function M.new(queue,log,category,events)
  hook('/Script/Engine.Controller:OnRep_Pawn',wake)
  notify('/Script/Engine.PlayerController')
  notify('/Script/EnhancedInput.EnhancedInputLocalPlayerSubsystem')
- -- The pawn's input component can be constructed after the controller and
- -- subsystem notifications. Recheck on the next game-thread turn, when its
- -- owner has had a chance to assign it to the pawn.
+ -- Creation alone can precede assignment; controller restart post-hooks and
+ -- the bounded checks above provide later lifecycle wakes.
  notify('/Script/EnhancedInput.EnhancedInputComponent')
+ notify('/Game/_Dawnwalker/UI/_Unified/HUD/WBP_GameHUD.WBP_GameHUD_C')
+ notify('/Game/_Dawnwalker/UI/_Unified/ActiveAbilities/WBP_AA_Quickslots.WBP_AA_Quickslots_C')
+ notify('/Game/_Dawnwalker/UI/_Unified/HUD/Quickslots/WBP_HUD_Quickslots.WBP_HUD_Quickslots_C')
+ hook('/Script/UMG.PanelWidget:AddChild',function(parent)
+  local name=full(unwrap(parent))or''
+  if name:find('Quickslots',1,true) then wake() end
+ end)
  if type(RegisterLoadMapPostHook)=='function' then
   local ok,why=pcall(RegisterLoadMapPostHook,function()wake()end)
   if not ok then log('Enhanced Input map-load hook unavailable: '..tostring(why))end

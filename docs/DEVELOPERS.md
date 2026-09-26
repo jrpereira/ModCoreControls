@@ -7,7 +7,7 @@
 
 ModCoreControls owns action mappings, layouts, and input lifetimes. Consumers
 own gameplay callbacks; ModCoreTemplates owns visual template selection.
-Lua imports retain the `kec.*` namespace.
+Lua imports retain the `mcc.*` namespace.
 
 Native input requires the separately installed
 [UE4SSLuaEventBridge](https://github.com/jrpereira/UE4SSLuaEventBridge).
@@ -16,8 +16,8 @@ native bindings; missing bridge APIs leave input attachment pending.
 
 ## Quickslot integration
 
-Its **Extended Controls** mod menu begins with **Actions & Quickslots** and
-owns **Access Method** (Grouped, Flat, Advanced), the controls
+Its mod menu begins with **Actions & Quickslots** and
+owns **Access Method** (Grouped or Flat), the controls
 shown for that method, directional actions, and Tap/Hold bindings. ModCoreTemplates
 keeps template selection and wheel visuals. ModCoreControls starts its own native quickslot
 input host from saved controls and refreshes it on ModCoreControls Apply, whether or not a
@@ -26,28 +26,24 @@ for new mod actions. During player load, the host retries until a live player
 controller, pawn input component, and that controller's Enhanced Input local
 player subsystem are available, then adds ModCoreControls's mapping context to the
 subsystem. It does not wait for Dawnwalker's native context on initial player
-load. It stops retrying after attachment and resumes on a later gameplay
-lifecycle change.
+load. Lifecycle and object-creation events wake a pending attachment attempt.
 
 The menu shows numbered controls. Flat presents Ability 1–4 and Consumable
-1–4 as paired key and Tap/Hold rows. Advanced adds an optional **Activate** key
-for each Flat action and separate group overrides. A bound Activate key must
-be held while pressing the Flat action key. Unbound Activate keys let the
-action key work alone.
-Grouped and Advanced use columns 1–4 within each group. Columns map to the
+1–4 as paired key and Tap/Hold rows. Their defaults use distinct keys 1–8;
+duplicate bindings are rejected when the Flat plan is built. Grouped uses columns 1–4 within each group. Columns map to the
 native Left, Top, Right, and Bottom positions in that order. The player changes
-each key directly; retired Assignment picker values in older configs are
-ignored.
+each key directly. Configuration supports only the displayed Grouped and Flat
+methods and rejects unsupported selector modes.
 Grouped mode presents **Group Key** (Abilities and Consumables) followed by
 **Slot Key** (Slots 1–4). A Group Key selects a whole row; its four Slot Keys
 trigger positions in that row. Each Tap/Hold picker is paired with its key
 capture.
 
-`ModCore/templates/default.tpl` defines **Basic Slots**: two four-position ability
+`Scripts/templates/default.tpl` defines **Basic Slots**: two four-position ability
 groups and one four-position consumable group. The second ability group begins
-hidden. `ModCore/templates/skill_slots.tpl` defines Weapon, day Witchcraft or night
+hidden. `Scripts/templates/skill_slots.tpl` defines Weapon, day Witchcraft or night
 Vampire, and Consumables, with two positions initially shown in each skill
-group. `ModCore/templates/flexi_slots.tpl` defines the 12x1, 6x2, and 4+2x4 grouping
+group. `Scripts/templates/flexi_slots.tpl` defines the 12x1, 6x2, and 4+2x4 grouping
 presets and the ability/consumable order. Each layout has twelve active
 positions and Basic/Skill provide three group rows: a row key selects the
 group, then numbered keys select its columns. ModCoreControls resolves extra position
@@ -70,14 +66,14 @@ actions or displayed by this host.
 
 ## Action and layout API
 
-`kec.core` lets a producer register a stable action ID, label, and callback.
+`mcc.core` lets a producer register a stable action ID, label, and callback.
 Layouts independently bind those IDs to Unreal key names and Tap/Hold triggers.
 The bridge backend turns a plan into Enhanced Input bindings. A consumer
 must call `activate` on the game thread with a backend whose target resolver
 returns exact live input component and subsystem paths.
 
 ```lua
-local Core = require('kec.core')
+local Core = require('mcc.core')
 local controls = Core.new({backend = backend})
 controls:registerAction({id='my_mod.dash', label='Dash', execute=function(event)
     dash(event)
@@ -117,9 +113,9 @@ no execution context. Control-event subscriber arguments are unchanged.
 ## Control events
 
 ModCoreControls publishes stable string identifiers. A consumer in another UE4SS Lua state
-can load `kec.event_transport` from `_ModCore_Controls/Scripts` and call
+can load `mcc.event_transport` from `_ModCore_Controls/Scripts` and call
 `subscribe(name, callback)`. The returned function unsubscribes. Local users of
-`kec.core` or `kec.topology` can call `:subscribe(name, callback)` on their
+`mcc.core` or `mcc.topology` can call `:subscribe(name, callback)` on their
 instance. Listener errors do not interrupt input delivery.
 
 | Event | Callback arguments |

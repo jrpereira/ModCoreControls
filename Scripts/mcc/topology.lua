@@ -3,7 +3,7 @@
 -- shared control per position. Advanced adds group-specific controls to Flat.
 -- The visual consumer may observe group changes.
 local M = {}
-local Events = require('kec.events')
+local Events = require('mcc.events')
 
 local function id(value, where)
     assert(type(value) == 'string' and value:match('^[%a][%w_.%-]*$'),
@@ -57,7 +57,7 @@ function M.new(options)
     end
     local mode = 'Flat'
     local events = options.events or Events.shared()
-    local controlsId = options.id or 'kec.controls'
+    local controlsId = options.id or 'mcc.controls'
     local selectedGroup = options.defaultGroup or groups[1].id
     assert(byId[selectedGroup], 'unknown default group')
     local flatAssignment, groupedAssignment, advancedAssignment = copy(flat), {}, {}

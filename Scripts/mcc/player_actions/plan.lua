@@ -1,33 +1,29 @@
 -- Converts a selected quickslots template and its persisted menu values into
 -- stable Enhanced Input action identities. This is deliberately independent
 -- of UE4SS so it can be validated without a running game.
-local V = require('kec.quickslot_groups')
+local V = require('mcc.quickslot_groups')
 local M = {}
 
 local function binding(value, where)
     assert(type(value) == 'table', where .. ': binding is required')
     assert(type(value.key) == 'number' and value.key >= 0 and value.key <= 254
         and value.key % 1 == 0, where .. ': invalid key')
-    assert(value.mode == 0 or value.mode == 1 or value.mode == 2 or value.mode == -1 or value.mode == -2,
+    assert(value.mode == 0 or value.mode == 1 or value.mode == 2 or value.mode == -2,
         where .. ': invalid mode')
-    local activateKey = value.activateKey or 0
-    assert(type(activateKey) == 'number' and activateKey >= 0 and activateKey <= 254
-        and activateKey % 1 == 0, where .. ': invalid activate key')
-    return {key = value.key, mode = value.mode, activateKey = activateKey}
+    return {key = value.key, mode = value.mode}
 end
 
--- QSF historically exposed these identities. Keep them stable so existing
--- indicator and bridge integration can receive the same UInputAction objects.
+-- Stable MCC action identities for the bridge and input context.
 function M.build(template, settings, category)
     assert(type(template) == 'table' and template.category == 'player.quickslots',
         'quickslots template required')
     assert(type(settings) == 'table', 'quickslots settings required')
     local ordered = V.orderedGroups(template, nil, category and category.actions)
     local access = settings.access
-    assert(access == 0 or access == 1 or access == 2, 'unsupported quickslots access method')
+    assert(access == 0 or access == 1, 'unsupported quickslots access method')
     local result = {access = access, actions = {}}
 
-    if access == 0 or access == 2 then
+    if access == 0 then
         assert(type(settings.direct) == 'table', 'direct quickslots bindings required')
         local primary = settings.PrimaryWheel == 1
             and 'ability' or 'consumable'
@@ -38,8 +34,6 @@ function M.build(template, settings, category)
             if item.value.type == primary then first = item else second = item end
         end
         assert(first and second, 'direct quickslots require ability and consumable action groups')
-        local groupIndices = {}
-        for index, item in ipairs(ordered) do groupIndices[item.key] = index end
         local number = 0
         for _, item in ipairs({first, second}) do
             local slots = assert(settings.direct[item.key], 'missing direct bindings for ' .. item.key)
@@ -49,34 +43,11 @@ function M.build(template, settings, category)
                     id = 'IA_ActionSlot' .. number,
                     group = item.key,
                     type = item.value.type,
-                    groupIndex = access == 2 and groupIndices[item.key] or #result.actions,
                     slot = slot,
                     controlIndex = number,
                     contexts = item.value.contexts or (category and category.contexts) or template.contexts,
                     binding = binding(slots[slot], item.key .. ' slot ' .. slot),
                 }
-            end
-        end
-        if access == 2 then
-            assert(type(settings.advanced) == 'table', 'advanced group bindings required')
-            for groupIndex, item in ipairs(ordered) do
-                local slots = assert(settings.advanced[item.key],
-                    'missing advanced group bindings for ' .. item.key)
-                for slot = 1, item.value.slots do
-                    local slotName = item.value.slotNames and item.value.slotNames[slot] or tostring(slot)
-                    result.actions[#result.actions + 1] = {
-                        id = 'IA_KET_GroupKey_' .. item.value.type .. '_' .. slotName,
-                        group = item.key,
-                        type = item.value.type,
-                        groupIndex = groupIndex,
-                        targetSlot = slot,
-                        actionIndex = settings.assignments and settings.assignments.advanced
-                            and settings.assignments.advanced[item.key]
-                            and settings.assignments.advanced[item.key][slot],
-                        contexts = item.value.contexts or (category and category.contexts) or template.contexts,
-                        binding = binding(slots[slot], item.key .. ' group key ' .. slot),
-                    }
-                end
             end
         end
     else
@@ -85,13 +56,16 @@ function M.build(template, settings, category)
         local maxSlots = 0
         for index, item in ipairs(ordered) do
             maxSlots = math.max(maxSlots, item.value.slots)
+            local selector = binding(settings.groups[item.key], item.key .. ' group binding')
+            assert(selector.mode == 2 or (index == 1 and selector.mode == -2),
+                'unsupported group selector mode')
             result.actions[#result.actions + 1] = {
                 id = 'IA_GroupSlot' .. index,
                 group = item.key,
                 type = item.value.type,
                 groupIndex = index,
                 contexts = item.value.contexts or (category and category.contexts) or template.contexts,
-                binding = binding(settings.groups[item.key], item.key .. ' group binding'),
+                binding = selector,
             }
         end
         for slot = 1, maxSlots do
@@ -102,6 +76,19 @@ function M.build(template, settings, category)
                 contexts = (category and category.contexts) or template.contexts,
                 binding = binding(settings.shared[slot], 'shared slot ' .. slot),
             }
+        end
+    end
+    if access == 0 then
+        local used = {}
+        for _, definition in ipairs(result.actions) do
+            local binding = definition.binding
+            if binding.mode >= 0 and binding.key ~= 0 then
+                local identity = tostring(binding.key) .. ':' .. tostring(binding.mode)
+                if used[identity] then
+                    error('duplicate Flat binding: ' .. used[identity] .. ' and ' .. definition.id)
+                end
+                used[identity] = definition.id
+            end
         end
     end
     return result

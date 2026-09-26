@@ -24,8 +24,8 @@ end
 RegisterHook=function()end
 NotifyOnNewObject=function()end
 local hostEnv
-package.loaded['kec.player_actions.runtime']=function(env)hostEnv=env;return {}end
-local Host=require('kec.player_actions.ue4ss_host')
+package.loaded['mcc.player_actions.runtime']=function(env)hostEnv=env;return {}end
+local Host=require('mcc.player_actions.ue4ss_host')
 Host.new(function(fn)fn()end,function()end)
 local retain=hostEnv.constructGate
 local native={}
@@ -36,9 +36,9 @@ local foreign=object('InputTriggerHold','/Game/Native.Left:OriginalHold')
 native[1].Triggers={foreign}
 local inactive=object('InputAction','/Engine/Transient.Inactive')
 local rebuilds,failRebuild=0,false
-local Gates=require('kec.player_actions.action_gates')
+local Gates=require('mcc.player_actions.action_gates')
 local function manager(factory)
- return Gates({marker='KET_NativeActionGate',valid=function(v)return v and v.valid end,
+ return Gates({marker='MCC_NativeActionGate',valid=function(v)return v and v.valid end,
   path=function(v)return v.path end,same=function(a,b)return a==b end,
   each=function(values,fn)for i,v in ipairs(values)do fn(i,v)end end,
   actions=function()return native end,retainInactive=function()return inactive end,
@@ -75,15 +75,28 @@ assert(#created==6,'failed removal rebuild must not free/reconstruct gates')
 created[1].rooted=false
 local ok,why=pcall(function()gates:update(function()return true end)end)
 assert(not ok and tostring(why):find('not rooted',1,true) and #created==6,
- 'an attached legacy gate must still have its ownership checked')
+ 'an attached existing gate must still have its ownership checked')
 created[1].rooted=true;gates:restoreAll()
 honorRoot=false
 local extra=object('InputAction','/Game/Test.Unrooted')
-local ok,why=pcall(retain,extra,'KET_NativeActionGate')
+local ok,why=pcall(retain,extra,'MCC_NativeActionGate')
 assert(not ok and tostring(why):find('not rooted',1,true),'verify actual root state, not requested flags')
 local collision=object('InputAction','/Game/Test.Collision')
-object('InputTriggerHold',collision.path..':KET_NativeActionGate').rooted=true
+object('InputTriggerHold',collision.path..':MCC_NativeActionGate').rooted=true
 local count=#created
-local ok,why=pcall(retain,collision,'KET_NativeActionGate')
+local ok,why=pcall(retain,collision,'MCC_NativeActionGate')
 assert(not ok and tostring(why):find('unexpected object',1,true) and #created==count)
-print('PASS native gate ownership: root checks, reuse after detach/reload, restoration retry, legacy/collision rejection')
+local failedWalk=manager(retain)
+local saved=hostEnv.each
+-- The manager must fail before writing trigger arrays when Unreal enumeration
+-- reports a partial/failed traversal.
+local guarded=Gates({marker='MCC_NativeActionGate',valid=function(v)return v and v.valid end,
+ path=function(v)return v.path end,same=function(a,b)return a==b end,
+ each=function(values,fn)if values[1]then fn(1,values[1])end;return false end,
+ actions=function()return native end,retainInactive=function()return inactive end,
+ construct=retain,chord=function(g)return g.ChordAction end,
+ setChord=function(g,a)g.ChordAction=a end,setTriggers=function()error('must not write')end,
+ rebuild=function()error('must not rebuild')end})
+local ok,why=pcall(function()guarded:update(function()return true end)end)
+assert(not ok and tostring(why):find('cannot inspect native action triggers',1,true))
+print('PASS native gate ownership: root checks, reuse after detach/reload, restoration retry, unrooted/collision rejection')

@@ -1,4 +1,4 @@
--- Dawnwalker quickslot delivery for KEC's control host. KET owns visuals only.
+-- Dawnwalker quickslot delivery for MCC's control host. MCT owns visuals only.
 local M = {}
 local names = {'Left', 'Top', 'Right', 'Bottom'}
 
@@ -31,6 +31,8 @@ end
 function M.new()
     local service = {}
 
+    function service:currentHud() return hud() end
+
     function service:activateQuickslot(kind, slot)
         local field = kind == 'ability' and 'WBP_AA_Quickslots'
             or kind == 'consumable' and 'WBP_HUD_Quickslots' or nil
@@ -49,7 +51,7 @@ function M.new()
         if not current then return false end
         local switcher = unwrap(current.QuickslotsSwitcher)
         if not valid(switcher) then return false end
-        -- A visual template may have detached one wheel. KEC still selects
+        -- A visual template may have detached one wheel. MCC still selects
         -- the control group, but there is no second switcher child to show.
         local ok, count = pcall(function() return switcher:GetChildrenCount() end)
         if not ok then return false end

@@ -1,7 +1,7 @@
 package.path = 'Scripts/?.lua;' .. package.path
 
-local Delivery = require('kec.player_actions.delivery')
-local Events = require('kec.events')
+local Delivery = require('mcc.player_actions.delivery')
+local Events = require('mcc.events')
 local seen = {}
 local emitted = {}
 local events = Events.new()
@@ -42,18 +42,36 @@ state.settings.access = 1
 assert(Delivery.deliver({}, state,
     {shared=true, slot=2, binding={mode=0}}, 'Triggered', service))
 assert(seen[2] == 'consumable:2')
-assert(Delivery.deliver({}, state,
-    {groupIndex=2, targetSlot=1, type='consumable', actionIndex=1,
-        binding={mode=0}}, 'Triggered', service))
-assert(seen[3] == 'ability:1')
-local groupEvents = {}
-for _, item in ipairs(emitted) do
-    if item[1] == 'ControlGroupFocused' or item[1] == 'ControlGroupUnfocused' then
-        groupEvents[#groupEvents + 1] = item
-    end
+
+-- Overlapping Hold selectors retain the most recently pressed group until its
+-- own release; releasing an older key cannot cancel a newer held selection.
+local held={defaultGroup=1,selectedGroup=1,groupTypes={[1]='ability',[2]='consumable'}}
+local first={id='first',groupIndex=1,binding={mode=2}}
+local second={id='second',groupIndex=2,binding={mode=2}}
+assert(Delivery.deliver({},held,first,'Started',service))
+assert(Delivery.deliver({},held,second,'Started',service))
+assert(Delivery.deliver({},held,first,'Completed',service))
+assert(held.selectedGroup==2)
+assert(Delivery.deliver({},held,second,'Completed',service))
+assert(held.selectedGroup==1)
+
+-- One physical gesture retains its action identity even when group selection
+-- changes between Started and Completed.
+local phases={}
+local gestureEvents=Events.new()
+for _,phase in ipairs({'Started','Triggered','Completed'}) do
+    gestureEvents:subscribe('ControlAction'..phase,function(_,_,action)
+        phases[#phases+1]=phase..':'..action
+    end)
 end
-assert(groupEvents[1][1] == 'ControlGroupUnfocused'
-    and groupEvents[1][3] == 'ability')
-assert(groupEvents[2][1] == 'ControlGroupFocused'
-    and groupEvents[2][3] == 'consumable')
-print('KEC assignments route controls to selected quickslot actions')
+local gesture={id='shared-one',shared=true,slot=1,binding={mode=0}}
+local gestureState={defaultGroup=1,selectedGroup=1,groupTypes={[1]='ability',[2]='consumable'},
+    events=gestureEvents}
+assert(Delivery.deliver({},gestureState,gesture,'Started',service))
+gestureState.selectedGroup=2
+assert(Delivery.deliver({},gestureState,gesture,'Triggered',service))
+assert(Delivery.deliver({},gestureState,gesture,'Completed',service))
+assert(phases[1]=='Started:quickslot.ability.left'
+    and phases[2]=='Triggered:quickslot.ability.left'
+    and phases[3]=='Completed:quickslot.ability.left')
+print('MCC assignments route controls to selected quickslot actions')

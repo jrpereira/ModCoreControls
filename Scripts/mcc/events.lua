@@ -32,7 +32,12 @@ function M.new(options)
         local entry = {callback=callback, active=true}
         entries[#entries + 1] = entry
         return function()
+            if not entry.active then return end
             entry.active = false
+            entry.callback = nil
+            for index, current in ipairs(entries) do
+                if current == entry then table.remove(entries, index); break end
+            end
         end
     end
 

@@ -1,9 +1,9 @@
 package.path = 'Scripts/?.lua;' .. package.path
 
-local Events = require('kec.events')
-local Transport = require('kec.event_transport')
-local Topology = require('kec.topology')
-local Core = require('kec.core')
+local Events = require('mcc.events')
+local Transport = require('mcc.event_transport')
+local Topology = require('mcc.topology')
+local Core = require('mcc.core')
 local shared, handlers = {}, {}
 ModRef = {
     GetSharedVariable=function(_, key) return shared[key] end,
@@ -12,6 +12,17 @@ ModRef = {
 RegisterConsoleCommandHandler = function(command, callback)
     handlers[command] = callback
     return true
+end
+do
+    local unavailableBus=Events.new()
+    local leaked=0
+    local savedModRef,savedRegister=ModRef,RegisterConsoleCommandHandler
+    ModRef,RegisterConsoleCommandHandler=nil,nil
+    assert(not pcall(Transport.subscribe,'ControlActionTriggered',function()leaked=leaked+1 end,
+        unavailableBus))
+    unavailableBus:emit('ControlActionTriggered','controls','ability','slot')
+    assert(leaked==0,'failed transport setup must not retain a local listener')
+    ModRef,RegisterConsoleCommandHandler=savedModRef,savedRegister
 end
 local viewport = {IsValid=function() return true end,
     ProcessConsoleExec=function(_, command)
@@ -29,6 +40,12 @@ assert(remote[1] == 'combat')
 stop()
 producer:emit('ControlContextDetached', 'openworld')
 assert(#remote == 1)
+local secondBus=Events.new()
+local second=0
+local stopSecond=Transport.subscribe('ControlContextDetached',function()second=second+1 end,secondBus)
+producer:emit('ControlContextDetached','combat')
+assert(second==1,'each explicitly subscribed event bus must receive transport delivery')
+stopSecond()
 
 local seen, executed = {}, 0
 local bus = Events.new({onError=function() end})
@@ -78,4 +95,4 @@ assert(seen[10][1] == 'ControlActionTriggered'
 assert(executed == 2)
 assert(not pcall(Events.canonical, 'ControlActionEnded'))
 assert(not pcall(Events.canonical, 'ControlContextDettached'))
-print('KEC lifecycle events and cross-mod delivery passed')
+print('MCC lifecycle events and cross-mod delivery passed')

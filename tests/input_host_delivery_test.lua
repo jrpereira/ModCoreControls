@@ -24,7 +24,8 @@ end
 StaticFindObject = function() return nil end
 StaticConstructObject = function() return nil end
 FName = function(value) return value end
-RegisterHook = function() end
+local hooks={}
+RegisterHook = function(path,_,after) hooks[path]=after end
 local notifications={}
 NotifyOnNewObject = function(path, fn) notifications[path]=fn end
 local bridgeApiVersion = 3
@@ -33,11 +34,11 @@ UE4SSLuaEventBridge = {API_VERSION=4,GetCapabilities=function() return {api=brid
     OpenInputComponent=function() end, BindAction=function() end, CloseInputComponent=function() end}
 
 local plan = {actions={
-    {id='IA_GroupSlot1',groupIndex=1,type='ability',binding={key=0,mode=-1}},
-    {id='IA_GroupSlot2',groupIndex=2,type='consumable',binding={key=164,mode=0}},
+    {id='IA_GroupSlot1',groupIndex=1,type='ability',binding={key=0,mode=-2}},
+    {id='IA_GroupSlot2',groupIndex=2,type='consumable',binding={key=164,mode=2}},
     {id='IA_SharedSlot1',shared=true,slot=1,binding={key=49,mode=0}},
 }}
-package.loaded['kec.player_actions.runtime'] = function()
+package.loaded['mcc.player_actions.runtime'] = function()
     return {
         prepare=function() return {},plan end,
         commit=function(_,kind,owner)
@@ -49,14 +50,14 @@ package.loaded['kec.player_actions.runtime'] = function()
         deactivate=function() end,
     }
 end
-package.loaded['kec.player_actions.dispatch'] = function()
+package.loaded['mcc.player_actions.dispatch'] = function()
     return {
         bind=function(_,_,_,_,fn) callback=fn;return true end,
         close=function() closed=closed+1;return true end,
     }
 end
 local category = {contexts={'openworld'},actions={}}
-local events = require('kec.events').new()
+local events = require('mcc.events').new()
 local lifecycle = {}
 events:subscribe('ControlContextAttached', function(context)
     lifecycle[#lifecycle + 1] = 'attached:' .. context
@@ -64,7 +65,7 @@ end)
 events:subscribe('ControlContextDetached', function(context)
     lifecycle[#lifecycle + 1] = 'detached:' .. context
 end)
-local host = require('kec.player_actions.ue4ss_host').new(function(fn) fn() end,
+local host = require('mcc.player_actions.ue4ss_host').new(function(fn) fn() end,
     function(message) error(message) end, category, events)
 local service = {
     activateQuickslot=function(_,kind,slot) calls[#calls+1]=kind..':'..slot;return true end,
@@ -79,9 +80,9 @@ assert(commits == 1)
 assert(lifecycle[1] == 'attached:openworld')
 local activeCallback = callback
 activeCallback(plan.actions[3], 'Triggered')
-activeCallback(plan.actions[2], 'Triggered')
+activeCallback(plan.actions[2], 'Started')
 activeCallback(plan.actions[3], 'Triggered')
-activeCallback(plan.actions[2], 'Triggered')
+activeCallback(plan.actions[2], 'Completed')
 activeCallback(plan.actions[3], 'Triggered')
 assert(table.concat(calls, ',') == 'ability:1,group:2,consumable:1,group:1,ability:1')
 assert(host:deactivate() and closed == 1)
@@ -93,18 +94,16 @@ pawn.InputComponent=nil
 staleController = object('BP_PlayerController_C /Game/PreviousWorld.BP_PlayerController_C.Instance')
 staleController.PlayerInput = input
 staleController.AcknowledgedPawn = object('Pawn /Game/PreviousWorld.Pawn')
-local timers={}
-ExecuteWithDelay=function(_,fn) timers[#timers+1]=fn end
 local retryLogs={}
-local later = require('kec.player_actions.ue4ss_host').new(function(fn) fn() end,
+local later = require('mcc.player_actions.ue4ss_host').new(function(fn) fn() end,
     function(message) retryLogs[#retryLogs+1]=message end, category)
 local ready,why=later:apply({category='player.quickslots'}, {PrimaryWheel=1}, service)
 assert(not ready and why=='gameplay Enhanced Input stack unavailable')
-assert(#timers == 1, 'pending player load must schedule a retry')
+assert(not later.bound and commits==1,
+    'a pawn without an assigned input component must not bind or gate input')
 pawn.InputComponent=component
-timers[1]()
-assert(commits==2, 'retry must attach to the ready player after pawn input assignment')
-assert(#timers==1, 'successful attachment must stop the retry loop')
+hooks['/Script/Engine.PlayerController:ClientRestart']()
+assert(commits==2, 'controller restart post-hook must attach after pawn input assignment')
 assert(retryLogs[1]=='Quickslot controls attached to player input')
 assert(later:deactivate())
 directControllerLookup=true
@@ -116,10 +115,10 @@ local oldSubsystem=object('EnhancedInputLocalPlayerSubsystem /Game/Previous.Subs
 oldSubsystem.GetOuter=function() return object('LocalPlayer /Game/Previous.LocalPlayer') end
 subsystems={oldSubsystem,subsystem}
 input.AppliedInputContexts={}
-local early = require('kec.player_actions.ue4ss_host').new(function(fn) fn() end,
+local early = require('mcc.player_actions.ue4ss_host').new(function(fn) fn() end,
     function(message) error(message) end, category)
 assert(early:apply({category='player.quickslots'}, {PrimaryWheel=1}, service),
-    'KEC must attach to the player subsystem before the game adds native contexts')
+    'MCC must attach to the player subsystem before the game adds native contexts')
 assert(commits==3)
 assert(early:deactivate())
 print('PASS input host delivery: bound before gate, shared group routing, stale callback guard')

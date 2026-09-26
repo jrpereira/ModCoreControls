@@ -17,7 +17,7 @@ Run the commands below from the repository root.
 ## Source preparation
 
 The [menu generator](../tools/generate_menu.py) reads the declarative
-[default layout](../ModCore/templates/default.tpl). Run it only in a development copy:
+[default layout](../Scripts/templates/default.tpl). Run it only in a development copy:
 
 ```sh
 python3 tools/generate_menu.py
@@ -47,14 +47,14 @@ Controls suppresses its allowlisted native quickslot actions by attaching an
 `InputTriggerChordAction` that requires an unmapped inactive action. Generated
 Controls actions and their DLL callbacks provide replacement input behavior.
 
-The host constructs each named `KET_NativeActionGate` with `RF_Transient |
+The host constructs each named `MCC_NativeActionGate` with `RF_Transient |
 RF_MarkAsRootSet` (`0xC0`) and verifies its actual internal `RootSet` bit. It
 looks up the same object path before construction, so detaching, applying again,
 or rebuilding the Lua host reuses the gate. Existing attached gates are also
 validated; an old unrooted gate requires a fresh game process.
 
 Ownership intentionally lasts until process exit. The native allowlist bounds
-this to one gate per action (at most six with the current list). These roots also
+this to one gate per action (at most five with the current list). These roots also
 retain their outer action assets and their inactive chord action. They must not
 be generalized to per-pawn or unbounded dynamic targets. Merely storing a Lua
 wrapper is not an Unreal GC ownership mechanism.

@@ -1,5 +1,5 @@
--- The bundled UE4SS Lua Event Bridge owns native input objects. KEC owns the
--- action-to-control map and is the only installed mod folder for both pieces.
+-- The separately installed UE4SS Lua Event Bridge owns native input objects.
+-- MCC owns the action-to-control map.
 local M = {}
 
 function M.new(options)
@@ -13,7 +13,7 @@ function M.new(options)
         if type(bridge) ~= 'table' or type(bridge.Helpers) ~= 'table'
             or type(bridge.Helpers.OpenInput) ~= 'function'
             or type(bridge.Helpers.Trigger) ~= 'table' then
-            return nil, 'bundled UE4SS Lua Event Bridge helper API unavailable'
+            return nil, 'UE4SS Lua Event Bridge helper API unavailable'
         end
         local caps = type(bridge.GetCapabilities) == 'function'
             and bridge.GetCapabilities() or nil
@@ -32,21 +32,28 @@ function M.new(options)
             debug_label='ModCoreControls',
         })
         if not scope then return nil, why end
+        local function closeScope(reason)
+            local called, closed, closeWhy = pcall(scope.Close,scope)
+            if called and closed then return nil, reason end
+            return nil, tostring(reason) .. '; cleanup: ' .. tostring(called and closeWhy or closed),
+                {close=function() return scope:Close() end}
+        end
         for _, item in ipairs(plan) do
             local trigger = bridge.Helpers.Trigger[item.trigger]
             if trigger == nil then
-                scope:Close()
-                return nil, 'unsupported trigger: ' .. tostring(item.trigger)
+                return closeScope('unsupported trigger: ' .. tostring(item.trigger))
             end
             local settings = {threshold_seconds=item.threshold_seconds,
                 one_shot=item.one_shot}
-            local handle, bindWhy = scope:Bind(item.key, trigger, function(event)
+            local bound = table.pack(pcall(scope.Bind, scope, item.key, trigger, function(event)
                 options.queue(function() emit(item.action, event) end)
-            end, settings)
+            end, settings))
+            if not bound[1] then
+                return closeScope('binding failed: ' .. tostring(bound[2]))
+            end
+            local handle, bindWhy = bound[2], bound[3]
             if not handle then
-                local closed, closeWhy = scope:Close()
-                if not closed then bindWhy = tostring(bindWhy) .. '; cleanup: ' .. tostring(closeWhy) end
-                return nil, bindWhy
+                return closeScope(bindWhy)
             end
         end
         return {close=function()

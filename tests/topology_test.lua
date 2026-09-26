@@ -1,5 +1,5 @@
 package.path = 'Scripts/?.lua;' .. package.path
-local Topology = require('kec.topology')
+local Topology = require('mcc.topology')
 local delivered, selected = {}, {}
 local topology = Topology.new({groups={
     {id='ability', label='Abilities', actions={
@@ -32,4 +32,4 @@ assert(topology:group() == 'ability')
 assert(topology:assign('Advanced', 2, 'quickslot.consumable.right', 'ability'))
 assert(topology:trigger('group.ability.slot.2') == 'quickslot.consumable.right')
 assert(#delivered == 7)
-print('KEC Flat, Groups, and Advanced topology passed')
+print('MCC Flat, Groups, and Advanced topology passed')

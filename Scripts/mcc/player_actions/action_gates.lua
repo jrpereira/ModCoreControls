@@ -8,10 +8,11 @@ return function(e)
 
     local function triggerList(action)
         local list = {}
-        e.each(action.Triggers, function(_, trigger)
+        local walked = e.each(action.Triggers, function(_, trigger)
             trigger = e.unwrap and e.unwrap(trigger) or trigger
             if e.valid(trigger) then list[#list + 1] = trigger end
         end)
+        assert(walked ~= false, 'cannot inspect native action triggers: ' .. tostring(e.path(action)))
         return list
     end
     local function owned(trigger, action)

@@ -1,10 +1,11 @@
--- Cross-mod delivery for KEC's string-identity events. Each subscriber owns
+-- Cross-mod delivery for MCC's string-identity events. Each subscriber owns
 -- one UE4SS console command; the publisher sends through ModRef shared data.
-local Events = require('kec.events')
+local Events = require('mcc.events')
 local M = {}
-local registryKey = 'KEC_ControlEvents_v1.subscribers'
-local prefix = 'KEC_ControlEvents_v1_'
+local registryKey = 'MCC_ControlEvents_v1.subscribers'
+local prefix = 'MCC_ControlEvents_v1_'
 local installed
+local buses = setmetatable({}, {__mode='k'})
 
 local function hex(value)
     if value == nil then return '-' end
@@ -23,7 +24,7 @@ end
 local function members()
     local result = {}
     for command in tostring(ModRef:GetSharedVariable(registryKey) or ''):gmatch('[^\n]+') do
-        if command:match('^KEC_ControlEvents_v1_[%w]+$') then
+        if command:match('^MCC_ControlEvents_v1_[%w]+$') then
             result[#result + 1] = command
         end
     end
@@ -36,7 +37,6 @@ end
 
 function M.subscribe(name, callback, bus)
     bus = bus or Events.shared()
-    local unsubscribe = bus:subscribe(name, callback)
     assert(ModRef and type(RegisterConsoleCommandHandler) == 'function',
         'UE4SS cross-mod event subscription unavailable')
     if not installed then
@@ -48,7 +48,9 @@ function M.subscribe(name, callback, bus)
                     'missing control event payload')
                 local event, a, b, c = payload:match('^([^\n]+)\n([^\n]+)\n([^\n]+)\n([^\n]+)$')
                 assert(event and a and b and c, 'invalid control event payload')
-                bus:receive(event, unhex(a), unhex(b), unhex(c))
+                for target, count in pairs(buses) do
+                    if count > 0 then target:receive(event, unhex(a), unhex(b), unhex(c)) end
+                end
             end)
             if not accepted then
                 print('[ModCoreControls] event receive failed: ' .. tostring(problem) .. '\n')
@@ -61,7 +63,16 @@ function M.subscribe(name, callback, bus)
         save(list)
         installed = command
     end
-    return unsubscribe
+    local unsubscribe = bus:subscribe(name, callback)
+    buses[bus] = (buses[bus] or 0) + 1
+    local active = true
+    return function()
+        if not active then return end
+        active = false
+        unsubscribe()
+        local remaining = (buses[bus] or 1) - 1
+        buses[bus] = remaining > 0 and remaining or nil
+    end
 end
 
 function M.publisher(resolveController)

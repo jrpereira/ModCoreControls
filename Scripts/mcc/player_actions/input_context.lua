@@ -1,4 +1,4 @@
-local Plan = require('kec.player_actions.plan')
+local Plan = require('mcc.player_actions.plan')
 
 return function(e)
     local contexts, actions = {}, {}
@@ -40,30 +40,13 @@ return function(e)
         for _,d in ipairs(plan.actions) do
             local a=action(d.id); a.ValueType,a.bConsumeInput,a.bTriggerWhenPaused=0,false,false
             if d.binding.mode >= 0 then trigger(a,d.binding.mode) else a.Triggers={} end
-            if d.binding.activateKey ~= 0 then
-                local activateId='IA_ActivateSlot' .. d.controlIndex
-                local activateAction=action(activateId)
-                activateAction.ValueType,activateAction.bConsumeInput,activateAction.bTriggerWhenPaused=0,false,false
-                activateAction.Triggers={}
-                local chord=e.retainTrigger(a,'InputTriggerChordAction')
-                assert(valid(chord),'input chord trigger unavailable')
-                chord.ChordAction=activateAction
-                local triggers={}
-                for _,existing in ipairs(a.Triggers) do triggers[#triggers+1]=existing end
-                triggers[#triggers+1]=chord
-                a.Triggers=triggers
-                current[activateId]=activateAction
-            end
             current[d.id]=a
         end
         for kind in pairs(names) do
             local c=context(kind); c:UnmapAll()
             for _,d in ipairs(plan.actions) do if applies(d, kind) and d.binding.mode >= 0 and d.binding.key ~= 0 then
-                c:MapKey(current[d.id], {KeyName=e.name(assert(e.key(d.binding.key), 'unsupported key for '..d.id))})
-                if d.binding.activateKey ~= 0 then
-                    c:MapKey(current['IA_ActivateSlot' .. d.controlIndex],
-                        {KeyName=e.name(assert(e.key(d.binding.activateKey), 'unsupported activate key for '..d.id))})
-                end
+                c:MapKey(current[d.id], {KeyName=e.name(assert(e.key(d.binding.key),
+                    'unsupported key '..tostring(d.binding.key)..' for '..d.id))})
             end end
         end
         self.plan,self.actions=plan,current; return current,plan
@@ -71,6 +54,18 @@ return function(e)
     function api:attach(kind, subsystem, nativePriority)
         subsystem:AddMappingContext(context(kind), 1000 + assert(tonumber(nativePriority), 'native context priority required'), options)
         self.subsystems=self.subsystems or {}; self.subsystems[kind]=subsystem; return true
+    end
+    function api:hasMapping(kind, playerInput)
+        local owned=contexts[kind]
+        if not valid(owned) or not valid(playerInput) then return false end
+        local applied=playerInput.AppliedInputContexts
+        if not applied then return false end
+        local found=false
+        local walked=e.each(applied,function(candidate)
+            candidate=e.unwrap and e.unwrap(candidate) or candidate
+            if valid(candidate) and e.path(candidate)==e.path(owned) then found=true end
+        end)
+        return walked~=false and found
     end
     function api:detach(kind)
         local s=self.subsystems and self.subsystems[kind]

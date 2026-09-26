@@ -1,13 +1,16 @@
 package.path = 'Scripts/?.lua;Scripts/?/init.lua;' .. package.path
-local Core = require('kec.core')
-local Events = require('kec.events')
+local Core = require('mcc.core')
+local Events = require('mcc.events')
 local function fixture()
     local installs, calls, deferred = {}, {}, {}
     local events = Events.new()
     local backend = {}
     function backend:install(_, emit)
-        local installation = {emit=emit, closeOk=true}
-        function installation:close() return self.closeOk, 'close failed' end
+        local installation = {emit=emit, closeOk=not self.failReplacementClose, closeCalls=0}
+        function installation:close()
+            self.closeCalls=self.closeCalls+1
+            return self.closeOk, 'close failed'
+        end
         installs[#installs + 1] = installation
         -- A backend may deliver synchronously while installing.
         assert(emit('dash', {}) == false)
@@ -87,4 +90,59 @@ do
     assert(c:dispatch('dash', {}) == 'delivered')
     assert(#calls == 1 and calls[1].context == nil)
 end
-print('KEC generation lifecycle passed')
+-- Both close attempts can fail; the replacement remains owned for later retry.
+do
+    local c, backend, installs=fixture()
+    assert(c:activate('combat'))
+    installs[1].closeOk=false
+    backend.failReplacementClose=true
+    local ok,why=c:activate('other')
+    assert(not ok and why:find('replacement cleanup',1,true))
+    assert(installs[2].closeCalls==1)
+    assert(c:deactivate()==false and installs[2].closeCalls==2
+        and installs[1].closeCalls==2)
+    installs[2].closeOk=true
+    installs[1].closeOk=true
+    assert(c:deactivate())
+    assert(installs[2].closeCalls==3 and installs[1].closeCalls==3)
+end
+do
+    local scope={canClose=false,calls=0}
+    function scope:close()
+        self.calls=self.calls+1
+        return self.canClose,'scope close failed'
+    end
+    local installs=0
+    local backend={install=function()
+        installs=installs+1
+        if installs==1 then return nil,'binding failed',scope end
+        return {close=function() return true end}
+    end}
+    local c=Core.new({backend=backend})
+    c:registerAction({id='dash',label='Dash',execute=function() end})
+    c:registerLayout({id='default',label='Default',bindings={dash={key='F10',trigger='Tap'}}})
+    local ok,why=c:activate('combat')
+    assert(not ok and why=='binding failed')
+    ok,why=c:activate('combat')
+    assert(not ok and why:find('pending input cleanup',1,true) and installs==1)
+    scope.canClose=true
+    assert(c:activate('combat') and installs==2 and scope.calls==2)
+    assert(c:deactivate())
+end
+-- Lifecycle callbacks may replace the just-committed generation. The outer
+-- transition must not overwrite or leak the listener's replacement.
+do
+    local c, _, installs, calls = fixture()
+    assert(c:activate('first'))
+    local once=true
+    local events=c:events()
+    events:subscribe('ControlContextDetached',function()
+        if once then once=false;assert(c:activate('listener')) end
+    end)
+    assert(c:activate('outer'))
+    assert(#installs==3 and installs[2].closeCalls==1)
+    assert(c:deactivate())
+    assert(installs[3].closeCalls==1)
+    assert(installs[3].emit('dash',{})==false and #calls==0)
+end
+print('MCC generation lifecycle passed')

@@ -26,7 +26,7 @@ return function(e)
         for _, definition in ipairs(plan.actions) do
             if definition.binding.key ~= 0 and definition.binding.mode >= 0 then
                 local action = assert(actions[definition.id], 'missing generated action: ' .. definition.id)
-                local phases = (definition.slot or definition.targetSlot)
+                local phases = definition.slot
                     and {'Started','Triggered','Completed','Canceled'}
                     or definition.binding.mode == 2 and {'Started','Completed','Canceled'}
                     or {'Triggered'}

@@ -1,5 +1,5 @@
 package.path = 'Scripts/?.lua;Scripts/?/init.lua;' .. package.path
-local Core = require('kec.core')
+local Core = require('mcc.core')
 local installs, closed, delivered = {}, 0, {}
 local backend = {install=function(_, plan, emit)
     installs[#installs + 1] = plan
@@ -38,4 +38,4 @@ local duplicate = pcall(function()
     controls:registerAction({id='skill.dash', label='Duplicate', execute=function() end})
 end)
 assert(not duplicate)
-print('KEC action/layout core passed')
+print('MCC action/layout core passed')

@@ -1,6 +1,6 @@
 package.path = 'Scripts/?.lua;' .. package.path
 
-local Dispatch = require('kec.player_actions.dispatch')
+local Dispatch = require('mcc.player_actions.dispatch')
 local calls, closed, failedAt = {}, 0, nil
 local bridge = {
     OpenInputComponent = function(path)
@@ -29,7 +29,7 @@ local actions = {
     IA_SharedSlot2=action('IA_SharedSlot2'),
 }
 local plan = {actions={
-    {id='IA_GroupSlot1',binding={key=0,mode=-1}},
+    {id='IA_GroupSlot1',binding={key=0,mode=-2}},
     {id='IA_GroupSlot2',binding={key=164,mode=2}},
     {id='IA_SharedSlot1',binding={key=49,mode=0}},
     {id='IA_SharedSlot2',binding={key=0,mode=0}},

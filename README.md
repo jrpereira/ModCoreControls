@@ -8,7 +8,7 @@ Controls handles input ownership; your callback still has to do the interesting 
 
 ## Features
 
-- Grouped, Flat, and Advanced quickslot controls with configurable key/mode pairs.
+- Grouped and Flat quickslot controls with configurable key/mode pairs.
 - Reusable action/layout APIs and control-phase events.
 - Generation checks that reject callbacks from retired binding installations.
 - Suppression of allowlisted native actions while replacement controls are active.

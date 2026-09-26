@@ -1,5 +1,5 @@
 package.path = 'Scripts/?.lua;' .. package.path
-local codes=require('kec.player_actions.key_codes')
+local codes=require('mcc.player_actions.key_codes')
 assert(codes.toName(49)=='One')
 assert(codes.toName(81)=='Q')
 assert(codes.toName(53)=='Five')

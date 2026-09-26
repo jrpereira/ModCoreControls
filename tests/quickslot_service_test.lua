@@ -1,5 +1,5 @@
 package.path='Scripts/?.lua;'..package.path
-local Service=require('kec.player_actions.quickslot_service')
+local Service=require('mcc.player_actions.quickslot_service')
 local calls={}
 local function valid(object)
     object.IsValid=function() return true end
@@ -22,4 +22,4 @@ assert(service:selectQuickslotGroup(1))
 assert(service:activateQuickslot('ability',1))
 assert(table.concat(calls,',')=='wheel:1,consumable,ability',
     'detached wheel selection must not address a missing switcher child')
-print('KEC quickslot service routes native two-group controls with or without a detached wheel')
+print('MCC quickslot service routes native two-group controls with or without a detached wheel')
