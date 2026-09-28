@@ -1,10 +1,10 @@
-local Runtime=require('mcc.player_actions.runtime')
-local Dispatch=require('mcc.player_actions.dispatch')
-local Delivery=require('mcc.player_actions.delivery')
-local targets=require('mcc.player_actions.native_targets')
-local keyCodes=require('mcc.player_actions.key_codes')
-local IndicatorMonitor=require('mcc.player_actions.indicator_monitor')
-local Events=require('mcc.events')
+local Runtime=require('mc.player_actions.runtime')
+local Dispatch=require('mc.player_actions.dispatch')
+local Delivery=require('mc.player_actions.delivery')
+local targets=require('mc.player_actions.native_targets')
+local keyCodes=require('mc.player_actions.key_codes')
+local IndicatorMonitor=require('mc.player_actions.indicator_monitor')
+local Events=require('mc.events')
 local M={}
 local function unwrap(v) if v==nil then return end local ok,x=pcall(function()return v:get()end);return ok and x or v end
 local function valid(v)local ok,x=pcall(function()return v~=nil and v:IsValid()end);return ok and x==true end

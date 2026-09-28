@@ -1,7 +1,7 @@
 -- Action identities and player controls are deliberately separate. A producer
 -- registers what an action does; a layout decides which input invokes it.
 local M = {}
-local Events = require('mcc.events')
+local Events = require('mc.events')
 
 local function identifier(value, what)
     assert(type(value) == 'string' and value:match('^[%a][%w_.%-]*$') and #value <= 96,

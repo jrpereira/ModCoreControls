@@ -24,8 +24,8 @@ end
 RegisterHook=function()end
 NotifyOnNewObject=function()end
 local hostEnv
-package.loaded['mcc.player_actions.runtime']=function(env)hostEnv=env;return {}end
-local Host=require('mcc.player_actions.ue4ss_host')
+package.loaded['mc.player_actions.runtime']=function(env)hostEnv=env;return {}end
+local Host=require('mc.player_actions.ue4ss_host')
 Host.new(function(fn)fn()end,function()end)
 local retain=hostEnv.constructGate
 local native={}
@@ -36,7 +36,7 @@ local foreign=object('InputTriggerHold','/Game/Native.Left:OriginalHold')
 native[1].Triggers={foreign}
 local inactive=object('InputAction','/Engine/Transient.Inactive')
 local rebuilds,failRebuild=0,false
-local Gates=require('mcc.player_actions.action_gates')
+local Gates=require('mc.player_actions.action_gates')
 local function manager(factory)
  return Gates({marker='MCC_NativeActionGate',valid=function(v)return v and v.valid end,
   path=function(v)return v.path end,same=function(a,b)return a==b end,

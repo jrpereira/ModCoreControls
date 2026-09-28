@@ -4,21 +4,21 @@ local root = assert(scripts:match('^(.*)[/\\]Scripts$') or
     (scripts == 'Scripts' and '.'), 'cannot locate MCC mod folder')
 package.path = scripts .. '/?.lua;' .. package.path
 local ok, err = pcall(function()
-    local layouts = require('mcc.layout_templates')
+    local layouts = require('mc.layout_templates')
     ModCoreControls = {
-        new = require('mcc.core').new,
-        newTopology = require('mcc.topology').new,
+        new = require('mc.core').new,
+        newTopology = require('mc.topology').new,
         loadLayout = layouts.load,
-        defaultLayout = function() return layouts.load(root .. '/Scripts/templates/default.tpl') end,
-        skillLayout = function() return layouts.load(root .. '/Scripts/templates/skill_slots.tpl') end,
-        flexiLayout = function() return layouts.load(root .. '/Scripts/templates/flexi_slots.tpl') end,
+        defaultLayout = function() return layouts.load(root .. '/Scripts/ModCore/default.tpl') end,
+        skillLayout = function() return layouts.load(root .. '/Scripts/ModCore/skill_slots.tpl') end,
+        flexiLayout = function() return layouts.load(root .. '/Scripts/ModCore/flexi_slots.tpl') end,
         activeGroups = layouts.activeGroups,
         resolveLayout = layouts.resolve,
         flexiGroups = layouts.flexiGroups,
-        readGameSlots = require('mcc.game_slots').read,
-        bridgeBackend = require('mcc.bridge_backend').new,
-        events = require('mcc.events').shared(),
-        subscribe = require('mcc.event_transport').subscribe,
+        readGameSlots = require('mc.game_slots').read,
+        bridgeBackend = require('mc.bridge_backend').new,
+        events = require('mc.events').shared(),
+        subscribe = require('mc.event_transport').subscribe,
     }
     if type(ExecuteInGameThread) == 'function' then
         local function log(message)
@@ -32,11 +32,11 @@ local ok, err = pcall(function()
         }}
         local template = {name='Native Quickslots',category='player.quickslots',
             contexts=category.contexts}
-        local host = require('mcc.player_actions.ue4ss_host').new(
+        local host = require('mc.player_actions.ue4ss_host').new(
             ExecuteInGameThread, log, category)
-        local service = require('mcc.player_actions.quickslot_service').new()
+        local service = require('mc.player_actions.quickslot_service').new()
         local function apply()
-            local settings = require('mcc.quickslot_config').read(root .. '/config.ini')
+            local settings = require('mc.quickslot_config').read(root .. '/config.ini')
             settings.PrimaryWheel = 1
             local active, why = host:apply(template, settings, service)
             if not active and why ~= 'gameplay Enhanced Input stack unavailable' then
@@ -51,7 +51,7 @@ local ok, err = pcall(function()
         end
         ModCoreControls.quickslotHost = host
         if ModRef and type(FindAllOf) == 'function' then
-            local Transport = require('mcc.event_transport')
+            local Transport = require('mc.event_transport')
             ModCoreControls.events:setPublisher(Transport.publisher(function()
                 local ok, controllers = pcall(FindAllOf, 'BP_PlayerController_C')
                 if not ok or type(controllers) ~= 'table' then return nil end

@@ -2,7 +2,7 @@ package.path = 'Scripts/?.lua;' .. package.path
 
 local applied = {count=0}
 local inGameThread=false
-package.loaded['mcc.player_actions.ue4ss_host'] = {
+package.loaded['mc.player_actions.ue4ss_host'] = {
     new=function()
         return {apply=function(_,template,settings,service)
             assert(inGameThread,'all quickslot Apply work must run on the game thread')

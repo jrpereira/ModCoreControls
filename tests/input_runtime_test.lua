@@ -1,5 +1,5 @@
 package.path = 'Scripts/?.lua;Scripts/?/init.lua;' .. package.path
-local Runtime = require('mcc.player_actions.runtime')
+local Runtime = require('mc.player_actions.runtime')
 local objects = {}
 local function object(name)
     local value = {name=name, valid=true, Mappings={}, Triggers={}}

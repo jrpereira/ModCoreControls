@@ -1,5 +1,5 @@
 package.path = 'Scripts/?.lua;Scripts/?/init.lua;' .. package.path
-local Plan = require('mcc.player_actions.plan')
+local Plan = require('mc.player_actions.plan')
 
 local function check(value, message) assert(value, message) end
 local template = {

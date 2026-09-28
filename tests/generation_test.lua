@@ -1,6 +1,6 @@
 package.path = 'Scripts/?.lua;Scripts/?/init.lua;' .. package.path
-local Core = require('mcc.core')
-local Events = require('mcc.events')
+local Core = require('mc.core')
+local Events = require('mc.events')
 local function fixture()
     local installs, calls, deferred = {}, {}, {}
     local events = Events.new()

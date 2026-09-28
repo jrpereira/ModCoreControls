@@ -26,8 +26,8 @@ FName=function(value) return value end
 RegisterHook=function() end
 NotifyOnNewObject=function() end
 local env
-package.loaded['mcc.player_actions.runtime']=function(value) env=value;return {} end
-require('mcc.player_actions.ue4ss_host').new(function(callback)callback()end,function()end)
+package.loaded['mc.player_actions.runtime']=function(value) env=value;return {} end
+require('mc.player_actions.ue4ss_host').new(function(callback)callback()end,function()end)
 local first=env.input.retain('InputAction','IA_SharedSlot1')
 assert(first.path=='/Engine/Transient.IMC_MCC_ActionOwner:IA_SharedSlot1')
 assert(#constructed==2 and constructed[1]=='/Engine/Transient.IMC_MCC_ActionOwner')

@@ -1,7 +1,7 @@
 -- Converts a selected quickslots template and its persisted menu values into
 -- stable Enhanced Input action identities. This is deliberately independent
 -- of UE4SS so it can be validated without a running game.
-local V = require('mcc.quickslot_groups')
+local V = require('mc.quickslot_groups')
 local M = {}
 
 local function binding(value, where)

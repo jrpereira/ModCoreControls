@@ -38,7 +38,7 @@ local plan = {actions={
     {id='IA_GroupSlot2',groupIndex=2,type='consumable',binding={key=164,mode=2}},
     {id='IA_SharedSlot1',shared=true,slot=1,binding={key=49,mode=0}},
 }}
-package.loaded['mcc.player_actions.runtime'] = function()
+package.loaded['mc.player_actions.runtime'] = function()
     return {
         prepare=function() return {},plan end,
         commit=function(_,kind,owner)
@@ -50,14 +50,14 @@ package.loaded['mcc.player_actions.runtime'] = function()
         deactivate=function() end,
     }
 end
-package.loaded['mcc.player_actions.dispatch'] = function()
+package.loaded['mc.player_actions.dispatch'] = function()
     return {
         bind=function(_,_,_,_,fn) callback=fn;return true end,
         close=function() closed=closed+1;return true end,
     }
 end
 local category = {contexts={'openworld'},actions={}}
-local events = require('mcc.events').new()
+local events = require('mc.events').new()
 local lifecycle = {}
 events:subscribe('ControlContextAttached', function(context)
     lifecycle[#lifecycle + 1] = 'attached:' .. context
@@ -65,7 +65,7 @@ end)
 events:subscribe('ControlContextDetached', function(context)
     lifecycle[#lifecycle + 1] = 'detached:' .. context
 end)
-local host = require('mcc.player_actions.ue4ss_host').new(function(fn) fn() end,
+local host = require('mc.player_actions.ue4ss_host').new(function(fn) fn() end,
     function(message) error(message) end, category, events)
 local service = {
     activateQuickslot=function(_,kind,slot) calls[#calls+1]=kind..':'..slot;return true end,
@@ -95,7 +95,7 @@ staleController = object('BP_PlayerController_C /Game/PreviousWorld.BP_PlayerCon
 staleController.PlayerInput = input
 staleController.AcknowledgedPawn = object('Pawn /Game/PreviousWorld.Pawn')
 local retryLogs={}
-local later = require('mcc.player_actions.ue4ss_host').new(function(fn) fn() end,
+local later = require('mc.player_actions.ue4ss_host').new(function(fn) fn() end,
     function(message) retryLogs[#retryLogs+1]=message end, category)
 local ready,why=later:apply({category='player.quickslots'}, {PrimaryWheel=1}, service)
 assert(not ready and why=='gameplay Enhanced Input stack unavailable')
@@ -115,7 +115,7 @@ local oldSubsystem=object('EnhancedInputLocalPlayerSubsystem /Game/Previous.Subs
 oldSubsystem.GetOuter=function() return object('LocalPlayer /Game/Previous.LocalPlayer') end
 subsystems={oldSubsystem,subsystem}
 input.AppliedInputContexts={}
-local early = require('mcc.player_actions.ue4ss_host').new(function(fn) fn() end,
+local early = require('mc.player_actions.ue4ss_host').new(function(fn) fn() end,
     function(message) error(message) end, category)
 assert(early:apply({category='player.quickslots'}, {PrimaryWheel=1}, service),
     'MCC must attach to the player subsystem before the game adds native contexts')

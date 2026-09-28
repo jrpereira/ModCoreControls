@@ -1,5 +1,5 @@
 package.path = 'Scripts/?.lua;' .. package.path
-local Config = require('mcc.quickslot_config')
+local Config = require('mc.quickslot_config')
 local values = {}
 for line in io.lines('config.ini') do
     local key, raw = line:match('^(MCC_[%w_]+)=(%-?%d+)$')

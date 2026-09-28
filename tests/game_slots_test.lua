@@ -1,6 +1,6 @@
 package.path = 'Scripts/?.lua;' .. package.path
-local Game = require('mcc.game_slots')
-local Layouts = require('mcc.layout_templates')
+local Game = require('mc.game_slots')
+local Layouts = require('mc.layout_templates')
 local function object(name)
     return {name=name, IsValid=function() return true end}
 end
@@ -21,10 +21,10 @@ assert(available.ability[1].action.name == 'day-left')
 assert(available.ability[5].action.name == 'night-left')
 assert(available.weapon[3].unlocked and available.weapon[3].action == nil)
 assert(available.weapon[4] == nil and available.witchcraft[3] == nil)
-local basic = Layouts.resolve(Layouts.load('Scripts/templates/default.tpl'), 'day', available)
+local basic = Layouts.resolve(Layouts.load('Scripts/ModCore/default.tpl'), 'day', available)
 assert(basic[2].positions[1].visible and basic[2].positions[1].available)
 assert(not basic[2].positions[2].visible)
-local skill = Layouts.resolve(Layouts.load('Scripts/templates/skill_slots.tpl'), 'day', available)
+local skill = Layouts.resolve(Layouts.load('Scripts/ModCore/skill_slots.tpl'), 'day', available)
 assert(skill[1].positions[3].visible and skill[1].positions[3].available)
 assert(not skill[1].positions[4].visible)
 print('Game slot snapshot follows current ability assignments and skill limits')

@@ -1,6 +1,6 @@
 -- Cross-mod delivery for MCC's string-identity events. Each subscriber owns
 -- one UE4SS console command; the publisher sends through ModRef shared data.
-local Events = require('mcc.events')
+local Events = require('mc.events')
 local M = {}
 local registryKey = 'MCC_ControlEvents_v1.subscribers'
 local prefix = 'MCC_ControlEvents_v1_'

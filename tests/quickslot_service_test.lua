@@ -1,5 +1,5 @@
 package.path='Scripts/?.lua;'..package.path
-local Service=require('mcc.player_actions.quickslot_service')
+local Service=require('mc.player_actions.quickslot_service')
 local calls={}
 local function valid(object)
     object.IsValid=function() return true end

@@ -3,7 +3,7 @@
 -- shared control per position. Advanced adds group-specific controls to Flat.
 -- The visual consumer may observe group changes.
 local M = {}
-local Events = require('mcc.events')
+local Events = require('mc.events')
 
 local function id(value, where)
     assert(type(value) == 'string' and value:match('^[%a][%w_.%-]*$'),

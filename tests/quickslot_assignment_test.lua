@@ -1,7 +1,7 @@
 package.path = 'Scripts/?.lua;' .. package.path
 
-local Delivery = require('mcc.player_actions.delivery')
-local Events = require('mcc.events')
+local Delivery = require('mc.player_actions.delivery')
+local Events = require('mc.events')
 local seen = {}
 local emitted = {}
 local events = Events.new()

@@ -1,5 +1,5 @@
 package.path = 'Scripts/?.lua;Scripts/?/init.lua;' .. package.path
-local targets = require('mcc.player_actions.native_targets')
+local targets = require('mc.player_actions.native_targets')
 assert(#targets == 5 and targets.requiredCount == 4,
     'four directional actions are required; the combat toggle is optional')
 local seen = {}

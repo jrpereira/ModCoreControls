@@ -1,5 +1,5 @@
 package.path='Scripts/?.lua;'..package.path
-local Backend=require('mcc.bridge_backend')
+local Backend=require('mc.bridge_backend')
 local scope={canClose=false,closeCalls=0}
 function scope:Bind() return nil,'binding rejected' end
 function scope:Close()

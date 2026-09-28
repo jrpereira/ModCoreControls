@@ -1,4 +1,4 @@
-local Plan = require('mcc.player_actions.plan')
+local Plan = require('mc.player_actions.plan')
 
 return function(e)
     local contexts, actions = {}, {}

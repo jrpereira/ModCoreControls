@@ -8,7 +8,6 @@
 ## Requirements
 
 - Lua 5.4 for source checks and offline tests.
-- Python 3 for the documented tooling.
 - A compatible UE4SS/Dawnwalker installation for native integration checks.
 
 These are Lua modules; there is no native compilation step in this repository.
@@ -16,11 +15,13 @@ Run the commands below from the repository root.
 
 ## Source preparation
 
-The [menu generator](../tools/generate_menu.py) reads the declarative
-[default layout](../Scripts/templates/default.tpl). Run it only in a development copy:
+The [menu generator](../tools/generate_menu.lua) reads the descriptive
+[control styles](../Scripts/ModCore/control_styles.lua). The separate
+[default layout](../Scripts/ModCore/default.tpl) describes layout topology.
+Run the generator only in a development copy:
 
 ```sh
-python3 tools/generate_menu.py
+lua tools/generate_menu.lua
 ```
 
 It overwrites both [menu metadata](../mod_settings.ini) and

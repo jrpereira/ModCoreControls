@@ -1,10 +1,10 @@
 package.path = 'Scripts/?.lua;' .. package.path
-local Layouts = require('mcc.layout_templates')
-local Topology = require('mcc.topology')
+local Layouts = require('mc.layout_templates')
+local Topology = require('mc.topology')
 
-local basic = Layouts.load('Scripts/templates/default.tpl')
-local skill = Layouts.load('Scripts/templates/skill_slots.tpl')
-local flexi = Layouts.load('Scripts/templates/flexi_slots.tpl')
+local basic = Layouts.load('Scripts/ModCore/default.tpl')
+local skill = Layouts.load('Scripts/ModCore/skill_slots.tpl')
+local flexi = Layouts.load('Scripts/ModCore/flexi_slots.tpl')
 assert(basic.title == 'Basic Slots' and basic.section == 'Actions & Quickslots')
 assert(skill.title == 'Skill Slots' and flexi.title == 'Flexi Slots')
 assert(#basic.groups == 3 and #Layouts.activeGroups(basic, 'day') == 3)

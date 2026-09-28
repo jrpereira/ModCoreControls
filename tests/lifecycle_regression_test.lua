@@ -27,10 +27,10 @@ UE4SSLuaEventBridge={API_VERSION=4,
     GetCapabilities=function() return {api=4,enhanced_input=true,explicit_target=true,
         detailed_errors=true,target_ue4ss_commit='97b7e501'} end,
     OpenInputComponent=function() end,BindAction=function() end,CloseInputComponent=function() end}
-local actualRuntime=require('mcc.player_actions.runtime')
+local actualRuntime=require('mc.player_actions.runtime')
 local commits,callback,mapped=0,nil,false
 local plan={actions={{id='slot',slot=1,type='ability',binding={key=49,mode=0}}}}
-package.loaded['mcc.player_actions.runtime']=function()
+package.loaded['mc.player_actions.runtime']=function()
     return {
         prepare=function() return {},plan end,
         commit=function() commits=commits+1;mapped=true end,
@@ -38,13 +38,13 @@ package.loaded['mcc.player_actions.runtime']=function()
         hasMapping=function() return mapped end,
     }
 end
-package.loaded['mcc.player_actions.dispatch']=function()
+package.loaded['mc.player_actions.dispatch']=function()
     return {bind=function(_,_,_,_,fn) callback=fn; return true end,close=function() return true end}
 end
-local Events=require('mcc.events')
+local Events=require('mc.events')
 local events=Events.new()
 local delivered=0
-local host=require('mcc.player_actions.ue4ss_host').new(function(fn) fn() end,function() end,
+local host=require('mc.player_actions.ue4ss_host').new(function(fn) fn() end,function() end,
     {contexts={'openworld'},actions={}},events)
 local service={activateQuickslot=function() delivered=delivered+1;return true end}
 assert(host:apply({category='player.quickslots'},{PrimaryWheel=1},service))
@@ -105,7 +105,7 @@ do
         return previousFind(class)
     end
     ExecuteWithDelay=function() error('boot must not schedule polling') end
-    local pending=require('mcc.player_actions.ue4ss_host').new(function(fn)fn()end,
+    local pending=require('mc.player_actions.ue4ss_host').new(function(fn)fn()end,
         function()end,{contexts={'openworld'},actions={}})
     assert(not pending:apply({category='player.quickslots'},{PrimaryWheel=1},service))
     assert(not pending.bound and not pending.ready,
@@ -119,7 +119,7 @@ do
         if class=='BP_PlayerController_C' then return {} end
         return previousFind(class)
     end
-    local cancelled=require('mcc.player_actions.ue4ss_host').new(function(fn)fn()end,
+    local cancelled=require('mc.player_actions.ue4ss_host').new(function(fn)fn()end,
         function()end,{contexts={'openworld'},actions={}})
     assert(not cancelled:apply({category='player.quickslots'},{PrimaryWheel=1},service))
     assert(cancelled:deactivate())

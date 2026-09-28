@@ -7,7 +7,7 @@
 
 ModCoreControls owns action mappings, layouts, and input lifetimes. Consumers
 own gameplay callbacks; ModCoreTemplates owns visual template selection.
-Lua imports retain the `mcc.*` namespace.
+Lua imports retain the `mc.*` namespace.
 
 Native input requires the separately installed
 [UE4SSLuaEventBridge](https://github.com/jrpereira/UE4SSLuaEventBridge).
@@ -34,6 +34,9 @@ duplicate bindings are rejected when the Flat plan is built. Grouped uses column
 native Left, Top, Right, and Bottom positions in that order. The player changes
 each key directly. Configuration supports only the displayed Grouped and Flat
 methods and rejects unsupported selector modes.
+The machine-readable style, control, action, default-key, and mode definitions
+live in `Scripts/ModCore/control_styles.lua`; the menu generator consumes that
+file as its source of truth.
 Flat puts the eight slots under **Fixed Controls** and has an optional
 **Preview Alternative** key below them. Its Tap mode toggles the visible wheel
 until pressed again; Hold selects the alternative while pressed and restores
@@ -46,11 +49,11 @@ capture.
 Grouped's Alternative key offers the same Tap and Hold behavior, with Hold as
 its default. Saved configurations without the new mode field also use Hold.
 
-`Scripts/templates/default.tpl` defines **Basic Slots**: two four-position ability
+`Scripts/ModCore/default.tpl` defines **Basic Slots**: two four-position ability
 groups and one four-position consumable group. The second ability group begins
-hidden. `Scripts/templates/skill_slots.tpl` defines Weapon, day Witchcraft or night
+hidden. `Scripts/ModCore/skill_slots.tpl` defines Weapon, day Witchcraft or night
 Vampire, and Consumables, with two positions initially shown in each skill
-group. `Scripts/templates/flexi_slots.tpl` defines the 12x1, 6x2, and 4+2x4 grouping
+group. `Scripts/ModCore/flexi_slots.tpl` defines the 12x1, 6x2, and 4+2x4 grouping
 presets and the ability/consumable order. Each layout has twelve active
 positions and Basic/Skill provide three group rows: a row key selects the
 group, then numbered keys select its columns. ModCoreControls resolves extra position
@@ -73,14 +76,14 @@ actions or displayed by this host.
 
 ## Action and layout API
 
-`mcc.core` lets a producer register a stable action ID, label, and callback.
+`mc.core` lets a producer register a stable action ID, label, and callback.
 Layouts independently bind those IDs to Unreal key names and Tap/Hold triggers.
 The bridge backend turns a plan into Enhanced Input bindings. A consumer
 must call `activate` on the game thread with a backend whose target resolver
 returns exact live input component and subsystem paths.
 
 ```lua
-local Core = require('mcc.core')
+local Core = require('mc.core')
 local controls = Core.new({backend = backend})
 controls:registerAction({id='my_mod.dash', label='Dash', execute=function(event)
     dash(event)
@@ -120,9 +123,9 @@ no execution context. Control-event subscriber arguments are unchanged.
 ## Control events
 
 ModCoreControls publishes stable string identifiers. A consumer in another UE4SS Lua state
-can load `mcc.event_transport` from `_ModCore_Controls/Scripts` and call
+can load `mc.event_transport` from `_ModCore_Controls/Scripts` and call
 `subscribe(name, callback)`. The returned function unsubscribes. Local users of
-`mcc.core` or `mcc.topology` can call `:subscribe(name, callback)` on their
+`mc.core` or `mc.topology` can call `:subscribe(name, callback)` on their
 instance. Listener errors do not interrupt input delivery.
 
 | Event | Callback arguments |

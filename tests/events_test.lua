@@ -1,9 +1,9 @@
 package.path = 'Scripts/?.lua;' .. package.path
 
-local Events = require('mcc.events')
-local Transport = require('mcc.event_transport')
-local Topology = require('mcc.topology')
-local Core = require('mcc.core')
+local Events = require('mc.events')
+local Transport = require('mc.event_transport')
+local Topology = require('mc.topology')
+local Core = require('mc.core')
 local shared, handlers = {}, {}
 ModRef = {
     GetSharedVariable=function(_, key) return shared[key] end,

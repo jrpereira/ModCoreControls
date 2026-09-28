@@ -2,8 +2,8 @@
 -- MCC actions. The caller passes ready=true only after it has bound callbacks
 -- for every generated action; this prevents a partial cutover from stranding
 -- player input.
-local InputContext = require('mcc.player_actions.input_context')
-local Gates = require('mcc.player_actions.action_gates')
+local InputContext = require('mc.player_actions.input_context')
+local Gates = require('mc.player_actions.action_gates')
 
 return function(e)
     e.input.category = e.category

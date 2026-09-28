@@ -1,5 +1,5 @@
 package.path = 'Scripts/?.lua;' .. package.path
-local Topology = require('mcc.topology')
+local Topology = require('mc.topology')
 local delivered, selected = {}, {}
 local topology = Topology.new({groups={
     {id='ability', label='Abilities', actions={

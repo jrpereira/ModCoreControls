@@ -1,5 +1,5 @@
 package.path='Scripts/?.lua;'..package.path
-local Monitor=require('mcc.player_actions.indicator_monitor')
+local Monitor=require('mc.player_actions.indicator_monitor')
 local registry,stored={},''
 local function object(path)
     local value={path=path,Icon='native-icon'}

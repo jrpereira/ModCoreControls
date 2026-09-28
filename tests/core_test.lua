@@ -1,5 +1,5 @@
 package.path = 'Scripts/?.lua;Scripts/?/init.lua;' .. package.path
-local Core = require('mcc.core')
+local Core = require('mc.core')
 local installs, closed, delivered = {}, 0, {}
 local backend = {install=function(_, plan, emit)
     installs[#installs + 1] = plan

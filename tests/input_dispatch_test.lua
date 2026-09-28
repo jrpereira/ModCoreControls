@@ -1,6 +1,6 @@
 package.path = 'Scripts/?.lua;' .. package.path
 
-local Dispatch = require('mcc.player_actions.dispatch')
+local Dispatch = require('mc.player_actions.dispatch')
 local calls, closed, failedAt = {}, 0, nil
 local bridge = {
     OpenInputComponent = function(path)
