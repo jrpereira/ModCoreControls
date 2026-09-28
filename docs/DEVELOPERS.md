@@ -17,7 +17,7 @@ native bindings; missing bridge APIs leave input attachment pending.
 ## Quickslot integration
 
 Its mod menu begins with **Actions & Quickslots** and
-owns **Access Method** (Grouped or Flat), the controls
+owns **Control Layout** (Grouped or Flat), the controls
 shown for that method, directional actions, and Tap/Hold bindings. ModCoreTemplates
 keeps template selection and wheel visuals. ModCoreControls starts its own native quickslot
 input host from saved controls and refreshes it on ModCoreControls Apply, whether or not a
@@ -34,10 +34,17 @@ duplicate bindings are rejected when the Flat plan is built. Grouped uses column
 native Left, Top, Right, and Bottom positions in that order. The player changes
 each key directly. Configuration supports only the displayed Grouped and Flat
 methods and rejects unsupported selector modes.
+Flat puts the eight slots under **Fixed Controls** and has an optional
+**Preview Alternative** key below them. Its Tap mode toggles the visible wheel
+until pressed again; Hold selects the alternative while pressed and restores
+the primary wheel on release. The preview key is unbound by default, and its
+mode defaults to Hold.
 Grouped mode presents **Group Key** (Abilities and Consumables) followed by
 **Slot Key** (Slots 1–4). A Group Key selects a whole row; its four Slot Keys
 trigger positions in that row. Each Tap/Hold picker is paired with its key
 capture.
+Grouped's Alternative key offers the same Tap and Hold behavior, with Hold as
+its default. Saved configurations without the new mode field also use Hold.
 
 `Scripts/templates/default.tpl` defines **Basic Slots**: two four-position ability
 groups and one four-position consumable group. The second ability group begins

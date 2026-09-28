@@ -50,6 +50,15 @@ function M.build(template, settings, category)
                 }
             end
         end
+        result.actions[#result.actions + 1] = {
+            id = 'IA_SlotFlatPreview', preview = true,
+            groupIndex = 2, type = second.value.type,
+            contexts = (category and category.contexts) or template.contexts,
+            binding = binding(settings.preview or {key=0,mode=2}, 'Flat preview'),
+        }
+        assert(result.actions[#result.actions].binding.mode == 0
+            or result.actions[#result.actions].binding.mode == 2,
+            'Flat preview mode must be Tap or Hold')
     else
         assert(type(settings.groups) == 'table', 'group quickslots bindings required')
         assert(type(settings.shared) == 'table', 'shared quickslots bindings required')
@@ -57,7 +66,8 @@ function M.build(template, settings, category)
         for index, item in ipairs(ordered) do
             maxSlots = math.max(maxSlots, item.value.slots)
             local selector = binding(settings.groups[item.key], item.key .. ' group binding')
-            assert(selector.mode == 2 or (index == 1 and selector.mode == -2),
+            assert(selector.mode == 2 or (index == 1 and selector.mode == -2)
+                or (index == 2 and selector.mode == 0),
                 'unsupported group selector mode')
             result.actions[#result.actions + 1] = {
                 id = 'IA_GroupSlot' .. index,

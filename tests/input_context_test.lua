@@ -31,14 +31,15 @@ local direct, plan = input:configure(template, {access=0,PrimaryWheel=1,direct={
 check(plan.access == 0 and direct.IA_ActionSlot1.name == 'IA_ActionSlot1')
 check(objects.IMC_Quickslots_OW.Mappings[1].Key.KeyName == 'One')
 check(#objects.IMC_Quickslots_OW.Mappings == 1)
-check(identity == 8, 'direct mode retains eight action identities')
+check(identity == 9 and direct.IA_SlotFlatPreview.name == 'IA_SlotFlatPreview',
+    'Flat retains eight slot actions and the optional preview action')
 local groups = input:configure(template, {access=1,groups={['1']={key=0,mode=-2},['2']={key=164,mode=2}},
     shared={{key=49,mode=0},{key=0,mode=0},{key=0,mode=0},{key=0,mode=0}}})
 check(groups.IA_GroupSlot1.name == 'IA_GroupSlot1' and groups.IA_GroupSlot2.name == 'IA_GroupSlot2')
 check(groups.IA_SharedSlot1.name == 'IA_SharedSlot1')
 check(#objects.IMC_Quickslots_OW.Mappings == 2 and objects.IMC_Quickslots_OW.Mappings[1].Key.KeyName == 'LeftShift'
     and objects.IMC_Quickslots_OW.Mappings[2].Key.KeyName == 'One')
-check(identity == 14, 'group mode retains selectors and shared slot actions')
+check(identity == 15, 'group mode retains selectors and shared slot actions')
 local subsystem = object('subsystem')
 function subsystem:AddMappingContext(mapping, priority) self.mapping, self.priority = mapping, priority end
 function subsystem:RemoveMappingContext(mapping) if self.mapping == mapping then self.mapping = nil end end
@@ -58,3 +59,8 @@ for _,mapping in ipairs(objects.IMC_Quickslots_OW.Mappings) do
     check(mapping.Action~=disabled.IA_GroupSlot1, 'Disabled saved key must not be mapped')
 end
 check(#objects.IMC_Quickslots_OW.Mappings==2, 'Alternative group and shared slot remain mapped')
+local tapped = input:configure(template, {access=1,
+    groups={['1']={key=0,mode=-2},['2']={key=164,mode=0}},
+    shared={{key=49,mode=0},{key=0,mode=0},{key=0,mode=0},{key=0,mode=0}}})
+check(tapped.IA_GroupSlot2.Triggers[1].name=='IA_GroupSlot2:InputTriggerTap',
+    'Grouped Alternative Tap uses a tap trigger')

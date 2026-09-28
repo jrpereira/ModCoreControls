@@ -17,7 +17,10 @@ local service = {
         seen[#seen + 1] = kind .. ':' .. slot
         return true
     end,
-    selectQuickslotGroup=function() return true end,
+    selectQuickslotGroup=function(_,index)
+        seen[#seen+1]='group:'..index
+        return true
+    end,
 }
 local state = {selectedGroup=1, defaultGroup=1,
     events=events,
@@ -42,6 +45,27 @@ state.settings.access = 1
 assert(Delivery.deliver({}, state,
     {shared=true, slot=2, binding={mode=0}}, 'Triggered', service))
 assert(seen[2] == 'consumable:2')
+
+local previewState={defaultGroup=1,selectedGroup=1,
+    groupTypes={[1]='ability',[2]='consumable'}}
+local previewTap={id='preview',preview=true,groupIndex=2,binding={mode=0}}
+assert(Delivery.deliver({},previewState,previewTap,'Triggered',service))
+assert(previewState.selectedGroup==2 and seen[#seen]=='group:2')
+assert(Delivery.deliver({},previewState,previewTap,'Triggered',service))
+assert(previewState.selectedGroup==1 and seen[#seen]=='group:1')
+local previewHold={id='preview',preview=true,groupIndex=2,binding={mode=2}}
+assert(Delivery.deliver({},previewState,previewHold,'Started',service))
+assert(previewState.selectedGroup==2 and seen[#seen]=='group:2')
+assert(Delivery.deliver({},previewState,previewHold,'Completed',service))
+assert(previewState.selectedGroup==1 and seen[#seen]=='group:1')
+assert(Delivery.deliver({},previewState,previewHold,'Started',service))
+assert(Delivery.deliver({},previewState,previewHold,'Canceled',service))
+assert(previewState.selectedGroup==1 and seen[#seen]=='group:1')
+local groupedTap={id='group-alt',groupIndex=2,binding={mode=0}}
+assert(Delivery.deliver({},previewState,groupedTap,'Triggered',service))
+assert(previewState.selectedGroup==2 and seen[#seen]=='group:2')
+assert(Delivery.deliver({},previewState,groupedTap,'Triggered',service))
+assert(previewState.selectedGroup==1 and seen[#seen]=='group:1')
 
 -- Overlapping Hold selectors retain the most recently pressed group until its
 -- own release; releasing an older key cannot cancel a newer held selection.

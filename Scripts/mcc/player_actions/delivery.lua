@@ -76,15 +76,21 @@ function M.deliver(template, state, definition, phase, service, current)
         return activate(service, owned.index, owned.kind, owned.slot)
     end
     local previousGroup = state.selectedGroup
-    if definition.binding.mode ~= 2 then return true end
-    state.heldGroups = state.heldGroups or {}
-    if phase == 'Started' then
-        state.groupPressSequence = (state.groupPressSequence or 0) + 1
-        state.heldGroups[definition.groupIndex] = state.groupPressSequence
-        state.selectedGroup = definition.groupIndex
-    elseif phase == 'Completed' or phase == 'Canceled' then
-        state.heldGroups[definition.groupIndex] = nil
-        state.selectedGroup = heldSelection(state)
+    if definition.groupIndex == 2 and definition.binding.mode == 0 then
+        if phase ~= 'Triggered' then return true end
+        state.selectedGroup = state.selectedGroup == 2 and 1 or 2
+    elseif definition.binding.mode == 2 then
+        state.heldGroups = state.heldGroups or {}
+        if phase == 'Started' then
+            state.groupPressSequence = (state.groupPressSequence or 0) + 1
+            state.heldGroups[definition.groupIndex] = state.groupPressSequence
+            state.selectedGroup = definition.groupIndex
+        elseif phase == 'Completed' or phase == 'Canceled' then
+            state.heldGroups[definition.groupIndex] = nil
+            state.selectedGroup = heldSelection(state)
+        else
+            return true
+        end
     else
         return true
     end

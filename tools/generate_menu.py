@@ -38,33 +38,45 @@ def setting(name, kind, label, group, default, **extra):
     return key
 
 
-section('Mod', dict(Id='ModCoreControls', Name='ModCore Controls', Version='0.1.1',
+section('Mod', dict(Id='ModCoreControls', Name='Controls', Author='Jorge Pereira (kell)', Version='0.1.1',
                     Description='Choose Grouped or Flat Actions Layout and configure its controls.'))
 section('Category.' + SECTION, dict(mcHeading=0))
-section('Category.Keyboard & Mouse', dict(mcHeading=0))
+for group in ('Fixed Controls', 'Optional'):
+    section('Category.' + group, dict(VisibleWhen='MCC_AccessMethod', VisibleValues=1,
+                                      mcHeading=1, mcLevel=2))
 for group in ('Group Keys', 'Slot Keys'):
     section('Category.' + group, dict(VisibleWhen='MCC_AccessMethod', VisibleValues=0, mcHeading=1, mcLevel=2))
-setting('AccessMethod', 'picker', 'Access Method', SECTION, 0,
+setting('AccessMethod', 'picker', 'Control Layout', SECTION, 0,
         PresetValues='0|1', PresetLabels='Grouped|Flat',
+        Description='Grouped uses a group key and shared slot keys. Flat gives each slot its own key.',
         mcType='tab', mcLevel=1)
 for index in range(1, 9):
     prefix = f'Flat{index}'
-    key = setting(prefix + 'Key', 'integer', f'Slot {index}', 'Keyboard & Mouse',
+    key = setting(prefix + 'Key', 'integer', f'Slot {index}', 'Fixed Controls',
                   48 + index,
                   Minimum=0, Maximum=254, Step=1, mcType='keybind',
                   VisibleWhen='MCC_AccessMethod', VisibleValues=1)
-    setting(prefix + 'Mode', 'picker', f'Slot {index}', 'Keyboard & Mouse', 0,
+    setting(prefix + 'Mode', 'picker', f'Slot {index}', 'Fixed Controls', 0,
             PresetValues='0|1', PresetLabels='Tap|Hold', mcType='tab', Pair=key,
             VisibleWhen='MCC_AccessMethod', VisibleValues=1)
+preview = setting('SlotFlatPreview', 'integer', 'Preview Alternative', 'Optional', 0,
+                  Minimum=0, Maximum=254, Step=1, mcType='keybind',
+                  VisibleWhen='MCC_AccessMethod', VisibleValues=1)
+setting('SlotFlatPreviewMode', 'picker', 'Preview Alternative', 'Optional', 2,
+        PresetValues='0|2', PresetLabels='Tap|Hold', mcType='tab', Pair=preview,
+        VisibleWhen='MCC_AccessMethod', VisibleValues=1)
 for index, label in enumerate(('Default', 'Alternative'), 1):
     prefix = f'Group{index}'
     key = setting(prefix + 'Key', 'integer', label, 'Group Keys',
                   0 if index == 1 else 164,
-                  Minimum=0, Maximum=254, Step=1, mcType='keybind', mcLevel=4,
-                  mcMode='Hold' if index == 2 else None)
+                  Minimum=0, Maximum=254, Step=1, mcType='keybind', mcLevel=4)
     if index == 1:
         setting(prefix + 'Mode', 'picker', label, 'Group Keys', -2,
                 PresetValues='2|-2', PresetLabels='Hold|Disabled',
+                mcType='tab', Pair=key, mcLevel=4)
+    else:
+        setting(prefix + 'Mode', 'picker', label, 'Group Keys', 2,
+                PresetValues='0|2', PresetLabels='Tap|Hold',
                 mcType='tab', Pair=key, mcLevel=4)
 for slot in range(1, 5):
     prefix = f'Shared{slot}'

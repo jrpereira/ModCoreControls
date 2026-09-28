@@ -34,16 +34,23 @@ function M.decode(values)
             'invalid MCC setting: ' .. prefix .. 'Mode')
         result.assignments.flat[index] = index
     end
+    result.preview = {
+        key=integer(values, 'SlotFlatPreview', 0, 254, 0),
+        mode=integer(values, 'SlotFlatPreviewMode', 0, 2, 2),
+    }
+    assert(result.preview.mode == 0 or result.preview.mode == 2,
+        'invalid MCC setting: SlotFlatPreviewMode')
     for index = 1, 2 do
         local group = tostring(index)
         local prefix = 'Group' .. index
         if index == 1 then
             result.groups[group] = binding(values, prefix, -2, 2)
         else
-            result.groups[group] = {key=integer(values, prefix .. 'Key', 0, 254), mode=2}
+            result.groups[group] = binding(values, prefix, 0, 2, nil, 2)
         end
         local mode = result.groups[group].mode
-        assert(mode == 2 or (index == 1 and mode == -2),
+        assert(mode == 2 or (index == 1 and mode == -2)
+            or (index == 2 and mode == 0),
             'invalid group mode: ' .. prefix)
         result.assignments.groups[group] = {}
         for slot = 1, 4 do

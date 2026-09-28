@@ -274,6 +274,7 @@ function M.new(queue,log,category,events)
    self.groupTypes={}
    self.groupModes={}
    for _,definition in ipairs(plan.actions)do
+    if definition.controlIndex==1 then self.groupTypes[1]=definition.type end
     if definition.groupIndex and not definition.slot then
      self.groupTypes[definition.groupIndex]=definition.type
      self.groupModes[definition.groupIndex]=definition.binding.mode
