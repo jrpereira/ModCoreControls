@@ -1,82 +1,72 @@
 local source = debug.getinfo(1, 'S').source:gsub('^@', '')
 local scripts = assert(source:match('^(.*)[/\\][^/\\]+$'), 'cannot locate MCC Scripts')
-local root = assert(scripts:match('^(.*)[/\\]Scripts$') or
-    (scripts == 'Scripts' and '.'), 'cannot locate MCC mod folder')
+local root = assert(scripts:match('^(.*)[/\\]Scripts$') or (scripts=='Scripts' and '.'),
+    'cannot locate MCC root')
 package.path = scripts .. '/?.lua;' .. package.path
+
 local ok, err = pcall(function()
-    local layouts = require('mc.layout_templates')
+    local sections = require('mc_sections')
+    local maps = require('mc_maps')
     ModCoreControls = {
-        new = require('mc.core').new,
-        newTopology = require('mc.topology').new,
-        loadLayout = layouts.load,
-        defaultLayout = function() return layouts.load(root .. '/Scripts/ModCore/default.tpl') end,
-        skillLayout = function() return layouts.load(root .. '/Scripts/ModCore/skill_slots.tpl') end,
-        flexiLayout = function() return layouts.load(root .. '/Scripts/ModCore/flexi_slots.tpl') end,
-        activeGroups = layouts.activeGroups,
-        resolveLayout = layouts.resolve,
-        flexiGroups = layouts.flexiGroups,
-        readGameSlots = require('mc.game_slots').read,
-        bridgeBackend = require('mc.bridge_backend').new,
-        events = require('mc.events').shared(),
-        subscribe = require('mc.event_transport').subscribe,
+        addSection = sections.addSection,
+        addSectionMap = maps.addSectionMap,
     }
-    if type(ExecuteInGameThread) == 'function' then
-        local function log(message)
-            print('[ModCoreControls] ' .. tostring(message) .. '\n')
+    if type(ExecuteInGameThread)=='function' then
+        local function log(message) print('[ModCoreControls] ' .. tostring(message) .. '\n') end
+        local definition=require('mc_menu').define(sections,maps)
+        local host=require('mc_input_host').new(ExecuteInGameThread,log)
+        local function plan()
+            local store=require('mc_config').open(root .. '/config.ini',definition)
+            local model=require('mc_menu').new(definition,store.values)
+            return require('mc_input_plan').build(definition,model.values)
         end
-        local category = {contexts={'combat','openworld'}, actions={
-            {type='Ability',slot='Left'}, {type='Ability',slot='Top'},
-            {type='Ability',slot='Right'}, {type='Ability',slot='Bottom'},
-            {type='Consumable',slot='Left'}, {type='Consumable',slot='Top'},
-            {type='Consumable',slot='Right'}, {type='Consumable',slot='Bottom'},
-        }}
-        local template = {name='Native Quickslots',category='player.quickslots',
-            contexts=category.contexts}
-        local host = require('mc.player_actions.ue4ss_host').new(
-            ExecuteInGameThread, log, category)
-        local service = require('mc.player_actions.quickslot_service').new()
-        local function apply()
-            local settings = require('mc.quickslot_config').read(root .. '/config.ini')
-            settings.PrimaryWheel = 1
-            local active, why = host:apply(template, settings, service)
-            if not active and why ~= 'gameplay Enhanced Input stack unavailable' then
-                log('Quickslot controls pending: ' .. tostring(why))
-            end
-        end
-        local function scheduleApply(label)
+        local function refresh(label)
             ExecuteInGameThread(function()
-                local refreshed, why = pcall(apply)
-                if not refreshed then log((label or 'Quickslot Apply') .. ' failed: ' .. tostring(why)) end
-            end)
-        end
-        ModCoreControls.quickslotHost = host
-        if ModRef and type(FindAllOf) == 'function' then
-            local Transport = require('mc.event_transport')
-            ModCoreControls.events:setPublisher(Transport.publisher(function()
-                local ok, controllers = pcall(FindAllOf, 'BP_PlayerController_C')
-                if not ok or type(controllers) ~= 'table' then return nil end
-                for _, controller in ipairs(controllers) do
-                    local called, valid = pcall(function() return controller:IsValid() end)
-                    if called and valid == true then return controller end
+                local ran,active,why=pcall(function() return host:apply(plan()) end)
+                if not ran then log((label or 'input refresh') .. ' failed: ' .. tostring(active))
+                elseif not active and why~='gameplay Enhanced Input stack unavailable' then
+                    log((label or 'input refresh') .. ' pending: ' .. tostring(why))
                 end
-            end))
-        end
-        local mods = assert(root:match('^(.*)[/\\][^/\\]+$'), 'cannot locate Mods folder')
-        package.path = mods .. '/_ModCore_Settings/Scripts/?.lua;' .. package.path
-        local present, settingsApi = pcall(require, 'settings_api')
-        if present and ModRef and type(RegisterConsoleCommandHandler) == 'function'
-            and type(settingsApi.subscribe) == 'function' then
-            settingsApi.subscribe('ModCoreControls', function()
-                scheduleApply('Quickslot Apply')
             end)
-        else
-            log('Apply notifications unavailable; controls will load from config on restart.')
         end
-        scheduleApply('Quickslot startup')
+        ModCoreControls.inputHost=host
+        ModCoreControls.refresh=function() refresh('manual input refresh') end
+        ModCoreControls.deactivate=function()
+            ExecuteInGameThread(function()
+                local removed,why=host:deactivate()
+                if not removed then log('input deactivation failed: ' .. tostring(why)) end
+            end)
+        end
+        local unsubscribe
+        ModCoreControls.stop=function()
+            ExecuteInGameThread(function()
+                local removed,why=host:stop()
+                if not removed then log('input stop cleanup pending: ' .. tostring(why)) end
+                if type(unsubscribe)=='function' then
+                    local ok,err=pcall(unsubscribe)
+                    if not ok then log('settings unsubscribe failed: ' .. tostring(err)) end
+                    unsubscribe=nil
+                end
+            end)
+        end
+        local mods=assert(root:match('^(.*)[/\\][^/\\]+$'),'Mods folder unavailable')
+        package.path=mods .. '/_ModCore_1_Settings/Scripts/?.lua;' .. package.path
+        local available,settings=pcall(require,'settings_api')
+        if available and ModRef and type(RegisterConsoleCommandHandler)=='function' then
+            local subscribed,result=pcall(settings.subscribe,'ModCoreControls',function()
+                refresh('DMM Apply')
+            end)
+            if subscribed then unsubscribe=result
+            else log('DMM Apply subscription failed: ' .. tostring(result)) end
+        else
+            log('DMM Apply notifications unavailable; input refreshes on restart.')
+        end
+        refresh('startup input')
     end
 end)
+
 if not ok then
     print('[ModCoreControls] startup failed: ' .. tostring(err) .. '\n')
 else
-    print('[ModCoreControls] 0.1.1 loaded; quickslot controls attach when gameplay input is ready\n')
+    print('[ModCoreControls] 0.1.1 loaded; input attaches when gameplay is ready\n')
 end

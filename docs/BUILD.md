@@ -1,74 +1,55 @@
 # Build guide
 
-- [Requirements](#requirements)
-- [Source preparation](#source-preparation)
-- [Offline tests](#offline-tests)
-- [Native input gate ownership](#native-input-gate-ownership)
+ModCore Controls uses Lua 5.4 and has no native compilation step.
 
-## Requirements
+## Generate DMM metadata
 
-- Lua 5.4 for source checks and offline tests.
-- A compatible UE4SS/Dawnwalker installation for native integration checks.
-
-These are Lua modules; there is no native compilation step in this repository.
-Run the commands below from the repository root.
-
-## Source preparation
-
-The [menu generator](../tools/generate_menu.lua) reads the descriptive
-[control styles](../Scripts/ModCore/control_styles.lua). The separate
-[default layout](../Scripts/ModCore/default.tpl) describes layout topology.
-Run the generator only in a development copy:
+Run the generator from the repository root:
 
 ```sh
-lua tools/generate_menu.lua
+lua5.4 tools/generate_menu.lua
 ```
 
-It overwrites both [menu metadata](../mod_settings.ini) and
-[control configuration](../config.ini), including existing binding values.
-Keep personal configurations out of that copy. This generates defaults; it is
-not a configuration migration tool.
+The generator writes only the `[Mod]` discovery metadata to `mod_settings.ini`.
+The DMM extension reads the shared section, map, and trigger definitions at
+runtime. The generator never writes player choices to `config.ini`.
 
 ## Offline tests
 
-Run the Lua suites from Bash:
+Run the focused suites from the repository root:
 
 ```sh
-for test in tests/*_test.lua; do
-    lua "$test" || exit 1
-done
+lua5.4 tests/menu_generation_test.lua
+lua5.4 tests/mc_structures_test.lua
+lua5.4 tests/mc_menu_test.lua
+lua5.4 tests/main_test.lua
+lua5.4 tests/mc_input_plan_test.lua
+lua5.4 tests/mc_native_callbacks_test.lua
+lua5.4 tests/mc_overrides_test.lua
+lua5.4 tests/mc_input_context_test.lua
+lua5.4 tests/mc_quickslots_test.lua
+lua5.4 tests/mc_input_host_test.lua
+lua5.4 tests/mc_key_indicators_test.lua
+lua5.4 tests/audit_6_integration_test.lua
 ```
 
-Use a Lua 5.4 executable on your PATH. Individual suites can also be run as
-`lua tests/<suite>_test.lua` from the repository root.
+The DMM integration test uses the current DMM parser and ModCoreSettings
+navigation and presentation decorators:
 
-## Native input gate ownership
+```sh
+DMM_CHOICES_PATH=/path/to/DawnwalkerModMenu/Scripts/choices.lua \
+MCS_SCRIPTS_PATH=/path/to/ModCoreSettings/Scripts \
+lua5.4 tests/mc_dmm_test.lua
+```
 
-Controls suppresses its allowlisted native quickslot actions by attaching an
-`InputTriggerChordAction` that requires an unmapped inactive action. Generated
-Controls actions and their DLL callbacks provide replacement input behavior.
+`tests/menu_generation_test.lua` invokes the generator, which writes
+`mod_settings.ini`. Run it in an isolated copy of the MCC source and manifest;
+do not point it at an installed player configuration. The audit integration
+suite uses an injected host environment and reports deterministic operation
+counts. Native timing, object lifetimes, and frame-time impact require a game
+session.
 
-The host constructs each named `MCC_NativeActionGate` with `RF_Transient |
-RF_MarkAsRootSet` (`0xC0`) and verifies its actual internal `RootSet` bit. It
-looks up the same object path before construction, so detaching, applying again,
-or rebuilding the Lua host reuses the gate. Existing attached gates are also
-validated; an old unrooted gate requires a fresh game process.
-
-Ownership intentionally lasts until process exit. The native allowlist bounds
-this to one gate per action (at most five with the current list). These roots also
-retain their outer action assets and their inactive chord action. They must not
-be generalized to per-pawn or unbounded dynamic targets. Merely storing a Lua
-wrapper is not an Unreal GC ownership mechanism.
-
-Deactivation removes owned gates from native arrays, preserves foreign triggers,
-and requests a mapping rebuild. Detached gates remain rooted and reusable; a
-failed rebuild retains them while removal is retried. No root removal is
-attempted through unsupported Lua APIs. Shorter-lived ownership would require an
-engine-supported strong-reference owner and proven rebuild/GC ordering.
-
-`tests/native_gate_ownership_test.lua` exercises the real host factory with a
-fixture for Unreal: root verification, repeated updates, reuse after detach and
-Lua-host recreation, failed rebuild retry, and rejection of unrooted legacy or
-wrong-class objects. It does not establish actual Unreal GC safety or native
-blocking behavior. Validate those in a fresh game process, including map changes,
-Apply/deactivate/reactivate, original-input suppression and custom input delivery.
+Validate section navigation, map visibility, key capture, Apply, and Restore in
+DMM after installing the updated Lua definitions and minimal metadata. In game,
+also validate startup attachment, Apply replacement, controller/map transitions,
+Tap and Hold delivery, cancellation, and explicit deactivation.

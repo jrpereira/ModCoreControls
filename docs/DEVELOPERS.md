@@ -1,139 +1,137 @@
 # Developer guide
 
-- [Quickslot integration](#quickslot-integration)
-- [Action and layout API](#action-and-layout-api)
-- [Deferred work and lifecycle](#deferred-work-and-lifecycle)
-- [Control events](#control-events)
+ModCore Controls reads menu definitions from three files:
 
-ModCoreControls owns action mappings, layouts, and input lifetimes. Consumers
-own gameplay callbacks; ModCoreTemplates owns visual template selection.
-Lua imports retain the `mc.*` namespace.
+- `Scripts/mc_sections.lua` defines the ordered section registry.
+- `Scripts/mc_maps.lua` registers maps against their sections.
+- `Scripts/mc_triggers.lua` converts Tap/Hold choices to Enhanced Input values.
 
-Native input requires the separately installed
-[UE4SSLuaEventBridge](https://github.com/jrpereira/UE4SSLuaEventBridge).
-Controls does not bundle its DLL. Make the bridge available before activating
-native bindings; missing bridge APIs leave input attachment pending.
+`mc_menu.lua` validates those declarations and creates the shared menu model.
+The model is independent of DMM presentation and persistence.
 
-## Quickslot integration
+## Sections
 
-Its mod menu begins with **Actions & Quickslots** and
-owns **Control Layout** (Grouped or Flat), the controls
-shown for that method, directional actions, and Tap/Hold bindings. ModCoreTemplates
-keeps template selection and wheel visuals. ModCoreControls starts its own native quickslot
-input host from saved controls and refreshes it on ModCoreControls Apply, whether or not a
-ModCoreTemplates visual template is selected. The reusable action/layout API is available
-for new mod actions. During player load, the host retries until a live player
-controller, pawn input component, and that controller's Enhanced Input local
-player subsystem are available, then adds ModCoreControls's mapping context to the
-subsystem. It does not wait for Dawnwalker's native context on initial player
-load. Lifecycle and object-creation events wake a pending attachment attempt.
-
-The menu shows numbered controls. Flat presents Ability 1–4 and Consumable
-1–4 as paired key and Tap/Hold rows. Their defaults use distinct keys 1–8;
-duplicate bindings are rejected when the Flat plan is built. Grouped uses columns 1–4 within each group. Columns map to the
-native Left, Top, Right, and Bottom positions in that order. The player changes
-each key directly. Configuration supports only the displayed Grouped and Flat
-methods and rejects unsupported selector modes.
-The machine-readable style, control, action, default-key, and mode definitions
-live in `Scripts/ModCore/control_styles.lua`; the menu generator consumes that
-file as its source of truth.
-Flat puts the eight slots under **Fixed Controls** and has an optional
-**Preview Alternative** key below them. Its Tap mode toggles the visible wheel
-until pressed again; Hold selects the alternative while pressed and restores
-the primary wheel on release. The preview key is unbound by default, and its
-mode defaults to Hold.
-Grouped mode presents **Group Key** (Abilities and Consumables) followed by
-**Slot Key** (Slots 1–4). A Group Key selects a whole row; its four Slot Keys
-trigger positions in that row. Each Tap/Hold picker is paired with its key
-capture.
-Grouped's Alternative key offers the same Tap and Hold behavior, with Hold as
-its default. Saved configurations without the new mode field also use Hold.
-
-`Scripts/ModCore/default.tpl` defines **Basic Slots**: two four-position ability
-groups and one four-position consumable group. The second ability group begins
-hidden. `Scripts/ModCore/skill_slots.tpl` defines Weapon, day Witchcraft or night
-Vampire, and Consumables, with two positions initially shown in each skill
-group. `Scripts/ModCore/flexi_slots.tpl` defines the 12x1, 6x2, and 4+2x4 grouping
-presets and the ability/consumable order. Each layout has twelve active
-positions and Basic/Skill provide three group rows: a row key selects the
-group, then numbered keys select its columns. ModCoreControls resolves extra position
-visibility from ability assignments and equipped skill limits reported by the
-game, with no hardcoded level thresholds. The source files are declarative;
-they do not execute Lua.
-
-`ModCoreControls.defaultLayout()`, `skillLayout()`, and `flexiLayout()` load
-the definitions. `resolveLayout(layout, phase, available)` and
-`flexiGroups(layout, preset, order)` compute their active positions. The
-existing `newTopology({groups=..., dispatch=...})` accepts Basic's groups,
-`activeGroups(skill, phase)`, or `flexiGroups(...).groups`. In Groups mode,
-selecting a row routes shared column controls to that row's actions. The
-`readGameSlots(quickslotSubsystem, characterDevelopmentSubsystem)` adapter
-collects the player's current game state on the game thread. Its parameters
-are the live game subsystems, and it does not mutate them. The
-current native quickslot host binds the existing HUD's four ability and
-four consumable directional actions; additional declared ability positions are not yet connected to live game
-actions or displayed by this host.
-
-## Action and layout API
-
-`mc.core` lets a producer register a stable action ID, label, and callback.
-Layouts independently bind those IDs to Unreal key names and Tap/Hold triggers.
-The bridge backend turns a plan into Enhanced Input bindings. A consumer
-must call `activate` on the game thread with a backend whose target resolver
-returns exact live input component and subsystem paths.
+The initial sections are Actions, Movement, and System. Add declarations to
+the source modules before DMM or gameplay loads them. For example:
 
 ```lua
-local Core = require('mc.core')
-local controls = Core.new({backend = backend})
-controls:registerAction({id='my_mod.dash', label='Dash', execute=function(event)
-    dash(event)
-end})
-controls:registerLayout({id='default', label='Default', bindings={
-    ['my_mod.dash']={key='F10', trigger='Tap'},
-}})
-controls:selectLayout('default')
-controls:activate('combat')
+-- In mc_sections.lua:
+M.addSection('flight', 'Flying controls')
+-- In mc_maps.lua:
+M.addSectionMap('flight', {
+    id = 'direct',
+    name = 'Direct',
+    value = 0,
+    map = {},
+})
 ```
 
-## Deferred work and lifecycle
+Each section starts as `{ description = "", sets = {} }`. `mc_maps.lua` returns
+a registry with `maps`, per-section `order`, and `addSectionMap(section, map)`.
+Each map supplies a stable `id`; the registry records which section owns it.
+Sections without maps remain visible in the
+MCC navigation and have no controls on the right.
 
-Backend-delivered action callbacks receive `execute(event, executionContext)`.
-Existing callbacks accepting only `event` need no changes. ModCoreControls automatically
-rejects queued delivery from successfully deactivated or replaced installations.
-Consumers scheduling additional work can retain the optional context:
+These registries are local to each Lua state. Runtime calls to the exposed
+`ModCoreControls.addSection()` or `addSectionMap()` do not rebuild gameplay's
+startup definition or transport a registration to DMM. Only selected Actions
+maps have runtime output today; other sections can describe menu choices but
+have no input adapter. `description` and `sets` remain reserved registry data.
 
-```lua
-execute=function(event, executionContext)
-    queueWork(function()
-        if executionContext and not executionContext.isValidGeneration() then return end
-        dash(event)
-    end)
-end
+## DMM page
+
+`mod_settings.ini` contains only the `[Mod]` identity DMM needs for discovery.
+When DMM builds Controls, `dmm_extension.lua` asks `mc_dmm.lua` to convert the
+Lua definitions into DMM choices. The first generated setting is the Section
+picker:
+
+```ini
+[Setting.MCC_Section]
+Type=picker
+Label=Section
+PresetLabels=Actions|Movement|System
+PresetValues=0|1|2
+Default=0
+mcNavigation=1
+mcLevel=1
 ```
 
-`isValidGeneration()` describes the installation that delivered the callback,
-not whichever binding is current. Once retired, that context stays invalid even
-when the same action is rebound. Failed installation or failed closure of the
-previous installation leaves the previous generation valid; rejected replacement
-callbacks never become valid. Check again after any delay or yield before doing
-more work. This does not interrupt work already executing. Explicit
-`controls:dispatch(actionId, event)` remains independent of bindings and supplies
-no execution context. Control-event subscriber arguments are unchanged.
+Every section row uses `VisibleWhen=MCC_Section` and its corresponding numeric
+value, directly or through that section's Control Map picker. DMM therefore
+shows only the selected section. `mcNavigation=1` keeps the Section choice out
+of persistence and Apply events. `mcLevel=1` places it first in DMM's Controls
+header area.
 
-## Control events
+Every named `map` group becomes a visible DMM category heading. Its key and
+trigger rows share that category, so DMM renders them together beneath the Lua
+group name.
 
-ModCoreControls publishes stable string identifiers. A consumer in another UE4SS Lua state
-can load `mc.event_transport` from `_ModCore_Controls/Scripts` and call
-`subscribe(name, callback)`. The returned function unsubscribes. Local users of
-`mc.core` or `mc.topology` can call `:subscribe(name, callback)` on their
-instance. Listener errors do not interrupt input delivery.
+`Scripts/dmm_extension.lua` supplies both the generated choices and MCC's
+storage adapter through DMM's extension entrypoint.
 
-| Event | Callback arguments |
-| --- | --- |
-| `ControlContextAttached`, `ControlContextDetached` | `context` |
-| `ControlGroupFocused`, `ControlGroupUnfocused` | `controls, group` |
-| `ControlActionStarted`, `ControlActionTriggered`, `ControlActionCompleted`, `ControlActionCanceled` | `controls, group, action` |
+## Storage
 
-Action phases match Unreal Enhanced Input. Quickslot IDs use
-`player.quickslots`, `ability` or
-`consumable`, and names such as `quickslot.ability.left`.
+DMM saves through `mc_config.lua`. Each section owns an INI section:
+
+```ini
+[ModCoreControls.actions]
+map=flat
+flat.SlotAction1.key=74
+flat.SlotAction1.trigger=0
+```
+
+Map IDs are strings. Keys and triggers are integers. Choice keys include their
+map ID so switching maps does not discard the other map's values. Active section
+navigation is transient and is never saved.
+
+Saving preserves unrelated INI content. It refuses to overwrite a file changed
+since the menu opened and uses a temporary file plus rollback copy while replacing
+the original.
+
+## Input runtime
+
+`mc_input_plan.lua` converts the selected Actions map and current values into
+active native bindings. An Actions map needs a unique section-local `id`, a
+unique numeric `value`, supported `contexts` (`exploration` or `combat`), and
+groups of keys. A runtime key needs a unique `id`, a supported trigger and
+an `action` descriptor (`ability` or `consumable` with slot 1–4, `selected`
+with slot 1–4, or `focus` with group 1–2). Use a supported virtual-key default;
+zero means Unbound. These are static declarations, not a runtime registration
+transport.
+
+`mc_input_context.lua` owns generated Input Actions and mapping contexts.
+`mc_native_callbacks.lua` owns the bridge target and its phase subscriptions.
+`mc_overrides.lua` owns root-captured chord gates for native actions declared by
+map- or key-level `override` metadata. A key descriptor can use
+`{ action='IA_Name', value=164 }`; `value` becomes its default key.
+A map can use `override={'IA_First','IA_Second'}`; those overrides remain active
+for the selected map independently of individual key values.
+`mc_input_host.lua` discovers the live player stack, orders binding before
+attachment, replaces bindings when the component or subsystem changes, and
+rejects callbacks from retired generations. `mc_quickslots.lua` is the current
+Actions output adapter. `mc_key_indicators.lua` assigns the generated actions to
+the native HUD widgets and restores their original actions when the gameplay
+context detaches or the host is replaced or deactivated.
+
+`main.lua` builds a plan on startup and subscribes to the ModCoreSettings
+`settings_api` provider `ModCoreControls`. A successful DMM Apply schedules a
+fresh read and runtime replacement on the game thread. Persistence success does
+not by itself establish that the new plan is active; native resources may still
+be pending or cleanup may need a retry.
+
+InputTriggerTap qualifies on release within its threshold. Immediate Hold
+fires after its threshold. Selected-slot gestures retain the group selected at
+press start through their terminal phase. A key-level override applies while
+that key is bound; Unbound may expose the native binding. Map-level overrides
+do not depend on individual key values. MCC retains its initial exploration
+fallback only before a native context has been observed for the current stack.
+Use a full game restart after changing MCC Lua; hot reload is not a supported
+recovery path for owned native hooks and provider subscriptions.
+
+The runtime requires UE4SSLuaEventBridge Enhanced Input API 4 or newer. Bridge
+resolution is lazy so an undefined marker-based load order does not permanently
+disable input; later lifecycle events retry it.
+
+Override gates are attached only after replacement callbacks and contexts are
+ready. Detach removes the MCC chord from native trigger arrays while preserving
+foreign triggers; the finite named gate objects remain rooted for reuse.

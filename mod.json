@@ -2,7 +2,7 @@
   "manifest_version": 1,
   "id": "ModCoreControls",
   "name": "ModCore Controls",
-  "description": "Define reusable control layouts, action mappings, cancellation of core actions, and extensions to core apps, with thoroughly tested lifecycle management.",
+  "description": "Define, save, and apply extensible input sections and control maps through DMM.",
   "version_source": "mod_settings.ini",
   "links": {
     "source": "https://github.com/jrpereira/ModCoreControls",

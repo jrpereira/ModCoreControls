@@ -1,0 +1,151 @@
+package.path='Scripts/?.lua;'..package.path
+local function object(class,path)
+    local value={class=class,path=path,full=class..' '..path,valid=true}
+    function value:IsValid()return self.valid end
+    function value:GetFullName()return self.full end
+    return value
+end
+local player=object('LocalPlayer','/Engine/Transient.LocalPlayer_0')
+local input=object('PlayerInput','/Engine/Transient.PlayerInput_0')
+local component=object('EnhancedInputComponent','/Engine/Transient.Component_1')
+local pawn=object('Pawn','/Engine/Transient.Pawn_0');pawn.InputComponent=component
+local controller=object('BP_PlayerController_C','/Engine/Transient.BP_PlayerController_C_0')
+controller.PlayerInput,controller.AcknowledgedPawn,controller.Player=input,pawn,player
+local subsystem=object('EnhancedInputLocalPlayerSubsystem','/Engine/Transient.Subsystem_0')
+subsystem.Outer=player
+local native=object('InputMappingContext','/Game/Input.IMC_OW.Runtime')
+input.AppliedInputContexts={[native]=5}
+local nativeOverride=object('InputAction','/Game/Input.IA_Test');nativeOverride.Triggers={}
+function subsystem:AddMappingContext(mapping,priority)input.AppliedInputContexts[mapping]=priority end
+function subsystem:RemoveMappingContext(mapping)input.AppliedInputContexts[mapping]=nil end
+
+local retained={}
+local function retain(kind,name)
+    local key=kind..':'..name
+    if retained[key] then return retained[key] end
+    local value=object(kind,'/Engine/Transient.'..name);value.Triggers={}
+    function value:UnmapAll()self.mappings={}end
+    function value:MapKey(action,key)self.mappings[#self.mappings+1]={action=action,key=key}end
+    retained[key]=value;return value
+end
+local callbacks,closeCount={},0
+local bridge={API_VERSION=5}
+function bridge.GetCapabilities()return {api=5,enhanced_input=true,explicit_target=true}end
+function bridge.OpenInputComponent(path)return path end
+function bridge.BindAction(_,_,phase,callback)callbacks[#callbacks+1]={phase=phase,callback=callback};return #callbacks end
+function bridge.CloseInputComponent()closeCount=closeCount+1;return true end
+local hooks={}
+local availableBridge
+local originalIndicator=object('InputAction','/Game/Input.IA_Original')
+local indicator=object('Widget','/Engine/Transient.AbilityLeft')
+indicator.EnhancedInputAction=originalIndicator
+local bindings=object('Bindings','/Engine/Transient.AbilityBindings');bindings.Left=indicator
+local wheel=object('Wheel','/Engine/Transient.AbilityWheel');wheel.WBP_AA_Quickslots_Bindings=bindings
+local hud=object('WBP_GameHUD_C','/Engine/Transient.HUD');hud.WBP_AA_Quickslots=wheel
+local resolved={[indicator.path]=indicator,[originalIndicator.path]=originalIndicator}
+local indicatorState,indicatorSets=nil,0
+local overrideGate,overrideRebuilds,rejectOverrideRebuild=nil,0,false
+local environment={
+    bridge=function()return availableBridge end,
+    valid=function(value)return value and value.valid end,
+    unwrap=function(value)return value end,
+    full=function(value)return value.full end,
+    path=function(value)return value.path end,
+    each=function(values,callback)
+        for key,value in pairs(values) do
+            if type(key)=='number' then callback(value,key) else callback(key,value) end
+        end
+        return true
+    end,
+    find=function(class,predicate)
+        local value=class=='BP_PlayerController_C' and controller
+            or class=='EnhancedInputLocalPlayerSubsystem' and subsystem
+            or class=='WBP_GameHUD_C' and hud or nil
+        return value and (not predicate or predicate(value)) and value or nil
+    end,
+    all=function(class)
+        if class=='EnhancedInputLocalPlayerSubsystem' then return {subsystem} end
+        if class=='InputAction' then return {nativeOverride} end
+        return {}
+    end,
+    retain=retain,
+    initialize=function()end,
+    trigger=function(_,name)local value=object(name,'/Engine/Transient.'..name);value.Triggers={};return value end,
+    name=function(value)return value end,
+    resolve=function(path)return resolved[path] end,
+    setIndicatorAction=function(widget,action)
+        widget.EnhancedInputAction=action;indicatorSets=indicatorSets+1
+        if action then resolved[action.path]=action end
+        return true
+    end,
+    loadIndicatorState=function()return indicatorState end,
+    saveIndicatorState=function(value)indicatorState=value;return true end,
+    constructOverride=function(action,marker)
+        if not overrideGate then
+            overrideGate=object('InputTriggerChordAction',action.path..':'..marker)
+            overrideGate.rooted=true
+        end
+        return overrideGate
+    end,
+    rebuild=function()
+        overrideRebuilds=overrideRebuilds+1
+        if rejectOverrideRebuild then error('injected override rebuild failure') end
+        return true
+    end,
+    options={},
+    hook=function(name,callback)hooks[name]=callback;return true end,
+    notify=function(name,callback)hooks[name]=callback;return true end,
+}
+local calls={}
+local service={
+    activate=function(_,kind,slot)calls[#calls+1]=kind..':'..slot;return true end,
+    select=function()return true end,
+}
+local host=require('mc_input_host').new(function(callback)callback();return true end,function()end,service,environment)
+local plan={contexts={'exploration','combat'},bindings={{id='flat.slot1',keyName='One',mode=0,
+    phases={'Triggered'},action={type='ability',slot=1}}},overrides={IA_Test=true}}
+local active,why=host:apply(plan)
+assert(not active and why=='UE4SSLuaEventBridge input API unavailable')
+availableBridge=bridge
+assert(host:sync())
+assert(next(hooks) and #callbacks==1)
+assert(indicator.EnhancedInputAction==retained['InputAction:IA_MCC_flat_slot1'])
+assert(indicatorSets==1)
+assert(nativeOverride.Triggers[1]==overrideGate and overrideGate.rooted)
+callbacks[1].callback({})
+assert(calls[1]=='ability:1')
+local stale=callbacks[1].callback
+component=object('EnhancedInputComponent','/Engine/Transient.Component_2')
+pawn.InputComponent=component
+assert(host:sync())
+assert(closeCount==1 and #callbacks==2,'component replacement must retire and reinstall callbacks')
+assert(indicatorSets==3,'component replacement must restore and refresh the indicator')
+stale({})
+assert(#calls==1,'retired callback generation must not deliver')
+callbacks[2].callback({})
+assert(#calls==2)
+local changed={contexts={'exploration','combat'},bindings={{id='flat.slot1',keyName='Two',mode=0,
+    phases={'Triggered'},action={type='ability',slot=1}}},overrides={IA_Test=true}}
+assert(host:apply(changed))
+assert(indicatorSets==5,'Apply must reassign the action so CommonUI refreshes its key glyph')
+input.AppliedInputContexts[native]=nil
+hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:RemoveMappingContext']()
+assert(not host.ready and closeCount==3,'native context detach must retire MCC input')
+assert(#nativeOverride.Triggers==0,'native context detach must remove the override chord')
+assert(indicator.EnhancedInputAction==originalIndicator and indicatorSets==6,
+    'native context detach must restore the original indicator action')
+input.AppliedInputContexts[native]=5
+hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:AddMappingContext']()
+assert(host.ready and indicatorSets==7,'native context reattach must restore MCC indicators')
+assert(nativeOverride.Triggers[1]==overrideGate,'reattach must reuse the root-captured chord')
+rejectOverrideRebuild=true
+local removed=host:deactivate()
+assert(not removed and host.ready and nativeOverride.Triggers[1]==overrideGate,
+    'failed override restoration must leave active replacement input intact')
+rejectOverrideRebuild=false
+assert(host:deactivate() and closeCount==4)
+assert(#nativeOverride.Triggers==0 and overrideRebuilds>0)
+assert(indicator.EnhancedInputAction==originalIndicator and indicatorSets==8)
+callbacks[2].callback({})
+assert(#calls==2,'deactivated callback generation must not deliver')
+print('PASS Enhanced Input host attach, replacement, and stale callback rejection')

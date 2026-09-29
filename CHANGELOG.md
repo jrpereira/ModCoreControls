@@ -1,5 +1,37 @@
 # Changelog
 
+## Unreleased
+
+- Rename the installed mod folder to `_ModCore_2_Controls` and resolve
+  ModCoreSettings from `_ModCore_1_Settings`.
+- Add coupled mapping-hook lifecycle regressions and deterministic offline work
+  counts for the Audit 6 hardening pass. Live native timing remains unverified.
+- Clarify static declaration scope, Actions-only runtime behavior, Tap release
+  timing, Unbound/native override behavior, initial exploration fallback, and
+  the difference between saved choices and active input.
+- Return a section-scoped map registry from `mc_maps.lua` and expose
+  `addSectionMap(section, map)` beside section registration.
+- Update native quickslot key indicators from MCC's generated actions, refresh
+  them after Apply, and restore the original actions on gameplay-context detach
+  or host retirement.
+- Apply map- and key-level native action overrides through reusable root-captured
+  chord gates, and remove MCC-owned gates on detach.
+- Define extensible input sections, maps, key choices, and trigger choices in Lua.
+- Present the definitions through DMM using a transient Section navigation picker.
+- Keep `mod_settings.ini` to discovery metadata and generate DMM choices from
+  the Lua definitions at runtime.
+- Convert the selected Actions map into generated Enhanced Input actions and
+  gameplay mapping contexts.
+- Bind native input phases through UE4SSLuaEventBridge and retire callbacks when
+  their input generation is replaced.
+- Refresh live input after ModCoreSettings Apply and retry attachment across
+  controller, pawn, mapping-context, object-creation, and map-load lifecycle events.
+- Route Grouped and Flat callbacks to the native ability and consumable wheels.
+- Save choices to sectioned `config.ini` data such as
+  `[ModCoreControls.actions]` and `map=flat`.
+- Remove the previous general layout API and compatibility surface from this
+  rewrite; the new runtime consumes the section/map model directly.
+
 ## 0.1.1
 
 - Refine controls-page grouping and metadata.
