@@ -1,7 +1,8 @@
 -- Section-scoped map declarations. These describe choices, not live bindings.
-local M = { maps = {}, order = {} }
+local M = { maps = {}, order = {}, sealed = false }
 
 function M.addSectionMap(section, map)
+    assert(not M.sealed, 'map registration closed after definition')
     assert(type(section) == 'string' and section:match('%S'),
         'section must be a non-empty string')
     assert(type(map) == 'table', 'map must be a table')
@@ -19,6 +20,8 @@ function M.addSectionMap(section, map)
     M.order[section][#M.order[section] + 1] = map.id
     return map
 end
+
+function M.seal() M.sealed=true end
 
 -- Initial actions-section declarations.
 local fixed = {}

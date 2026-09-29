@@ -129,6 +129,8 @@ function M.define(registry, mapRegistry)
     for section in pairs(mapRegistry.maps) do
         assert(known[section], 'unknown map section: ' .. tostring(section))
     end
+    if type(registry.seal)=='function' then registry.seal() end
+    if type(mapRegistry.seal)=='function' then mapRegistry.seal() end
     return result
 end
 

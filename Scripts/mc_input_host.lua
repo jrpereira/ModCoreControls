@@ -552,9 +552,12 @@ function M.new(queue,log,service,environment)
         local method=e[kind]
         if type(method)~='function' then return end
         local ok,id,second=pcall(method,name,callback)
-        if not ok or id==false or (id==nil and kind=='hook') then
+        if not ok or id==false or (kind=='hook' and
+            (type(id)~='number' or id%1~=0 or type(second)~='number' or second%1~=0)) then
             log('lifecycle ' .. kind .. ' registration failed: ' .. name .. ': ' .. tostring(id))
-        else registrations[#registrations+1]={kind=kind,id=id,second=second,name=name} end
+        elseif kind=='hook' then
+            registrations[#registrations+1]={id=id,second=second,name=name}
+        end
     end
     if e.hook then
         for _,name in ipairs({
@@ -605,11 +608,21 @@ function M.new(queue,log,service,environment)
             local cleared,why,detail=retire(true,true)
             if not cleared then return false,why,detail end
             api.phase='stopped';api.enabled=false
-            if type(e.unhook)=='function' then
-                for _,entry in ipairs(registrations) do
-                    if entry.kind=='hook' then pcall(e.unhook,entry.id,entry.second) end
+            local remaining,errors={},{}
+            for _,entry in ipairs(registrations) do
+                if type(e.unhook)~='function' then
+                    remaining[#remaining+1]=entry
+                    errors[#errors+1]=entry.name .. ': UnregisterHook unavailable'
+                else
+                    local ok,result,detail=pcall(e.unhook,entry.name,entry.id,entry.second)
+                    if not ok or result==false then
+                        remaining[#remaining+1]=entry
+                        errors[#errors+1]=entry.name .. ': ' .. tostring(ok and detail or result)
+                    end
                 end
             end
+            registrations=remaining
+            if #errors>0 then return false,table.concat(errors,'; '),{status='failure'} end
             return true
         end)
     end

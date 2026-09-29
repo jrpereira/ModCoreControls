@@ -32,9 +32,10 @@ Each map supplies a stable `id`; the registry records which section owns it.
 Sections without maps remain visible in the
 MCC navigation and have no controls on the right.
 
-These registries are local to each Lua state. Runtime calls to the exposed
-`ModCoreControls.addSection()` or `addSectionMap()` do not rebuild gameplay's
-startup definition or transport a registration to DMM. Only selected Actions
+These registries are local to each Lua state. `ModCoreControls.addSection()` and
+`addSectionMap()` reject calls after that state's definition is built. Declare
+sections and maps in the source modules before gameplay or DMM loads them;
+there is no runtime registration transport between those Lua states. Only selected Actions
 maps have runtime output today; other sections can describe menu choices but
 have no input adapter. `description` and `sets` remain reserved registry data.
 
@@ -112,6 +113,11 @@ rejects callbacks from retired generations. `mc_quickslots.lua` is the current
 Actions output adapter. `mc_key_indicators.lua` assigns the generated actions to
 the native HUD widgets and restores their original actions when the gameplay
 context detaches or the host is replaced or deactivated.
+
+Stopping the host unregisters named UE4SS function hooks with both callback IDs.
+Failed removals remain owned for a later stop attempt. UE4SS does not expose
+removal handles for object notifications or map hooks in this API; their callbacks
+remain guarded by the stopped state until UE4SS unloads the mod.
 
 `main.lua` builds a plan on startup and subscribes to the ModCoreSettings
 `settings_api` provider `ModCoreControls`. A successful DMM Apply schedules a

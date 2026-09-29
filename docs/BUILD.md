@@ -31,6 +31,7 @@ lua5.4 tests/mc_quickslots_test.lua
 lua5.4 tests/mc_input_host_test.lua
 lua5.4 tests/mc_key_indicators_test.lua
 lua5.4 tests/audit_6_integration_test.lua
+lua5.4 tests/startup_failure_test.lua
 ```
 
 The DMM integration test uses the current DMM parser and ModCoreSettings

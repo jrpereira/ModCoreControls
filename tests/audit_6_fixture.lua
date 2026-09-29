@@ -12,8 +12,9 @@ end
 
 function F.new(options)
     options=options or {}
-    local f={hooks={},pending={},delayed={},callbacks={},calls={},counts={adds=0,removes=0,scans=0,sets=0,assigns=0,saves=0,queues=0,drains=0,closes=0}}
+    local f={hooks={},hookIds={},pending={},delayed={},callbacks={},calls={},counts={adds=0,removes=0,scans=0,sets=0,assigns=0,saves=0,queues=0,drains=0,closes=0}}
     local c=f.counts
+    local nextHookId=0
     f.player=object('LocalPlayer','/Engine/Transient.Player_0')
     f.input=object('PlayerInput','/Engine/Transient.Input_0')
     f.component=object('EnhancedInputComponent','/Engine/Transient.Component_0')
@@ -155,7 +156,18 @@ function F.new(options)
             return true
         end,
         options={},
-        hook=function(name,callback) f.hooks[name]=callback;return name end,
+        hook=function(name,callback)
+            nextHookId=nextHookId+2
+            local id=nextHookId-1
+            f.hooks[name]=callback;f.hookIds[name]={id,id+1}
+            return id,id+1
+        end,
+        unhook=function(name,pre,post)
+            local ids=assert(f.hookIds[name],'unknown hook')
+            assert(ids[1]==pre and ids[2]==post,'incorrect hook removal signature')
+            f.hooks[name]=nil;f.hookIds[name]=nil
+            return true
+        end,
         notify=function(name,callback) f.hooks[name]=callback;return name end,
         hud=function() return f.hud end,
         hudForOwner=not options.twoHuds and function() return f.hud end or nil,

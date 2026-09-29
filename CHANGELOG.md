@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Unregister lifecycle function hooks with their names and both UE4SS IDs;
+  report and retain failed removals for retry.
+- Reject late section and map registration after a definition is built, and
+  clean up the input host if startup fails before publishing the facade.
 - Rename the installed mod folder to `_ModCore_2_Controls` and resolve
   ModCoreSettings from `_ModCore_1_Settings`.
 - Add coupled mapping-hook lifecycle regressions and deterministic offline work

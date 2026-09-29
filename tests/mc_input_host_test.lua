@@ -35,6 +35,8 @@ function bridge.OpenInputComponent(path)return path end
 function bridge.BindAction(_,_,phase,callback)callbacks[#callbacks+1]={phase=phase,callback=callback};return #callbacks end
 function bridge.CloseInputComponent()closeCount=closeCount+1;return true end
 local hooks={}
+local hookIds,nextHookId,unhooked={},0,{}
+local failUnhook=true
 local availableBridge
 local originalIndicator=object('InputAction','/Game/Input.IA_Original')
 local indicator=object('Widget','/Engine/Transient.AbilityLeft')
@@ -93,7 +95,18 @@ local environment={
         return true
     end,
     options={},
-    hook=function(name,callback)hooks[name]=callback;return true end,
+    hook=function(name,callback)
+        nextHookId=nextHookId+2
+        hooks[name]=callback;hookIds[name]={nextHookId-1,nextHookId}
+        return nextHookId-1,nextHookId
+    end,
+    unhook=function(name,pre,post)
+        local ids=assert(hookIds[name],'unknown hook')
+        assert(pre==ids[1] and post==ids[2],'hook removal omitted name or ids')
+        if failUnhook then failUnhook=false;return false,'temporary removal failure' end
+        hooks[name]=nil;hookIds[name]=nil;unhooked[#unhooked+1]=name
+        return true
+    end,
     notify=function(name,callback)hooks[name]=callback;return true end,
 }
 local calls={}
@@ -149,3 +162,11 @@ assert(indicator.EnhancedInputAction==originalIndicator and indicatorSets==8)
 callbacks[2].callback({})
 assert(#calls==2,'deactivated callback generation must not deliver')
 print('PASS Enhanced Input host attach, replacement, and stale callback rejection')
+local stopped,stopReason=host:stop()
+assert(not stopped and tostring(stopReason):find('temporary removal failure',1,true))
+assert(host.phase=='stopped' and #unhooked==6)
+assert(host:stop() and #unhooked==7 and next(hookIds)==nil)
+local secondHost=require('mc_input_host').new(function(callback)callback();return true end,
+    function()end,service,environment)
+assert(secondHost:stop() and #unhooked==14 and next(hookIds)==nil)
+print('PASS named hook removal retries failures and releases each successful hook once')
