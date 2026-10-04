@@ -89,7 +89,7 @@ Persistent choices use MCC's sectioned INI format:
 ```ini
 [ModCoreControls.module]
 default.SwapOutsideCombat=1
-default.HoldSwap=0
+default.HoldSwap=1
 default.DefaultWheel=2
 [ModCoreControls.actions]
 global.SlotAction1.key=74
@@ -105,7 +105,7 @@ Group keys are Unbound until the player binds them.
 Default owns the wheel swap on the player's Toggle Quickslots key and suppresses
 the game's `IA_Combat_ToggleQuickslots` with an override. It has three settings.
 **Allow Swap outside of combat** makes the swap usable in open world as well as
-in combat. **Hold to Swap, release to return** turns the key into press and
+in combat. **Hold to Swap, release to return** is on by default and turns the key into press and
 release edges: holding shows the wheel other than the default and releasing
 returns; with it off, each press flips the wheels. **Default wheel** picks the
 wheel focused at rest. Default's settings are module-wide: its Default wheel

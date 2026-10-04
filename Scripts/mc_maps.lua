@@ -62,7 +62,7 @@ M.addSectionMap('module', {
         settings={
             {id='SwapOutsideCombat',name='Allow Swap outside of combat',kind='choice',default=1,
                 values={0,1},labels={'Off','On'}},
-            {id='HoldSwap',name='Hold to Swap, release to return',kind='choice',default=0,
+            {id='HoldSwap',name='Hold to Swap, release to return',kind='choice',default=1,
                 values={0,1},labels={'Off','On'}},
             {id='DefaultWheel',name='Default wheel',kind='choice',default=2,
                 values={1,2},labels={'Abilities','Consumables'}},

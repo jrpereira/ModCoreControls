@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Enable Hold to Swap by default; saved choices remain in effect.
 - Maps coexist: Default, Grouped and Global are active together and Control Map
   only navigates between their pages; it is no longer saved. The same key and
   trigger in two maps is rejected at Apply. Slot and Group keys start Unbound,

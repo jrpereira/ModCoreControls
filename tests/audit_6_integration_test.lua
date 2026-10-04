@@ -455,6 +455,7 @@ case('Default owns the swap on the Toggle Quickslots key',function()
     local definition=Menu.define(require('mc_sections'),require('mc_maps'))
     local model=Menu.new(definition,{})
     local default=definition.sections[1].maps[1]
+    model:set(default.holdSwap.enabled.id,0)
     local f=Fixture.new()
     local down=f.makeObject('InputTriggerDown','/Game/Input.NativeDown')
     f.swapAction.Triggers={down}
@@ -509,13 +510,13 @@ case('everywhere keys live in IMC_Base across combat transitions',function()
         end
         return count
     end
-    check(mcc(base)==1 and #f:mcc()==0,'the swap usable everywhere must live in IMC_Base')
+    check(mcc(base)==2 and #f:mcc()==0,'both default hold edges must live in IMC_Base')
     -- Entering combat replaces IMC_OW with IMC_RTCombat; leaving restores neither.
     f.input.AppliedInputContexts[f.native]=nil
     f.input.AppliedInputContexts[combat]=3
-    check(f.host:sync() and mcc(base)==1 and mcc(combat)==0,'combat must keep the swap in IMC_Base')
+    check(f.host:sync() and mcc(base)==2 and mcc(combat)==0,'combat must keep the swap in IMC_Base')
     f.input.AppliedInputContexts[combat]=nil
-    check(f.host:sync() and f.host.ready and mcc(base)==1,
+    check(f.host:sync() and f.host.ready and mcc(base)==2,
         'after combat the swap must still be mapped in IMC_Base')
 end)
 

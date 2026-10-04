@@ -20,11 +20,18 @@ local default=Plan.build(definition,model.values)
 -- All maps coexist. Nothing but Default's swap is bound out of the box.
 assert(table.concat(default.maps,',')=='default,grouped,global' and default.nativeSwap==nil)
 assert(table.concat(default.contexts,',')=='exploration,combat')
-assert(not default.holdSwap.enabled and default.holdSwap.defaultGroup==2 and default.defaultGroup==2)
+assert(default.holdSwap.enabled and default.holdSwap.defaultGroup==2 and default.defaultGroup==2)
 assert(default.overrides.IA_Combat_ToggleQuickslots,'Default must suppress the native toggle')
-assert(#default.bindings==1,'only the Default swap is bound by default')
+assert(#default.bindings==2,'Default swap binds press and release by default')
 assert(not default.overrides.IA_Quickslot_Left,'unbound slot keys must not override native slots')
-local toggle=default.bindings[1]
+local defaultPress,defaultRelease=default.bindings[1],default.bindings[2]
+assert(defaultPress.holdSwapEdge=='press' and defaultPress.mode==3 and defaultPress.action.group==1
+    and defaultRelease.holdSwapEdge=='release' and defaultRelease.mode==4
+    and defaultRelease.action.group==2,'default hold swap must show Abilities and return to Consumables')
+model:set(defaultMap.holdSwap.enabled.id,0)
+local tapDefault=Plan.build(definition,model.values)
+assert(not tapDefault.holdSwap.enabled and #tapDefault.bindings==1,'saved Off must retain tap swapping')
+local toggle=tapDefault.bindings[1]
 assert(toggle.action.type=='flip' and toggle.mode==3 and toggle.consume
     and toggle.standardAction=='IA_Combat_ToggleQuickslots' and toggle.key==0,
     'the toggle must flip wheels on press, on the inherited Toggle Quickslots key')
