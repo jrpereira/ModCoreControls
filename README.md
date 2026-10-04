@@ -38,7 +38,7 @@ placeholders. See the developer guide for the supported declaration shape.
 
 A map is a group of keys that work together as one input style. Maps point to a
 section and contain named groups of key definitions. The initial Actions maps
-are Grouped and Flat. Their declarations live in `Scripts/mc_maps.lua`.
+are Grouped and Global. Their declarations live in `Scripts/mc_maps.lua`.
 
 ```lua
 -- Add this static declaration in mc_maps.lua before the registry is consumed.
@@ -72,7 +72,7 @@ Controls page.
 ## DMM and storage
 
 Controls is presented through DMM. Its first row is a Section picker marked
-`mcNavigation=1` and `mcLevel=1`, with Actions, Movement, and System as its
+`mcNavigation=1` and `mcHeading=true`, with Actions, Movement, and System as its
 choices. This picker is transient navigation state:
 it controls which section is visible and is never written to `config.ini`.
 
@@ -80,13 +80,42 @@ Persistent choices use MCC's sectioned INI format:
 
 ```ini
 [ModCoreControls.actions]
-map=flat
-flat.SlotAction1.key=74
-flat.SlotAction1.trigger=0
+map=default
+default.SwapOutsideCombat=1
+default.HoldSwap=0
+default.DefaultWheel=2
+global.SlotAction1.key=74
+global.SlotAction1.trigger=0
 ```
 
 Only the selected section's rows are visible. Actions shows **Control Map** with
-**Grouped | Flat**, followed by the selected map's keys and triggers. Sections
+**Default | Grouped | Global | Advanced**, followed by the selected map's controls.
+Default owns the wheel swap on the player's Toggle Quickslots key and suppresses
+the game's `IA_Combat_ToggleQuickslots` with an override. It has three settings.
+**Allow Swap outside of combat** makes the swap usable in open world as well as
+in combat. **Hold to Swap, release to return** turns the key into press and
+release edges: holding shows the wheel other than the default and releasing
+returns; with it off, each press flips the wheels. **Default wheel** picks the
+wheel focused at rest. Default is the base map: its Default wheel stays in effect
+under Grouped, Global, and Advanced, which override only what they bind. MCC
+activates it after settings load, and released or re-tapped group keys return to
+it. Focus enables the focused wheel and disables the other
+when a layout has moved the wheels out of the native switcher; native slot keys
+follow the enabled wheel. Leaving Default removes the override.
+Grouped, Global, and Advanced do not expose these settings. Grouped titles its
+sections after the Default wheel: **Group 1** is the Default wheel, with its Group
+key and the four shared slot keys, which fire the focused wheel; **Group 2** is
+the other wheel, with its Group key on the inherited Toggle Quickslots key.
+Advanced has three four-slot sections: Ability slots 1–4, Consumable slots 5–8,
+and reserved slots 9–12. Each section has an optional **Group** hold/tap binding.
+An optional key with `defaultControl` stores zero while inheriting that standard
+game control dynamically. Global's Show Controls key and Advanced Group 2 inherit
+`IA_Combat_ToggleQuickslots`; a custom nonzero key replaces the inheritance.
+When a Group is bound, its four slot fields become dim, borderless static aliases.
+Slots 1–8 use the unassigned virtual-key identifiers `0xC1`–`0xC8` for those
+display aliases; they cannot be captured or mapped as physical keys. Their HUD
+prompts reuse the group input action, including its key and Tap/Hold mode.
+Slots 9–12 are saved for future use but do not create gameplay bindings yet. Sections
 without maps have no controls yet. Each Lua map group becomes a visible DMM
 heading with its keys kept together beneath it. DMM owns key capture, Apply,
 and Restore.
@@ -94,16 +123,22 @@ and Restore.
 ## Enhanced Input runtime
 
 At startup, MCC reads the selected Actions map from the sectioned INI and turns
-its bindings into generated Enhanced Input actions and mapping contexts. It
-attaches to the selected live player stack. On a fresh stack, exploration may
-attach before a native gameplay context is observed; after one has been seen,
-the runtime waits for a matching native context.
+its bindings into generated Enhanced Input actions. MCC creates no mapping
+context: a map's `contexts` say where its keys can be used, and MCC maps them
+into the game's own contexts while they are applied. Keys usable in both open
+world and combat go into `IMC_Base`, which stays applied across those
+transitions; keys limited to one go into `IMC_OW` (exploration) or
+`IMC_RTCombat` (combat). Detaching removes only MCC's entries; entries the
+game drops are mapped again on the next sync.
 
 Native callbacks are owned through UE4SSLuaEventBridge API 4 or newer. Tap and
 immediate Hold bindings deliver `Triggered`; sustained Hold bindings deliver
 `Started`, `Completed`, and `Canceled`, allowing Alternative focus to return to
 the default wheel on release or cancellation. Callback generations are retired
 when the input component changes or controls are reapplied.
+
+Default's swap is an MCC action bound like any other. With Hold on, a hold
+delivers a press and a release `Triggered`.
 
 Successful DMM Apply notifications request a runtime reload of `config.ini`.
 Saving choices and activating them are separate steps; attachment may remain
@@ -117,7 +152,7 @@ Gameplay-context detach, replacement, and deactivation restore the original
 indicator actions.
 
 This runtime currently drives the eight native ability/consumable quickslot
-positions, Grouped/Flat wheel focus, and their HUD key indicators. Selected maps
+positions, Grouped/Global wheel focus, and their HUD key indicators. Selected maps
 replace declared native actions with root-captured chord gates. Existing gates
 are reused, and detach removes only MCC-owned gates while retaining them in a
 bounded process-lifetime pool.

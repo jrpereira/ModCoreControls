@@ -46,19 +46,30 @@ end
 local complete,count=monitor:refresh(groupedActions,groupedPlan)
 assert(complete and count==8 and setCount==8)
 assert(abilityBindings.Left.EnhancedInputAction==consumableBindings.Left.EnhancedInputAction)
-local flatActions,flatPlan={}, {bindings={}}
+local globalActions,globalPlan={}, {bindings={}}
 for index,kind in ipairs({'ability','consumable'}) do
     for slot=1,4 do
-        local id='flat.'..kind..slot
-        flatActions[id]=keep(object('/Engine/Transient.Flat'..kind..slot))
-        flatPlan.bindings[#flatPlan.bindings+1]={id=id,action={type=kind,slot=slot}}
+        local id='global.'..kind..slot
+        globalActions[id]=keep(object('/Engine/Transient.Global'..kind..slot))
+        globalPlan.bindings[#globalPlan.bindings+1]={id=id,action={type=kind,slot=slot}}
     end
 end
-assert(monitor:refresh(flatActions,flatPlan))
+assert(monitor:refresh(globalActions,globalPlan))
 assert(setCount==16 and abilityBindings.Left.EnhancedInputAction~=consumableBindings.Left.EnhancedInputAction)
 assert(monitor:restoreAll())
 for widget,native in pairs(original) do assert(widget.EnhancedInputAction==native) end
 assert(stored=='')
+local groupAction=keep(object('/Engine/Transient.AdvancedGroup2'))
+local aliasPlan={bindings={},displays={}}
+for slot=1,4 do
+    aliasPlan.displays[#aliasPlan.displays+1]={source='advanced.group2',action={type='consumable',slot=slot}}
+end
+assert(monitor:refresh({['advanced.group2']=groupAction},aliasPlan))
+for _,position in ipairs(positions) do
+    assert(consumableBindings[position].EnhancedInputAction==groupAction,
+        'grouped slot display must reuse the group input action')
+end
+assert(monitor:restoreAll())
 local failPath,forceWrites=nil,0
 local recovering=require('mc_key_indicators').new({
     valid=function(value)return value and value.valid end,
@@ -81,8 +92,8 @@ local complete,completed,expected=recovering:refresh(groupedActions,groupedPlan,
 assert(complete and completed==8 and expected==8 and forceWrites==before)
 assert(recovering:refresh(groupedActions,groupedPlan,{revision=1,force=true}))
 assert(forceWrites==before+8)
-failPath=flatActions['flat.ability1'].path
-complete=recovering:refresh(flatActions,flatPlan,{revision=2})
+failPath=globalActions['global.ability1'].path
+complete=recovering:refresh(globalActions,globalPlan,{revision=2})
 assert(not complete and abilityBindings.Left.EnhancedInputAction==groupedActions['grouped.slot1'])
 assert(recovering:restoreAll())
 assert(abilityBindings.Left.EnhancedInputAction==original[abilityBindings.Left])

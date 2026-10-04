@@ -48,14 +48,29 @@ for section, sectionMaps in pairs(maps.maps) do
     end
 end
 local actions = maps.maps.actions
-assert(#actions.flat.map[1].keys == 8)
-assert(#actions.grouped.map[2].keys == 4)
-assert(actions.flat.map[2].keys[1].optional == true)
-assert(actions.flat.map[2].keys[1].override.value == 164)
-assert(actions.flat.map[1].keys[1] ~= actions.grouped.map[2].keys[1])
-assert(actions.grouped.map[1].keys[1].override.action=='IA_Combat_ToggleQuickslots')
-assert(actions.grouped.map[1].keys[1].override.value==164)
-assert(actions.grouped.override[1]=='IA_Combat_ToggleQuickslots')
+assert(#actions.global.map[1].keys == 8)
+-- Grouped: Group 1 is the Default wheel (Group key and shared slots), Group 2 the other.
+assert(#actions.grouped.map == 2 and #actions.grouped.map[1].keys == 5 and #actions.grouped.map[2].keys == 1)
+assert(actions.grouped.map[1].wheel == 'default' and actions.grouped.map[2].wheel == 'other')
+assert(actions.grouped.map[1].keys[1].action.wheel == 'default'
+    and actions.grouped.map[2].keys[1].action.wheel == 'other')
+assert(actions.grouped.map[1].keys[1].id == 'GroupFocus1' and actions.grouped.map[2].keys[1].id == 'GroupFocus2',
+    'Group keys keep their config IDs')
+assert(actions.global.map[2].keys[1].optional == true)
+assert(actions.global.map[2].keys[1].default==0
+    and actions.global.map[2].keys[1].defaultControl=='IA_Combat_ToggleQuickslots')
+assert(actions.global.map[1].keys[1] ~= actions.grouped.map[1].keys[2])
+-- Focus keys inherit the toggle's key binding but no longer override the toggle.
+assert(actions.global.map[2].keys[1].override == nil)
+assert(actions.grouped.map[2].keys[1].override == nil
+    and actions.grouped.map[2].keys[1].defaultControl=='IA_Combat_ToggleQuickslots')
+assert(actions.grouped.override == nil and actions.global.override == nil)
+assert(actions.global.map[1].keys[1].override.action=='IA_Quickslot_Left')
+assert(#actions.advanced.map==3)
+assert(#actions.advanced.map[1].keys==5 and #actions.advanced.map[3].keys==5)
+assert(actions.advanced.map[1].keys[1].optional)
+assert(actions.advanced.map[2].keys[1].defaultControl=='IA_Combat_ToggleQuickslots')
+assert(actions.advanced.map[3].keys[1].inactive and actions.advanced.map[3].keys[5].inactive)
 local flight = maps.addSectionMap('flight', { id='direct', name='Direct', value=0, map={} })
 assert(flight == maps.maps.flight.direct and maps.order.flight[1] == 'direct')
 assert(not pcall(maps.addSectionMap, 'flight', flight))

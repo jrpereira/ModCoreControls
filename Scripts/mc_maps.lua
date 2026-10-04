@@ -42,7 +42,7 @@ local shared = {}
 for slot = 1, 4 do
     shared[slot] = {
         id = 'FixedSlot' .. slot,
-        name = 'Slot ' .. slot .. ' (or ' .. (slot + 4) .. ')',
+        name = 'Slot ' .. slot,
         trigger = 'Tap|Hold',
         default = 48 + slot,
         action = { type = 'selected', slot = slot },
@@ -55,52 +55,113 @@ for slot = 1, 4 do
 end
 
 M.addSectionMap('actions', {
+        id='default',
+        name='Default',
+        value=0,
+        contexts={'exploration','combat'},
+        settings={
+            {id='SwapOutsideCombat',name='Allow Swap outside of combat',kind='choice',default=1,
+                values={0,1},labels={'Off','On'}},
+            {id='HoldSwap',name='Hold to Swap, release to return',kind='choice',default=0,
+                values={0,1},labels={'Off','On'}},
+            {id='DefaultWheel',name='Default wheel',kind='choice',default=2,
+                values={1,2},labels={'Abilities','Consumables'}},
+        },
+        holdSwap={enabled='HoldSwap', defaultWheel='DefaultWheel', outsideCombat='SwapOutsideCombat',
+            action='IA_Combat_ToggleQuickslots'},
+        map={},
+    })
+
+M.addSectionMap('actions', {
         id = 'grouped',
         name = 'Grouped',
-        value = 0,
+        value = 1,
         contexts= {'exploration', 'combat'},
-        override = { 'IA_Combat_ToggleQuickslots' },
+        -- Group 1 is the Default wheel, in effect at rest; the shared slot keys
+        -- fire the focused wheel. Group 2 is the other wheel.
         map = {
             {
-                name = 'Group Focus',
+                name = 'Group 1', wheel = 'default',
                 keys = {
                     {
-                        id = 'GroupFocus2', name = 'Alternative',
-                        trigger = 'Hold|Tap', sustained = true,
-                        action = { type = 'focus', group = 2 },
-                        override = { action = 'IA_Combat_ToggleQuickslots', value = 164 },
-                    },
-                    {
-                        id = 'GroupFocus1', name = 'Default',
-                        action = { type = 'focus', group = 1 },
+                        id = 'GroupFocus1', name = 'Group',
+                        action = { type = 'focus', wheel = 'default' },
                         trigger = 'Hold|Tap', sustained = true,
                         optional = true, default = 0,
-                    }
+                    },
+                    shared[1], shared[2], shared[3], shared[4],
                 },
             },
-            { name = 'Slot Activation', keys = shared },
+            {
+                name = 'Group 2', wheel = 'other',
+                keys = {
+                    {
+                        id = 'GroupFocus2', name = 'Group',
+                        trigger = 'Hold|Tap', sustained = true,
+                        action = { type = 'focus', wheel = 'other' },
+                        defaultControl = 'IA_Combat_ToggleQuickslots',
+                        optional = true, default = 0,
+                    },
+                },
+            },
         },
     })
 
 M.addSectionMap('actions', {
-        id = 'flat',
-        name = 'Flat',
-        value = 1,
+        id = 'global',
+        name = 'Global',
+        value = 2,
         contexts= {'exploration', 'combat'},
-        override = { 'IA_Combat_ToggleQuickslots' },
         map = {
-            { name = 'Fixed Controls', keys = fixed },
+            { name = 'Global Bindings', keys = fixed },
             {
                 name = 'Optional',
                 keys = {
                     {
-                        id = 'FixedGroupFocus2', name = 'Preview',
+                        id = 'FixedGroupFocus2', name = 'Show Controls (if hidden)',
                         action = { type = 'focus', group = 2 },
                         trigger = 'Hold|Tap', sustained = true, optional = true,
-                        override = { action = 'IA_Combat_ToggleQuickslots', value = 164 },
+                        default = 0, defaultControl = 'IA_Combat_ToggleQuickslots'
                     },
                 },
             },
+        },
+    })
+
+local function advancedSlots(first,kind,group,inactive)
+    local keys={
+        {
+            id='AdvancedGroup'..group, name='Group', trigger='Hold|Tap',
+            sustained=true, optional=true, default=0,
+            defaultControl=group==2 and 'IA_Combat_ToggleQuickslots' or nil,
+            action={type='focus',group=group}, inactive=inactive,
+        },
+    }
+    for offset=0,3 do
+        keys[#keys+1]={
+            id='AdvancedSlot'..(first+offset), name='Slot '..(first+offset),
+            trigger='Tap|Hold', default=inactive and 0 or 48+first+offset,
+            action={type=kind,slot=offset+1}, inactive=inactive,
+            groupedBy='AdvancedGroup'..group,
+            -- Unassigned virtual-key range, used only as a stable display
+            -- alias for Slots 1–8.  It is never offered to key capture or
+            -- emitted as an Enhanced Input mapping.
+            displayAlias=not inactive and first+offset+0xC0 or nil,
+        }
+    end
+    return {name='Slots '..first..'–'..(first+3)..' · Global',keys=keys}
+end
+
+M.addSectionMap('actions', {
+        id='advanced',
+        name='Advanced',
+        value=3,
+        contexts={'exploration','combat'},
+        map={
+            advancedSlots(1,'ability',1,false),
+            advancedSlots(5,'consumable',2,false),
+            -- Saved now, deliberately inactive until a third game group exists.
+            advancedSlots(9,'ability',3,true),
         },
     })
 

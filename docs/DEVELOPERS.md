@@ -76,9 +76,9 @@ DMM saves through `mc_config.lua`. Each section owns an INI section:
 
 ```ini
 [ModCoreControls.actions]
-map=flat
-flat.SlotAction1.key=74
-flat.SlotAction1.trigger=0
+map=global
+global.SlotAction1.key=74
+global.SlotAction1.trigger=0
 ```
 
 Map IDs are strings. Keys and triggers are integers. Choice keys include their
@@ -100,7 +100,28 @@ with slot 1–4, or `focus` with group 1–2). Use a supported virtual-key defau
 zero means Unbound. These are static declarations, not a runtime registration
 transport.
 
-`mc_input_context.lua` owns generated Input Actions and mapping contexts.
+`mc_input_context.lua` owns generated Input Actions and maps their keys into the
+game's applied contexts: `IMC_Base` for bindings usable in both gameplay
+contexts, otherwise `IMC_OW` for `exploration` and `IMC_RTCombat` for `combat`.
+Without an applied `IMC_Base`, every binding falls back to its own contexts. It never creates or applies a mapping context, and removes only its own
+entries. A binding may narrow where it applies with its own `contexts`.
+The host also pre-hooks `RequestRebuildControlMappings` for its owning player.
+It prepares MCC mappings inline before the request executes, including forced
+rebuilds. Nested requests during MCC operations are ignored; this path does not
+request another rebuild after reconfiguration. Queuing on the game thread alone
+does not guarantee execution after the engine's rebuild.
+Default generates its own swap bindings on the inherited
+`IA_Combat_ToggleQuickslots` key and overrides the native action. Hold off
+generates one Pressed `flip` binding; Hold on generates `holdSwapEdge` press and
+release bindings. Their `contexts` are `{'combat'}`, or both contexts when swap
+outside of combat is on. `Quickslots.flip` and focus enable the focused wheel and
+disable the other when the wheels are outside the native switcher.
+
+Optional key declarations may set `defaultControl` to a standard Enhanced Input
+action ID. Their stored zero value means “inherit”; the runtime resolves the
+current keyboard mapping from native `/Game/` contexts and refreshes it after
+`ApplyPendingKeyboardMappings`. When no applied context maps the action, as for
+the combat toggle in open world, it falls back to the Settings key profile. Without `defaultControl`, zero remains unbound.
 `mc_native_callbacks.lua` owns the bridge target and its phase subscriptions.
 `mc_overrides.lua` owns root-captured chord gates for native actions declared by
 map- or key-level `override` metadata. A key descriptor can use
@@ -129,10 +150,29 @@ InputTriggerTap qualifies on release within its threshold. Immediate Hold
 fires after its threshold. Selected-slot gestures retain the group selected at
 press start through their terminal phase. A key-level override applies while
 that key is bound; Unbound may expose the native binding. Map-level overrides
-do not depend on individual key values. MCC retains its initial exploration
-fallback only before a native context has been observed for the current stack.
+do not depend on individual key values. MCC attaches only while one of the
+map's game contexts is applied.
 Use a full game restart after changing MCC Lua; hot reload is not a supported
 recovery path for owned native hooks and provider subscriptions.
+
+Every successful change of the active wheel emits `controls.group.focus` with the
+payload `{group={from=<number|nil>,to=<number>}}`. Group 1 is abilities and group 2
+is consumables. Activating the plan's Default wheel is such a change: after
+settings load, MCC activates it and publishes the first transition with no `from`
+(shared-variable form `<revision> - <to>`). Hold release, cancellation and the
+reset to Default on retirement emit their transitions too. Failed selection and an
+unchanged group emit nothing; a failed reset keeps the last published group and
+leaves Default pending for the next presentation. The Default map's Default wheel
+is in effect under every map. A focus action names a fixed `group`, or a `wheel`
+of `'default'` or `'other'` that the plan resolves against the Default wheel; a
+map group with the same `wheel` field is titled after the wheel it shows. Emissions are not logged:
+writing the log on every swap made swapping lag. `Events.format` still renders
+the stable JSON-shaped form for diagnostics, for example
+`controls.group.focus {"group":{"from":1,"to":2}}`.
+
+`mc_events.lua` owns the category-independent event name, validation,
+serialization and cross-Lua notification helpers. ModCoreTemplates consumes the
+same contract and keeps the latest transition in its own runtime state.
 
 The runtime requires UE4SSLuaEventBridge Enhanced Input API 4 or newer. Bridge
 resolution is lazy so an undefined marker-based load order does not permanently

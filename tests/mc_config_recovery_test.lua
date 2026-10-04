@@ -94,3 +94,21 @@ assert(not published and tostring(problem):find('retirement failure',1,true))
 assert(read(path)==first and read(temporary)==nil and read(previous)==nil)
 clear()
 print('PASS MCC config transaction recovery')
+
+-- The Flat map was renamed Global: saved flat.* keys and map=flat migrate once on open.
+local legacy=os.tmpname()
+write(legacy,'[Other]\nflat.keep=1\n[ModCoreControls.actions]\nmap=flat\nflat.SlotAction1.key=74\nflat.SlotAction1.trigger=0\n')
+local migrated=Config.open(legacy,definition)
+assert(migrated.migrationError==nil,migrated.migrationError)
+local slot
+for _,item in ipairs(definition.settings) do
+    if item.configKey=='global.SlotAction1.key' then slot=item.id end
+end
+assert(slot and migrated.values[slot]==74,'flat key value must survive the rename')
+local persisted=read(legacy)
+assert(persisted:find('map=global',1,true) and persisted:find('global.SlotAction1.key=74',1,true)
+    and not persisted:find('\nflat.SlotAction',1,true) and persisted:find('[Other]\nflat.keep=1',1,true),
+    'migration must persist renamed keys and leave other sections untouched')
+assert(Config.migrate(persisted)==persisted,'migration must be idempotent')
+assert(os.remove(legacy))
+print('PASS legacy Flat config migrates to Global')

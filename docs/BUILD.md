@@ -27,6 +27,7 @@ lua5.4 tests/mc_input_plan_test.lua
 lua5.4 tests/mc_native_callbacks_test.lua
 lua5.4 tests/mc_overrides_test.lua
 lua5.4 tests/mc_input_context_test.lua
+lua5.4 tests/mc_events_test.lua
 lua5.4 tests/mc_quickslots_test.lua
 lua5.4 tests/mc_input_host_test.lua
 lua5.4 tests/mc_key_indicators_test.lua

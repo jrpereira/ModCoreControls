@@ -16,7 +16,56 @@ local function index(definition)
     return sections,order
 end
 local function stored(item,value) return item.storedValues and item.storedValues[value] or tostring(value) end
+-- Renamed map IDs per section. Old keys move to the new ID unless the new key
+-- already exists, in which case the stale old line is dropped.
+local renamedMaps={['ModCoreControls.actions']={flat='global'}}
+function M.migrate(content)
+    local function renamed(section,key,raw)
+        local maps=renamedMaps[section]
+        if not maps then return nil end
+        if key=='map' then
+            local value=maps[raw:match('^%s*(.-)%s*$')]
+            if value then return 'map',value end
+            return nil
+        end
+        local prefix,rest=key:match('^([^.]+)(%..+)$')
+        return prefix and maps[prefix] and maps[prefix] .. rest or nil
+    end
+    local present,section={},nil
+    for _,line in ipairs(lines(content)) do
+        local heading=line:match('^%s*%[([^%]]+)%]%s*$')
+        if heading then section=heading
+        else
+            local key=line:match('^%s*([^=;#]-)%s*=')
+            if key then present[(section or '') .. '\0' .. key]=true end
+        end
+    end
+    local output,changed={},false
+    section=nil
+    for _,line in ipairs(lines(content)) do
+        local heading=line:match('^%s*%[([^%]]+)%]%s*$')
+        if heading then section=heading
+        else
+            local key,raw=line:match('^%s*([^=;#]-)%s*=%s*([^;#]*)')
+            local newKey,newValue
+            if key then newKey,newValue=renamed(section,key,raw) end
+            if newKey=='map' then
+                local comment=line:match('([;#].*)$')
+                line='map=' .. newValue .. (comment and ' ' .. comment or '')
+                changed=true
+            elseif newKey then
+                changed=true
+                if present[section .. '\0' .. newKey] then line=nil
+                else line=line:gsub('^(%s*)' .. key:gsub('%p','%%%0'),'%1' .. newKey,1) end
+            end
+        end
+        if line then output[#output+1]=line end
+    end
+    if not changed then return content end
+    return table.concat(output,'\n') .. '\n'
+end
 function M.decode(content,definition)
+    content=M.migrate(content)
     local sections=index(definition)
     local values,seen,section={},{},nil
     for _,line in ipairs(lines(content)) do
@@ -42,6 +91,7 @@ function M.decode(content,definition)
     return values
 end
 function M.encode(content,definition,values)
+    content=M.migrate(content)
     M.decode(content,definition)
     local sections,order=index(definition)
     local output,seen,written,section={},{},{},nil
@@ -119,7 +169,17 @@ function M.open(path,definition)
     end
     local original,initial=recover()
     local self={values=initial}
+    -- Persist renamed map keys once so the settings menu, which reads config.ini
+    -- directly, finds them under their current names.
+    local publish
+    local migration
+    if original~=nil and M.migrate(original)~=original then
+        migration=function() return publish(function() return M.migrate(original) end) end
+    end
     function self:save(values)
+        return publish(function() return M.encode(original or '',definition,values) end)
+    end
+    publish=function(render)
         assert(read(path)==original,'config changed externally; reopen the menu before saving')
         -- A published save can leave only its cleanup file behind.
         local prior=read(previous)
@@ -129,7 +189,7 @@ function M.open(path,definition)
             checked(prior,previous)
             assert(os.remove(previous),'could not remove stale config previous: ' .. previous)
         end
-        local content=M.encode(original or '',definition,values)
+        local content=render()
         assert(read(temporary)==nil and read(previous)==nil,'unfinished config transaction needs review')
         local file=assert(io.open(temporary,'wb'))
         local ok,why=file:write(content)
@@ -151,6 +211,10 @@ function M.open(path,definition)
             if not removed then return true,'config committed; previous cleanup pending: ' .. tostring(why) end
         end
         return true
+    end
+    if migration then
+        local ok,why=pcall(migration)
+        self.migrationError=not ok and tostring(why) or nil
     end
     return self
 end

@@ -1,33 +1,46 @@
 package.path='Scripts/?.lua;'..package.path
 local Quickslots=require('mc_quickslots')
+local Events=require('mc_events')
 local calls={}
+local events={}
 local service={
     activate=function(_,kind,slot)calls[#calls+1]=kind..':'..slot;return true end,
     select=function(_,group)calls[#calls+1]='group:'..group;return true end,
+    emit=function(_,name,payload)events[#events+1]={name=name,payload=payload} end,
 }
-local state={selectedGroup=1}
+local state={selectedGroup=1,defaultGroup=1}
 assert(Quickslots.deliver(state,{action={type='selected',slot=2},mode=0},'Triggered',service))
 assert(calls[#calls]=='ability:2')
 local focus={action={type='focus',group=2},mode=0}
 Quickslots.deliver(state,focus,'Triggered',service)
 assert(state.selectedGroup==2 and calls[#calls]=='group:2')
+assert(events[1].name=='controls.group.focus' and events[1].payload.group.from==1
+    and events[1].payload.group.to==2)
+assert(Events.format(events[1].name,events[1].payload)
+    =='controls.group.focus {"group":{"from":1,"to":2}}')
 Quickslots.deliver(state,{action={type='selected',slot=2},mode=0},'Triggered',service)
 assert(calls[#calls]=='consumable:2')
 Quickslots.deliver(state,focus,'Triggered',service)
 assert(state.selectedGroup==1)
+assert(events[2].payload.group.from==2 and events[2].payload.group.to==1)
 local hold={action={type='focus',group=2},mode=2}
 Quickslots.deliver(state,hold,'Started',service)
 assert(state.selectedGroup==2)
 Quickslots.deliver(state,hold,'Canceled',service)
 assert(state.selectedGroup==1 and calls[#calls]=='group:1')
+assert(events[3].payload.group.from==1 and events[3].payload.group.to==2
+    and events[4].payload.group.from==2 and events[4].payload.group.to==1)
 local failing={
     select=function()return false end,
     activate=function()return true end,
 }
 assert(not Quickslots.deliver(state,focus,'Triggered',failing))
 assert(state.selectedGroup==1 and state.pendingGroup==2)
+assert(#events==4,'failed focus change emitted an event')
 assert(Quickslots.reconcile(state,service))
 assert(state.selectedGroup==2 and state.pendingGroup==nil)
+assert(events[5].payload.group.from==1 and events[5].payload.group.to==2,
+    'delayed focus success did not emit its transition')
 local chosen={id='selected.1',mode=2,action={type='selected',slot=1}}
 assert(Quickslots.deliver(state,chosen,'Started',service))
 assert(Quickslots.deliver(state,focus,'Triggered',service))
@@ -37,8 +50,34 @@ assert(calls[#calls]=='consumable:1','selected slot must use press-start focus')
 local previous=#calls
 assert(Quickslots.deliver(state,chosen,'Triggered',service) and #calls==previous)
 assert(Quickslots.deliver(state,chosen,'Completed',service))
+state.defaultGroup=2
+local published=#events
 assert(Quickslots.cancel(state,service))
-assert(state.selectedGroup==1 and next(state.gestures)==nil and next(state.held)==nil)
+assert(state.selectedGroup==2 and calls[#calls]=='group:2'
+    and next(state.gestures)==nil and next(state.held)==nil)
+assert(#events==published+1 and events[#events].payload.group.from==1
+    and events[#events].payload.group.to==2,'cancel must publish its reset to Default')
+
+-- Default activation is an action: the first one publishes without a source group.
+local fresh,freshEvents={pendingGroup=1,defaultGroup=1},{}
+local freshService={select=function()return true end,
+    emit=function(_,name,payload)freshEvents[#freshEvents+1]={name=name,payload=payload} end}
+assert(Quickslots.deliver(fresh,{action={type='selected',slot=1},mode=0},'Triggered',freshService)==false,
+    'unknown focus must not pick a wheel')
+assert(Quickslots.reconcile(fresh,freshService))
+assert(fresh.selectedGroup==1 and #freshEvents==1 and freshEvents[1].payload.group.from==nil
+    and freshEvents[1].payload.group.to==1)
+assert(Events.format(freshEvents[1].name,freshEvents[1].payload)
+    =='controls.group.focus {"group":{"to":1}}')
+assert(Quickslots.reconcile(fresh,freshService) and #freshEvents==1)
+assert(Quickslots.reconcile({},freshService) and #freshEvents==1,'no Default, no activation')
+assert(Quickslots.cancel({},freshService) and #freshEvents==1)
+local stuck={selectedGroup=1,defaultGroup=2}
+assert(not Quickslots.cancel(stuck,{select=function()return false end,emit=freshService.emit}))
+assert(stuck.selectedGroup==1 and stuck.pendingGroup==2 and #freshEvents==1,
+    'failed reset keeps the published group and leaves Default pending')
+assert(Quickslots.reconcile(stuck,freshService) and stuck.selectedGroup==2
+    and freshEvents[2].payload.group.from==1 and freshEvents[2].payload.group.to==2)
 
 local function object()
     local value={valid=true}
@@ -58,16 +97,44 @@ local bound=Quickslots.new()
 assert(bound:bind({hud=owned},10))
 assert(bound:activate('ability',1))
 assert(owned.WBP_AA_Quickslots.Left.clicks==1 and not stale.WBP_AA_Quickslots.Left.clicks)
-assert(bound:reset(1) and owned.QuickslotsSwitcher.index==0)
+assert(bound:reset(1) and owned.QuickslotsSwitcher.index==1)
+assert(bound:select(2) and owned.QuickslotsSwitcher.index==0)
 owned.QuickslotsSwitcher.GetChildrenCount=function()return 1 end
 assert(bound:select(2),'separate-wheel presentation has no second switcher child')
+
+local separated=object()
+separated.QuickslotsSwitcher=object()
+function separated.QuickslotsSwitcher:GetChildrenCount()return 2 end
+function separated.QuickslotsSwitcher:SetActiveWidgetIndex(index)self.index=index end
+local outside=object()
+separated.WBP_AA_Quickslots=object()
+separated.WBP_HUD_Quickslots=object()
+function separated.WBP_AA_Quickslots:GetParent()return outside end
+function separated.WBP_HUD_Quickslots:GetParent()return outside end
+for _,wheel in ipairs({separated.WBP_AA_Quickslots,separated.WBP_HUD_Quickslots}) do
+    wheel.enabled=true
+    function wheel:SetIsEnabled(value)self.enabled=value end
+end
+assert(bound:bind({hud=separated},10))
+assert(bound:select(2),'reparented wheels should accept logical focus')
+assert(separated.QuickslotsSwitcher.index==nil,
+    'reparented wheels must not activate the native switcher')
+assert(separated.WBP_AA_Quickslots.enabled==false and separated.WBP_HUD_Quickslots.enabled==true,
+    'native slot keys must route to the focused wheel only')
+assert(bound:select(1) and separated.WBP_AA_Quickslots.enabled==true
+    and separated.WBP_HUD_Quickslots.enabled==false)
+assert(bound:invalidate(10) and separated.WBP_AA_Quickslots.enabled==true
+    and separated.WBP_HUD_Quickslots.enabled==true,
+    'invalidation must leave both wheels enabled')
+assert(bound:bind({hud=separated},10))
+
 assert(bound:invalidate(10) and not bound:activate('ability',1))
 assert(bound:bind({hud=owned},11))
 owned.valid=false
 assert(bound:hud()==nil and not bound:select(2))
-local pending={selectedGroup=2,held={[2]=1}}
+local pending={selectedGroup=2,defaultGroup=2,held={[2]=1}}
 assert(not Quickslots.cancel(pending,bound))
-assert(pending.selectedGroup==1 and pending.pendingGroup==1)
+assert(pending.selectedGroup==2 and pending.pendingGroup==2)
 local replacement=object()
 replacement.QuickslotsSwitcher=object()
 function replacement.QuickslotsSwitcher:GetChildrenCount()return 2 end
@@ -86,4 +153,16 @@ assert(Quickslots.reconcile(pending,bound))
 live.hud=recreated
 assert(Quickslots.reconcile(pending,bound))
 assert(recreated.QuickslotsSwitcher.index==0,'recreated HUD needs focus presentation')
+
+local edgeState={selectedGroup=1}
+local edgeService={}
+function edgeService:select(group) self.selected=group;return true end
+function edgeService:emit() return true end
+local press={mode=3,holdSwapEdge='press',action={type='focus',group=2}}
+local release={mode=4,holdSwapEdge='release',action={type='focus',group=2}}
+assert(Quickslots.deliver(edgeState,press,'Triggered',edgeService))
+assert(edgeState.selectedGroup==2 and edgeState.holdSwapPrevious==1 and edgeState.holdSwapActive)
+assert(Quickslots.deliver(edgeState,release,'Triggered',edgeService))
+assert(edgeState.selectedGroup==1 and edgeState.holdSwapPrevious==nil
+    and edgeState.holdSwapActive==nil,'Hold Swap release must restore the group active on press')
 print('PASS quickslot callback routing and wheel focus')

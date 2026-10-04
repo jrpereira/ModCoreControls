@@ -24,7 +24,7 @@ function M.new(bridge,fullName)
         if not target then return false,why end
         active=target
         for _,binding in ipairs(plan.bindings) do
-            local action=assert(actions[binding.id],'generated action missing: ' .. binding.id)
+            local action=assert(actions[binding.id],'input action missing: ' .. tostring(binding.id))
             for _,phase in ipairs(binding.phases) do
                 local bound,handle,bindWhy=pcall(bridge.BindAction,target,actionPath(action),phase,function(event)
                     callback(binding,phase,event)

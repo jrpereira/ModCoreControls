@@ -78,6 +78,16 @@ function M.new(e)
                 mapped[target.type][target.slot]=action
             end
         end
+        -- Display aliases intentionally reuse the source action.  Besides the
+        -- glyph this preserves its trigger mode, unlike synthesising a text
+        -- label for each grouped slot.
+        for _,display in ipairs(plan.displays or {}) do
+            local action=actions[display.source]
+            local target=display.action or {}
+            if target.slot and (target.type=='ability' or target.type=='consumable') then
+                mapped[target.type][target.slot]=action
+            end
+        end
         local hud=e.hud()
         if not e.valid(hud) then return false,0,0 end
         local completed,expected=0,0

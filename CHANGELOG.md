@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+- Activate the Default wheel as an action: MCC publishes `controls.group.focus`
+  after settings load (first transition has no `from`, encoded `-`) and when
+  retirement resets to Default. Removed assumed starting groups.
+- Default is the base map: its Default wheel applies under every map and is
+  where released or re-tapped group keys return. Grouped's sections are now
+  Group 1 (Default wheel: Group key and slots) and Group 2 (other wheel), titled
+  after the wheel they show. Saved Group keys keep their config IDs but now
+  follow the Default wheel instead of a fixed wheel.
+- Resolve inherited keys from the Settings key profile when no applied context
+  maps the action, so Grouped, Global, and Advanced attach in open world.
+- Create no mapping contexts. A map's `contexts` say where its keys can be
+  used; MCC maps them into the game's own contexts while those are applied:
+  `IMC_Base` for keys usable everywhere, so they survive combat transitions,
+  and `IMC_OW` or `IMC_RTCombat` for keys limited to one, removes only its own entries, and waits while no game
+  context is applied. MCC's actions now live in the transient package.
+- Default owns the wheel swap on the player's Toggle Quickslots key and
+  suppresses the native toggle. **Allow Swap outside of combat** chooses whether
+  the swap works in open world; **Hold to Swap, release to return** makes it
+  press and release edges. MCC no longer rewrites the native action's triggers
+  or copies its key into `IMC_OW`.
+- Route native slot keys to the focused wheel by enabling it and disabling the
+  other when a layout moves the wheels out of the native switcher.
+- Rename the Flat control map to Global. Saved `map=flat` and `flat.*` keys
+  migrate to `global` the first time MCC opens `config.ini`.
 - Unregister lifecycle function hooks with their names and both UE4SS IDs;
   report and retain failed removals for retry.
 - Reject late section and map registration after a definition is built, and

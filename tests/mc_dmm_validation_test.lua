@@ -18,6 +18,7 @@ local model=choices.open({id='ModCoreControls',path=directory .. '/mod_settings.
 assert(not model.error,model.error)
 local indices={}
 for i,item in ipairs(model.items) do indices[item.id]=i end
+model.pending[assert(indices.MCC_actions_Map)]=1
 local first=indices.MCC_actions_grouped_FixedSlot1_Key
 local second=indices.MCC_actions_grouped_FixedSlot2_Key
 model.pending[second]=model.pending[first]

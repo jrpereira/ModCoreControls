@@ -24,8 +24,8 @@ local indices={}
 for i,item in ipairs(items) do indices[item.id]=i end
 local nav=indices.MCC_Section
 assert(nav==1,'Section must be the first DMM control')
-assert(items[nav].mcNavigation and items[nav].mcFont==1,
-    'Section must be transient navigation at presentation level 1')
+assert(items[nav].mcNavigation and items[nav].mcHeader and items[nav].mcFont==nil,
+    'Section must be transient navigation presented as a heading')
 local sectionValues,sectionLabels={},{}
 for i,section in ipairs(definition.sections) do
     sectionValues[i],sectionLabels[i]=i-1,section.name
@@ -44,6 +44,8 @@ for _,setting in ipairs(definition.settings) do
         assert(item.key==setting.configKey,'config key mismatch: ' .. setting.id)
         if setting.kind=='choice' then
             same(item.values,setting.values,setting.id .. ' values')
+            assert((item.mcTabs==true)==(item.mcPairTargetId~=nil),
+                'only paired mode pickers should render as tabs: ' .. setting.id)
             same(item.labels,setting.labels,setting.id .. ' labels')
         else
             assert(item.mcKeybind,'key capture missing: ' .. setting.id)
@@ -60,6 +62,8 @@ for sectionIndex,section in ipairs(definition.sections) do
                 local keyItem=items[assert(indices[binding.key.id])]
                 assert(keyItem.mcOptional==(binding.optional or false),
                     'optional key metadata mismatch: ' .. binding.key.id)
+                assert(keyItem.mcDefaultControl==binding.defaultControl,
+                    'default control metadata mismatch: ' .. binding.key.id)
                 assert(keyItem.mcGroup and keyItem.mcGroup.heading,
                     'key group heading missing: ' .. binding.key.id)
                 local sourceValue=#section.maps>1 and mapDefinition.value or sectionValues[sectionIndex]
@@ -75,33 +79,34 @@ for sectionIndex,section in ipairs(definition.sections) do
     end
 end
 local map=indices.MCC_actions_Map
-assert(items[map].mcFont==2,'Control Map must render at presentation level 2')
+assert(items[map].mcFont==nil and not items[map].mcTabs,
+    'Control Map must use DMM arrows without a presentation level')
 assert(model:visibility()[map])
 model:set(nav,1)
 assert(not model:visibility()[map] and not model:dirty())
 for i,item in ipairs(items) do if i~=nav then assert(not model:visibility()[i],item.id) end end
-model:set(nav,0); model:set(map,1)
-local slot=indices.MCC_actions_flat_SlotAction1_Key
+model:set(nav,0); model:set(map,2)
+local slot=indices.MCC_actions_global_SlotAction1_Key
 assert(model:visibility()[slot])
 model:set(slot,74)
 local ok,why,event=model:apply(); assert(ok,why)
 assert(not event.values.MCC_Section)
 local file=assert(io.open(temp .. '/config.ini','rb')); local saved=file:read('*a'); file:close()
-assert(saved:find('[ModCoreControls.actions]\nmap=flat',1,true))
-assert(saved:find('flat.SlotAction1.key=74',1,true))
-local conflict=indices.MCC_actions_flat_SlotAction2_Key
+assert(saved:find('[ModCoreControls.actions]\nmap=global',1,true))
+assert(saved:find('global.SlotAction1.key=74',1,true))
+local conflict=indices.MCC_actions_global_SlotAction2_Key
 model:set(conflict,74)
 local accepted,reason,failedEvent=model:apply()
-assert(not accepted and reason:find('MCC_actions_flat_SlotAction2_Key',1,true))
+assert(not accepted and reason:find('MCC_actions_global_SlotAction2_Key',1,true))
 assert(failedEvent==nil and model.pending[conflict]==74 and model.committed[conflict]~=74)
 file=assert(io.open(temp .. '/config.ini','rb'))
 assert(file:read('*a')==saved,'invalid Apply changed persisted config')
 file:close()
 local native=Menu.new(definition,Config.decode(saved,definition))
-assert(native.values.MCC_actions_Map==1)
-assert(native.values.MCC_actions_flat_SlotAction1_Key==74)
+assert(native.values.MCC_actions_Map==2)
+assert(native.values.MCC_actions_global_SlotAction1_Key==74)
 model=choices.open(provider)
 assert(not model.error,model.error)
-assert(model.pending[map]==1 and model.pending[slot]==74)
+assert(model.pending[map]==2 and model.pending[slot]==74)
 assert(os.remove(temp .. '/config.ini')); assert(os.execute('rmdir ' .. string.format('%q',temp)))
 print('PASS DMM matches MCC definitions, storage, and Section navigation')

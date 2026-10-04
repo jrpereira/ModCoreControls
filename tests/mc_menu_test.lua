@@ -3,26 +3,26 @@ local Menu,Config=require('mc_menu'),require('mc_config')
 local definition=Menu.define(require('mc_sections'),require('mc_maps'))
 local model=Menu.new(definition,{})
 local actions=definition.sections[1]
-assert(actions.id=='actions' and actions.maps[1].id=='grouped')
+assert(actions.id=='actions' and actions.maps[1].id=='default')
 assert(definition.sections[2].id=='movement' and not definition.sections[2].selector)
 local selector=actions.selector
-model:set(selector.id,1)
-local flat=actions.maps[2]
-assert(flat.id=='flat' and model.values[selector.id]==flat.value)
-local binding=flat.groups[1].keys[1]
+model:set(selector.id,2)
+local globalMap=actions.maps[3]
+assert(globalMap.id=='global' and model.values[selector.id]==globalMap.value)
+local binding=globalMap.groups[1].keys[1]
 model:set(binding.key.id,74)
 local encoded=Config.encode('[Other]\nsetting=unchanged\n',definition,model.values)
-assert(encoded:find('[ModCoreControls.actions]\nmap=flat\n',1,true))
-assert(encoded:find('flat.SlotAction1.key=74',1,true))
+assert(encoded:find('[ModCoreControls.actions]\nmap=global\n',1,true))
+assert(encoded:find('global.SlotAction1.key=74',1,true))
 assert(encoded:find('[Other]\nsetting=unchanged',1,true))
 assert(not encoded:find('MCC_Section',1,true))
 assert(not encoded:find('[ModCoreControls.exploration]',1,true))
 local reopened=Menu.new(definition,Config.decode(encoded,definition))
-assert(reopened.values[selector.id]==flat.value and reopened.values[binding.key.id]==74)
+assert(reopened.values[selector.id]==globalMap.value and reopened.values[binding.key.id]==74)
 assert(Config.encode(encoded,definition,reopened.values)==encoded)
 assert(not pcall(Config.decode,'[ModCoreControls.actions]\nmap=unknown\n',definition))
-assert(not pcall(Config.decode,'[ModCoreControls.actions]\nmap=flat\nmap=grouped\n',definition))
-assert(not pcall(Config.decode,'[ModCoreControls.actions]\nflat.SlotAction1.key=255\n',definition))
+assert(not pcall(Config.decode,'[ModCoreControls.actions]\nmap=global\nmap=grouped\n',definition))
+assert(not pcall(Config.decode,'[ModCoreControls.actions]\nglobal.SlotAction1.key=255\n',definition))
 
 local function declaration(changes)
     local key={id='One',name='One',trigger='Tap',default=49,
@@ -43,7 +43,7 @@ local file=assert(io.open(path,'wb')); file:write('[Other]\nkeep=1\n'); file:clo
 local store=Config.open(path,definition)
 reopened:apply(store)
 local persisted=Config.open(path,definition)
-assert(persisted.values[selector.id]==1)
+assert(persisted.values[selector.id]==2)
 file=assert(io.open(path,'ab')); file:write('; changed externally\n'); file:close()
 assert(not pcall(persisted.save,persisted,reopened.values),'must reject concurrent config changes')
 assert(os.remove(path))

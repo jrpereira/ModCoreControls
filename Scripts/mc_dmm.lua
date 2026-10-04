@@ -31,7 +31,6 @@ function M.schema(definition)
             data.Type='picker'
             data.PresetValues=table.concat(item.values,'|')
             data.PresetLabels=table.concat(item.labels,'|')
-            data.mcType='tab'
         end
         for k,v in pairs(extra or {}) do data[k]=v end
         block(lines,'Setting.' .. item.id,data)
@@ -40,26 +39,54 @@ function M.schema(definition)
     for i,section in ipairs(definition.sections) do values[i]=i-1; labels[i]=section.name end
     block(lines,'Setting.MCC_Section',{Id='MCC_Section',Label='Section',Group='Sections',Type='picker',
         Default=0,PresetValues=table.concat(values,'|'),PresetLabels=table.concat(labels,'|'),
-        mcNavigation=1,mcLevel=1})
+        mcNavigation=1,mcHeading=true})
     block(lines,'Category.Sections',{mcHeading=0})
     for i,section in ipairs(definition.sections) do
         if section.selector then
             if #section.selector.values>1 then
                 block(lines,'Category.' .. section.name,{mcHeading=0})
-                row(section.selector,section.name,{VisibleWhen='MCC_Section',VisibleValues=i-1,mcLevel=2})
+                row(section.selector,section.name,{VisibleWhen='MCC_Section',VisibleValues=i-1})
+            end
+            -- Groups relative to the Default wheel are titled after the wheel they show.
+            local defaultWheel
+            for _,map in ipairs(section.maps) do
+                if map.holdSwap then defaultWheel=map.holdSwap.defaultWheel end
             end
             for _,map in ipairs(section.maps) do
+                if #map.settings>0 then
+                    local id=section.id..'.'..map.id..'.settings'
+                    local when=#section.maps>1 and section.selector.id or 'MCC_Section'
+                    local value=#section.maps>1 and map.value or i-1
+                    block(lines,'Category.'..id,{VisibleWhen=when,VisibleValues=value,
+                        mcLabelWhen=when,mcLabels=value..':'..map.name})
+                    for _,item in ipairs(map.settings) do row(item,id) end
+                end
                 for groupIndex,group in ipairs(map.groups) do
                     local id=section.id .. '.' .. map.id .. '.' .. groupIndex
                     local when=#section.maps>1 and section.selector.id or 'MCC_Section'
                     local value=#section.maps>1 and map.value or i-1
                     assert(not group.name:find('[:;]'),'group name cannot contain : or ;')
+                    local labelWhen,labels=when,value .. ':' .. group.name
+                    if group.wheel then
+                        local wheel=assert(defaultWheel,'relative group needs a Default wheel: '..id)
+                        local entries={}
+                        for index,default in ipairs(wheel.values) do
+                            local shown=group.wheel=='default' and index or #wheel.values+1-index
+                            entries[#entries+1]=default..':'..group.name..': '..wheel.labels[shown]
+                        end
+                        labelWhen,labels=wheel.id,table.concat(entries,';')
+                    end
                     block(lines,'Category.' .. id,{VisibleWhen=when,VisibleValues=value,
-                        mcLabelWhen=when,mcLabels=value .. ':' .. group.name})
+                        mcLabelWhen=labelWhen,mcLabels=labels})
                     for _,binding in ipairs(group.keys) do
                         local keyMetadata={}
                         if #binding.trigger.values==1 then keyMetadata.mcMode=binding.trigger.labels[1] end
                         if binding.optional then keyMetadata.mcOptional=1 end
+                        if binding.defaultControl then
+                            keyMetadata.mcDefaultControl=binding.defaultControl
+                        end
+                        if binding.groupedBy then keyMetadata.mcGroupedBy='MCC_' .. section.id .. '_'
+                            .. map.id .. '_' .. binding.groupedBy .. '_Key' end
                         row(binding.key,id,keyMetadata)
                         row(binding.trigger,id,{Pair=binding.key.id})
                     end

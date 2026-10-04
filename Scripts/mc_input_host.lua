@@ -4,6 +4,7 @@ local Callbacks=require('mc_native_callbacks')
 local Quickslots=require('mc_quickslots')
 local KeyIndicators=require('mc_key_indicators')
 local Overrides=require('mc_overrides')
+local Events=require('mc_events')
 local M={}
 
 local function defaultEnvironment()
@@ -50,13 +51,10 @@ local function defaultEnvironment()
     local function retain(kind,name)
         local cached=retained[kind .. ':' .. name]
         if valid(cached) then return cached end
-        local outer
-        if kind=='InputAction' then outer=retain('InputMappingContext','IMC_MCC_ActionOwner')
-        else
-            local engine=assert(find('Engine'),'Engine unavailable')
-            outer=assert(engine:GetOuter(),'Transient outer unavailable')
-        end
-        local objectPath=path(outer) .. (kind=='InputAction' and ':' or '.') .. name
+        -- MCC's actions live in the transient package; MCC owns no mapping context.
+        local engine=assert(find('Engine'),'Engine unavailable')
+        local outer=assert(engine:GetOuter(),'Transient outer unavailable')
+        local objectPath=path(outer) .. '.' .. name
         local object=StaticFindObject(objectPath)
         if not valid(object) then object=StaticConstructObject(cls(kind),outer,FName(name),0xC0) end
         retained[kind .. ':' .. name]=object
@@ -67,6 +65,38 @@ local function defaultEnvironment()
         all=function(class)
             local ok,items=pcall(FindAllOf,class)
             return ok and type(items)=='table' and items or {}
+        end,
+        runtimeKeys=function(live,action)
+            return live.subsystem:QueryKeysMappedToAction(action)
+        end,
+        -- The Settings key profile holds the player's binding even when no
+        -- applied context maps the action, e.g. the combat toggle in open world.
+        profileKeys=function(live,action)
+            local settings=unwrap(live.subsystem:GetUserSettings())
+            local profile=valid(settings) and unwrap(settings:GetCurrentKeyProfile())
+            if not valid(profile) then return nil end
+            local actionPath=path(action)
+            local mappable=unwrap(action.PlayerMappableKeySettings)
+            local mappingName
+            if mappable~=nil then
+                local ok,name=pcall(function() return unwrap(mappable.Name):ToString() end)
+                mappingName=ok and name or nil
+            end
+            local keys={}
+            each(profile.PlayerMappedKeys,function(_,row)
+                each(unwrap(row).Mappings,function(entry)
+                    local associated=unwrap(entry.AssociatedInputAction)
+                    local named
+                    if mappingName then
+                        local ok,name=pcall(function() return unwrap(entry.MappingName):ToString() end)
+                        named=ok and name==mappingName
+                    end
+                    if (valid(associated) and path(associated)==actionPath) or named then
+                        keys[#keys+1]=entry.CurrentKey
+                    end
+                end)
+            end)
+            return keys
         end,
         retain=retain,name=FName,
         initialize=function(action)
@@ -113,6 +143,7 @@ local function defaultEnvironment()
             return pcall(function() ModRef:SetSharedVariable('MCC.IndicatorActions.v2',value) end)
         end,
         hook=function(name,callback) return RegisterHook(name,function() end,callback) end,
+        preHook=function(name,callback) return RegisterHook(name,callback) end,
         notify=function(name,callback) return NotifyOnNewObject(name,callback) end,
         mapHook=rawget(_G,'RegisterLoadMapPostHook'),
         preMapHook=rawget(_G,'RegisterLoadMapPreHook'),
@@ -124,13 +155,27 @@ end
 function M.new(queue,log,service,environment)
     assert(type(queue)=='function','game-thread queue required')
     log=log or function() end
-    service=service or Quickslots.new()
+    local api
+    local publishControl=Events.publisher(rawget(_G,'ModRef'))
+    service=service or Quickslots.new({emit=function(name,payload)
+        local ok,why=pcall(publishControl,name,payload,api and api.owner)
+        if not ok or why==false then
+            log('control event publication failed: '..tostring(why))
+        end
+    end})
     local e=environment or defaultEnvironment()
-    local context=Context.new(e)
+    local context=Context.new(e,log)
     local function property(object,name)
         if object==nil then return nil end
         local ok,value=pcall(function() return object[name] end)
         return ok and e.unwrap(value) or nil
+    end
+    local function nameString(value)
+        value=e.unwrap(value)
+        if value==nil then return nil end
+        if type(value)=='string' then return value end
+        local ok,result=pcall(function() return value:ToString() end)
+        return ok and tostring(result) or tostring(value)
     end
     local indicators=KeyIndicators.new({
         valid=e.valid,path=e.path,property=property,
@@ -158,7 +203,7 @@ function M.new(queue,log,service,environment)
         rebuild=e.rebuild or function() return true end,
     })
     local callbacks,bridge
-    local api={enabled=false,ready=false,generation=0,active={},state={selectedGroup=1},phase='pending'}
+    api={enabled=false,ready=false,generation=0,active={},state={},phase='pending'}
     local wakeQueued,busy,pendingWake,internalDepth=false,false,false,0
     local wake,scheduleRetry
     local registrations={}
@@ -269,16 +314,116 @@ function M.new(queue,log,service,environment)
     end
     local function wanted(playerInput,contexts)
         local allowed={};for _,name in ipairs(contexts) do allowed[name]=true end
-        local result={}
+        local result,natives={},{}
         local walked=e.each(playerInput.AppliedInputContexts,function(candidate,priority)
             local name=e.full(candidate) or ''
-            if allowed.combat and name:find('IMC_RTCombat.',1,true) then result.combat=tonumber(priority) or 0 end
-            if allowed.exploration and name:find('IMC_OW.',1,true) then result.exploration=tonumber(priority) or 0 end
+            for logical,native in pairs(Context.native) do
+                -- IMC_Base carries keys usable in every gameplay context.
+                if (allowed[logical] or logical=='base') and name:find(native..'.',1,true) then
+                    result[logical]=tonumber(priority) or 0;natives[logical]=candidate
+                end
+            end
         end)
+        -- MCC maps its keys into these applied game contexts.
+        api.nativeContexts=natives
         if walked==false then return {} end
-        if next(result) then api.nativeSeen=true
-        elseif not api.nativeSeen and allowed.exploration then result.exploration=0 end
+        -- Keys exist only inside an applied game context; without one MCC waits.
+        if next(result) then api.nativeSeen=true end
         return result
+    end
+    local function standardAction(actionName)
+        if type(actionName)~='string' or actionName=='' then return nil end
+        log('Resolving IA: '..actionName)
+        local nativeAction
+        if actionName=='IA_Combat_ToggleQuickslots' and type(e.resolve)=='function' then
+            nativeAction=e.resolve('/Game/_Dawnwalker/Player/Input/Actions/Combat/'
+                ..'IA_Combat_ToggleQuickslots.IA_Combat_ToggleQuickslots')
+        end
+        if not e.valid(nativeAction) then
+            nativeAction=nil
+            for _,candidate in ipairs(e.all('InputAction')) do
+                local name=(e.full(candidate) or ''):match('([^%.:/%s]+)$')
+                if e.valid(candidate) and name==actionName then
+                    if nativeAction then return nil,'ambiguous standard input action: '..actionName end
+                    nativeAction=candidate
+                end
+            end
+        end
+        if not e.valid(nativeAction) then
+            log('IA resolution failed: '..actionName)
+            return nil,'standard input action unavailable: '..actionName
+        end
+        log('Resolved IA: '..tostring(e.path(nativeAction)))
+        return nativeAction
+    end
+    local function standardKey(actionName,live)
+        local nativeAction,why=standardAction(actionName)
+        if not nativeAction then return nil,why end
+        local found={}
+        if type(e.runtimeKeys)~='function' then return nil,'runtime key query unavailable: '..actionName end
+        -- Query the same player's subsystem used for callback/context attachment.
+        -- Raw IMC keys can be None while this query returns the resolved binding.
+        log('Finding keys: '..actionName..' on '..tostring(e.path(live.subsystem)))
+        local ok,keys=pcall(e.runtimeKeys,live,nativeAction)
+        if not ok then return nil,'runtime key query failed: '..tostring(keys) end
+        if keys==nil then return nil,'runtime key query returned nil: '..actionName end
+        local queriedKeys={}
+        local walked,walkWhy=e.each(keys,function(key)
+            local keyName=nameString(property(key,'KeyName'))
+            queriedKeys[#queriedKeys+1]=keyName or '<unreadable>'
+            if keyName and keyName~='' and keyName~='None'
+                and not keyName:find('^Gamepad_') then found[keyName]=true end
+        end)
+        if walked==false then return nil,'runtime key query array could not be read: '..tostring(walkWhy) end
+        log('Keys found: '..actionName..' -> '
+            ..(#queriedKeys>0 and table.concat(queriedKeys,', ') or '<none>'))
+        if next(found)==nil and type(e.profileKeys)=='function' then
+            local okProfile,profileKeys=pcall(e.profileKeys,live,nativeAction)
+            if okProfile and profileKeys~=nil then
+                local fromProfile={}
+                e.each(profileKeys,function(key)
+                    local keyName=nameString(property(key,'KeyName'))
+                    fromProfile[#fromProfile+1]=keyName or '<unreadable>'
+                    if keyName and keyName~='' and keyName~='None'
+                        and not keyName:find('^Gamepad_') then found[keyName]=true end
+                end)
+                log('Profile keys: '..actionName..' -> '
+                    ..(#fromProfile>0 and table.concat(fromProfile,', ') or '<none>'))
+            elseif not okProfile then
+                log('profile key query failed: '..tostring(profileKeys))
+            end
+        end
+        local result
+        for keyName in pairs(found) do
+            if result and result~=keyName then
+                return nil,'multiple standard keyboard bindings for ' .. actionName
+            end
+            result=keyName
+        end
+        if result then return result,nil,nativeAction end
+        return nil,'standard control binding unavailable: ' .. actionName
+    end
+    local function assignStandardKeys(plan,playerInput,live)
+        local resolved,resolvedActions,changed={},{},{false}
+        local function resolve(actionName)
+            if not resolved[actionName] then
+                local keyName,why,action=standardKey(actionName,live)
+                if not keyName then return nil,why end
+                resolved[actionName]=keyName
+                resolvedActions[actionName]=action
+            end
+            return resolved[actionName]
+        end
+        for _,binding in ipairs(plan.bindings) do
+            local actionName=binding.standardAction
+                or binding.holdSwapEdge and plan.holdSwap and plan.holdSwap.sourceAction
+            if actionName then
+                local keyName,why=resolve(actionName)
+                if not keyName then return nil,why end
+                if binding.keyName~=keyName then changed[1]=true;binding.keyName=keyName end
+            end
+        end
+        return changed[1]
     end
     local function invalidate()
         api.generation=api.generation+1
@@ -286,7 +431,7 @@ function M.new(queue,log,service,environment)
         api.retryStep=0;api.retryToken=(api.retryToken or 0)+1
         if type(Quickslots.cancel)=='function' then
             pcall(Quickslots.cancel,api.state,service)
-        else api.state={selectedGroup=1} end
+        else api.state={selectedGroup=api.state.selectedGroup} end
         if type(service.invalidate)=='function' then pcall(service.invalidate,service) end
     end
     local function retire(clearPlan,mandatory,resetNative)
@@ -324,6 +469,7 @@ function M.new(queue,log,service,environment)
         api.owner=nil;api.lastOwner=resetNative and nil or (retiredOwner or api.lastOwner)
         api.componentPath=nil;api.subsystem=nil
         api.playerInput=nil;api.actions=nil;api.overrideTargets=nil;api.overrideWanted=nil
+        api.missingOverride=nil;api.swapKeyName=nil
         if resetNative or clearPlan then api.nativeSeen=nil end
         if clearPlan then api.enabled=false;api.plan=nil end
         return true
@@ -352,13 +498,19 @@ function M.new(queue,log,service,environment)
                 end
             end
         end
+        local missing={}
         for name in pairs(plan.overrides) do
-            local action=assert(found[name],'override action unavailable: ' .. name)
-            local path=e.path(action)
-            if not seen[path] then targets[#targets+1]=action;seen[path]=true end
-            selected[path]=true
+            local action=found[name]
+            if not action then
+                missing[#missing+1]=name
+            else
+                local path=e.path(action)
+                if not seen[path] then targets[#targets+1]=action;seen[path]=true end
+                selected[path]=true
+            end
         end
-        return targets,selected
+        table.sort(missing)
+        return targets,selected,missing
     end
     local function bindOwner(live)
         if type(service.bind)=='function' then
@@ -375,7 +527,7 @@ function M.new(queue,log,service,environment)
             log('key indicators updated partially: ' .. tostring(count) .. '/' .. tostring(expected))
         end
     end
-    local function doSync(force)
+    local function doSync(force,beforeRebuild)
         if api.phase=='stopped' then return false,'controls stopped',{status='failure'} end
         if api.phase=='cleanup-pending' then
             local cleared,why,detail=retire(false,true)
@@ -413,12 +565,31 @@ function M.new(queue,log,service,environment)
             end
             return false,'native gameplay context unavailable',{status='pending'}
         end
+        local standardKeyChanged=false
+        local resolved,standardWhy=assignStandardKeys(api.plan,live.playerInput,live)
+        if resolved==nil then return false,standardWhy,{status='pending'} end
+        standardKeyChanged=api.ready and resolved
         local targets,selected
-        if api.ready then targets,selected=api.overrideTargets,api.overrideWanted
+        local contextChanged=false
+        for logical,priority in pairs(desired) do
+            if api.active[logical]~=priority then contextChanged=true;break end
+        end
+        if not contextChanged then
+            for logical in pairs(api.active) do
+                if desired[logical]==nil then contextChanged=true;break end
+            end
+        end
+        if api.ready and not (api.missingOverride and contextChanged) then
+            targets,selected=api.overrideTargets,api.overrideWanted
         else
-            local ok,a,b=pcall(resolveTargets,api.plan)
+            local ok,a,b,c=pcall(resolveTargets,api.plan)
             if not ok then return false,a,{status='pending',original=a} end
             targets,selected=a,b
+            api.overrideTargets,api.overrideWanted=a,b
+            api.missingOverride=#c>0
+            if api.missingOverride then
+                log('override actions unavailable; skipping: ' .. table.concat(c,', '))
+            end
         end
         if not api.ready then
             api.phase='attaching';api.owner=live;api.playerInput=live.playerInput
@@ -443,21 +614,28 @@ function M.new(queue,log,service,environment)
                     {status='failure',original=why,cleanup=cleanupWhy}
             end
             api.actions=actions;api.componentPath=live.componentPath
-            api.overrideTargets=targets;api.overrideWanted=selected
+        elseif standardKeyChanged or beforeRebuild then
+            api.actions=context:configure(api.plan)
+            if not beforeRebuild and type(e.rebuild)=='function' then e.rebuild(live.playerInput) end
         end
+        local remapped=false
         for logical in pairs(api.active) do
             if desired[logical]==nil or desired[logical]~=api.active[logical]
                 or not context:attached(logical,live.playerInput) then
                 internal(function() context:detach(logical) end)
-                api.active[logical]=nil
+                api.active[logical]=nil;remapped=true
             end
         end
         for logical,priority in pairs(desired) do
             if api.active[logical]==nil then
-                internal(function() context:attach(logical,live.subsystem,priority) end)
-                api.active[logical]=priority
+                local native=api.nativeContexts and api.nativeContexts[logical]
+                internal(function() context:attach(logical,live.subsystem,priority,native) end)
+                api.active[logical]=priority;remapped=true
             end
         end
+        -- Changing an applied context's mappings takes effect on the next control
+        -- mapping rebuild; a pending game rebuild picks the change up by itself.
+        if remapped and not beforeRebuild and type(e.rebuild)=='function' then e.rebuild(live.playerInput) end
         for _,target in ipairs(targets or {}) do
             assert(e.valid(target),'override target owner was lost')
         end
@@ -503,9 +681,15 @@ function M.new(queue,log,service,environment)
                 local ok,why=pcall(resolveTargets,plan)
                 if not ok then return false,why,{status='failure',original=why} end
             end
+            -- Activating Default is an action: retire resets to the new Default,
+            -- and the next presentation publishes it if it was not yet shown.
+            local defaultGroup=plan.defaultGroup
+            local previousDefault=api.state.defaultGroup
+            api.state.defaultGroup=defaultGroup
             local cleared,why,detail=retire(false,false)
-            if not cleared then return false,why,detail end
-            api.plan,api.enabled,api.state=plan,true,{selectedGroup=1}
+            if not cleared then api.state.defaultGroup=previousDefault;return false,why,detail end
+            api.plan,api.enabled,api.state=plan,true,{selectedGroup=api.state.selectedGroup,
+                pendingGroup=defaultGroup,defaultGroup=defaultGroup}
             return doSync(true)
         end)
     end
@@ -552,12 +736,33 @@ function M.new(queue,log,service,environment)
         local method=e[kind]
         if type(method)~='function' then return end
         local ok,id,second=pcall(method,name,callback)
-        if not ok or id==false or (kind=='hook' and
+        if not ok or id==false or ((kind=='hook' or kind=='preHook') and
             (type(id)~='number' or id%1~=0 or type(second)~='number' or second%1~=0)) then
             log('lifecycle ' .. kind .. ' registration failed: ' .. name .. ': ' .. tostring(id))
-        elseif kind=='hook' then
+        elseif kind=='hook' or kind=='preHook' then
             registrations[#registrations+1]={id=id,second=second,name=name}
         end
+    end
+    if e.preHook then
+        register('preHook',
+            '/Script/EnhancedInput.EnhancedInputSubsystemInterface:RequestRebuildControlMappings',
+            function(caller)
+                -- Execute inline: queuing this work would miss a forced rebuild.
+                -- Nested requests from configure/attach/overrides are already
+                -- covered by the outer operation and must not schedule another.
+                if busy or internalDepth>0 or not api.enabled or api.phase=='stopped' then return end
+                local subsystem=e.unwrap(caller)
+                local live=api.owner or stack()
+                if not live or not e.valid(subsystem) or not e.valid(live.subsystem)
+                    or e.path(subsystem)~=e.path(live.subsystem) then return end
+                local active,why=operate(function() return doSync(false,true) end)
+                if active then
+                    log('MCC mappings prepared before control mapping rebuild')
+                elseif why~=lastPending then
+                    log('pre-rebuild sync pending: '..tostring(why))
+                    lastPending=why
+                end
+            end)
     end
     if e.hook then
         for _,name in ipairs({
@@ -567,6 +772,7 @@ function M.new(queue,log,service,environment)
             '/Script/Engine.PlayerController:ClientRestart',
             '/Script/Engine.PlayerController:ClientRetryClientRestart',
             '/Script/Engine.Controller:OnRep_Pawn',
+            '/Script/RebelInput.RebelInputMappingSubsystem:ApplyPendingKeyboardMappings',
         }) do
             local source=name:find('EnhancedInputSubsystemInterface',1,true)
                 and 'mapping' or 'external'

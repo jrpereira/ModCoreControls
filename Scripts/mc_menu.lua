@@ -22,7 +22,7 @@ function M.define(registry, mapRegistry)
         assert(type(id)=='string' and id:match('%S') and not known[id],
             'invalid or duplicate section id: ' .. tostring(id))
         known[id] = true
-        local section = { id=id, name=id:sub(1,1):upper() .. id:sub(2), maps={} }
+        local section = { id=id, name=id:sub(1,1):upper() .. id:sub(2), maps={}, settings={} }
         result.sections[#result.sections + 1] = section
         local maps = mapRegistry.maps[id] or {}
         for _, mapId in ipairs(mapRegistry.order[id] or {}) do
@@ -39,12 +39,14 @@ function M.define(registry, mapRegistry)
                     'invalid or duplicate context in ' .. mapId .. ': ' .. tostring(context))
                 seenContexts[context]=true
             end
-            assert(type(declaration.map)=='table' and #declaration.map>0,
-                'map needs groups: ' .. mapId)
+            assert(type(declaration.map)=='table','map needs groups: ' .. mapId)
+            assert(#declaration.map>0 or type(declaration.settings)=='table'
+                and #declaration.settings>0,'map needs groups or settings: ' .. mapId)
             require('mc_input_plan').validateOverride(declaration.override)
             section.maps[#section.maps + 1] = { id=mapId, name=declaration.name,
                 value=declaration.value, declaration=declaration, groups={},
-                contexts=declaration.contexts, override=declaration.override }
+                contexts=declaration.contexts, override=declaration.override,
+                settings={},holdSwap=declaration.holdSwap }
         end
         table.sort(section.maps, function(a,b) return a.value < b.value end)
         if #section.maps > 0 then
@@ -61,12 +63,48 @@ function M.define(registry, mapRegistry)
             for _, map in ipairs(section.maps) do section.selector.storedValues[map.value]=map.id end
         end
         for _, map in ipairs(section.maps) do
+            local declaredSettings=map.declaration.settings or {}
+            local settingsById={}
+            for _,source in ipairs(declaredSettings) do
+                assert(type(source)=='table' and type(source.id)=='string'
+                    and source.id:match('%S') and not settingsById[source.id],
+                    'invalid or duplicate map setting in '..map.id)
+                assert(type(source.name)=='string' and source.name:match('%S'),
+                    'map setting needs a name: '..source.id)
+                assert(source.kind=='key' or source.kind=='choice',
+                    'unsupported map setting kind: '..source.id)
+                local values,labels=source.values or {},source.labels or {}
+                if source.kind=='choice' then
+                    assert(#values>0 and #values==#labels,'invalid map setting choices: '..source.id)
+                end
+                local item=setting('MCC_'..token(id)..'_'..token(map.id)..'_'..token(source.id),
+                    source.name,source.kind,source.default,values,labels)
+                item.configSection='ModCoreControls.'..id
+                item.configKey=map.id..'.'..token(source.id)
+                assert(M.valid(item,item.default),'invalid map setting default: '..source.id)
+                map.settings[#map.settings+1]=item
+                settingsById[source.id]=item
+            end
+            if map.holdSwap then
+                assert(type(map.holdSwap)=='table','invalid Hold Swap declaration: '..map.id)
+                map.holdSwap={enabled=assert(settingsById[map.holdSwap.enabled],
+                        'Hold Swap setting unavailable: '..map.id),
+                    defaultWheel=assert(settingsById[map.holdSwap.defaultWheel],
+                        'Hold Swap default wheel setting unavailable: '..map.id),
+                    outsideCombat=map.holdSwap.outsideCombat and assert(settingsById[map.holdSwap.outsideCombat],
+                        'Swap outside of combat setting unavailable: '..map.id),
+                    action=assert(type(map.holdSwap.action)=='string'
+                        and map.holdSwap.action:match('%S') and map.holdSwap.action,
+                        'Hold Swap action unavailable: '..map.id)}
+            end
             local bindingIds={}
             for _, group in ipairs(map.declaration.map) do
                 assert(type(group.name)=='string' and group.name:match('%S'),
                     'group needs a name in ' .. map.id)
                 assert(type(group.keys)=='table','group needs keys in ' .. map.id)
-                local output = { name=group.name, keys={} }
+                assert(group.wheel==nil or group.wheel=='default' or group.wheel=='other',
+                    'invalid group wheel in ' .. map.id)
+                local output = { name=group.name, wheel=group.wheel, keys={} }
                 map.groups[#map.groups+1] = output
                 for _, key in ipairs(group.keys) do
                     assert(type(key.id)=='string' and key.id:match('%S') and not bindingIds[key.id],
@@ -77,15 +115,38 @@ function M.define(registry, mapRegistry)
                     assert(type(key.trigger)=='string','binding needs triggers: ' .. key.id)
                     assert(key.sustained==nil or type(key.sustained)=='boolean',
                         'invalid sustained flag: ' .. key.id)
+                    assert(key.inactive==nil or type(key.inactive)=='boolean',
+                        'invalid inactive flag: ' .. key.id)
+                    assert(key.defaultControl==nil or type(key.defaultControl)=='string'
+                        and key.defaultControl:match('%S'),
+                        'invalid default control: ' .. key.id)
+                    assert(key.defaultControl==nil or key.optional==true,
+                        'default control requires an optional key: ' .. key.id)
+                    assert(key.groupedBy==nil or type(key.groupedBy)=='string' and key.groupedBy:match('%S'),
+                        'invalid groupedBy: ' .. key.id)
+                    assert(key.displayAlias==nil or type(key.displayAlias)=='number'
+                        and key.displayAlias%1==0 and key.displayAlias>=0xC1 and key.displayAlias<=0xC8,
+                        'invalid displayAlias: ' .. key.id)
                     local action=key.action
                     assert(type(action)=='table' and
                         (action.type=='ability' or action.type=='consumable' or action.type=='selected' or action.type=='focus'),
                         'invalid action: ' .. key.id)
                     local field=action.type=='focus' and 'group' or 'slot'
-                    local limit=action.type=='focus' and 2 or 4
-                    local value=action[field]
-                    assert(type(value)=='number' and value%1==0 and value>=1 and value<=limit,
-                        'invalid action ' .. field .. ': ' .. key.id)
+                    -- A focus action names a fixed group, or the Default wheel
+                    -- or the other wheel relative to it.
+                    if action.type=='focus' and action.group==nil then
+                        field='wheel'
+                        assert(action.wheel=='default' or action.wheel=='other',
+                            'invalid action wheel: ' .. key.id)
+                    else
+                        -- Group 3 is configuration-only until the game exposes a
+                        -- third quickslot target; inactive bindings never enter
+                        -- the runtime plan.
+                        local limit=action.type=='focus' and 3 or 4
+                        local value=action[field]
+                        assert(type(value)=='number' and value%1==0 and value>=1 and value<=limit,
+                            'invalid action ' .. field .. ': ' .. key.id)
+                    end
                     for name in pairs(action) do
                         assert(name=='type' or name==field,'unknown action field: ' .. key.id)
                     end
@@ -110,6 +171,10 @@ function M.define(registry, mapRegistry)
                             key.default~=nil and key.default or overrideDefault or 0),
                         trigger=setting(prefix .. '_Trigger', key.name, 'choice', modes[1], modes, names),
                         optional=key.optional == true,
+                        defaultControl=key.defaultControl,
+                        inactive=key.inactive == true,
+                        groupedBy=key.groupedBy,
+                        displayAlias=key.displayAlias,
                         sustained=key.sustained == true,
                         action=key.action,
                         override=key.override,
