@@ -65,13 +65,11 @@ model:set(secondary.key.id,0)
 
 model:set(definition.sections[1].selector.id,2)
 local globalPlan=Plan.build(definition,model.values)
-assert(globalPlan.map=='global' and #globalPlan.bindings==9)
+assert(globalPlan.map=='global' and #globalPlan.bindings==8)
 assert(globalPlan.bindings[1].action.type=='ability' and globalPlan.bindings[1].action.slot==1)
 assert(globalPlan.bindings[5].action.type=='consumable' and globalPlan.bindings[5].action.slot==1)
 assert(globalPlan.bindings[8].keyName=='Eight')
-assert(globalPlan.bindings[9].keyName==nil
-    and globalPlan.bindings[9].standardAction=='IA_Combat_ToggleQuickslots'
-    and not globalPlan.overrides.IA_Combat_ToggleQuickslots
+assert(not globalPlan.overrides.IA_Combat_ToggleQuickslots
     and not globalPlan.overrides.IA_OW_ToggleQuickslots
     and globalPlan.overrides.IA_Quickslot_Left)
 

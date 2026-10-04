@@ -109,8 +109,8 @@ the other wheel, with its Group key on the inherited Toggle Quickslots key.
 Advanced has three four-slot sections: Ability slots 1–4, Consumable slots 5–8,
 and reserved slots 9–12. Each section has an optional **Group** hold/tap binding.
 An optional key with `defaultControl` stores zero while inheriting that standard
-game control dynamically. Global's Show Controls key and Advanced Group 2 inherit
-`IA_Combat_ToggleQuickslots`; a custom nonzero key replaces the inheritance.
+game control dynamically. Advanced Group 2 inherits `IA_Combat_ToggleQuickslots`;
+a custom nonzero key replaces the inheritance.
 When a Group is bound, its four slot fields become dim, borderless static aliases.
 Slots 1–8 use the unassigned virtual-key identifiers `0xC1`–`0xC8` for those
 display aliases; they cannot be captured or mapped as physical keys. Their HUD

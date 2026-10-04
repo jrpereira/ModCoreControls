@@ -56,12 +56,9 @@ assert(actions.grouped.map[1].keys[1].action.wheel == 'default'
     and actions.grouped.map[2].keys[1].action.wheel == 'other')
 assert(actions.grouped.map[1].keys[1].id == 'GroupFocus1' and actions.grouped.map[2].keys[1].id == 'GroupFocus2',
     'Group keys keep their config IDs')
-assert(actions.global.map[2].keys[1].optional == true)
-assert(actions.global.map[2].keys[1].default==0
-    and actions.global.map[2].keys[1].defaultControl=='IA_Combat_ToggleQuickslots')
+assert(#actions.global.map == 1, 'Global has no optional focus key')
 assert(actions.global.map[1].keys[1] ~= actions.grouped.map[1].keys[2])
 -- Focus keys inherit the toggle's key binding but no longer override the toggle.
-assert(actions.global.map[2].keys[1].override == nil)
 assert(actions.grouped.map[2].keys[1].override == nil
     and actions.grouped.map[2].keys[1].defaultControl=='IA_Combat_ToggleQuickslots')
 assert(actions.grouped.override == nil and actions.global.override == nil)

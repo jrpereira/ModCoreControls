@@ -114,17 +114,6 @@ M.addSectionMap('actions', {
         contexts= {'exploration', 'combat'},
         map = {
             { name = 'Global Bindings', keys = fixed },
-            {
-                name = 'Optional',
-                keys = {
-                    {
-                        id = 'FixedGroupFocus2', name = 'Show Controls (if hidden)',
-                        action = { type = 'focus', group = 2 },
-                        trigger = 'Hold|Tap', sustained = true, optional = true,
-                        default = 0, defaultControl = 'IA_Combat_ToggleQuickslots'
-                    },
-                },
-            },
         },
     })
 
