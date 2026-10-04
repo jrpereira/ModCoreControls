@@ -31,7 +31,7 @@ for slot = 1, 8 do
         id = 'SlotAction' .. slot,
         name = 'Slot ' .. slot,
         trigger = 'Tap|Hold',
-        default = 48 + slot,
+        default = 0,
         action = { type = slot <= 4 and 'ability' or 'consumable', slot = position },
     }
 end
@@ -44,7 +44,7 @@ for slot = 1, 4 do
         id = 'FixedSlot' .. slot,
         name = 'Slot ' .. slot,
         trigger = 'Tap|Hold',
-        default = 48 + slot,
+        default = 0,
         action = { type = 'selected', slot = slot },
     }
     shared[slot].override = {
@@ -54,7 +54,7 @@ for slot = 1, 4 do
     fixed[slot].override = shared[slot].override
 end
 
-M.addSectionMap('actions', {
+M.addSectionMap('module', {
         id='default',
         name='Default',
         value=0,
@@ -74,32 +74,30 @@ M.addSectionMap('actions', {
 
 M.addSectionMap('actions', {
         id = 'grouped',
-        name = 'Grouped',
+        name = 'Quickslot Groups',
         value = 1,
         contexts= {'exploration', 'combat'},
-        -- Group 1 is the Default wheel, in effect at rest; the shared slot keys
-        -- fire the focused wheel. Group 2 is the other wheel.
+        -- The shared slot keys fire the focused wheel. Group keys show a wheel
+        -- relative to the Default wheel, mirrored here from Default.
         map = {
+            { name = 'Active Group', keys = { shared[1], shared[2], shared[3], shared[4] } },
             {
-                name = 'Group 1', wheel = 'default',
-                keys = {
-                    {
-                        id = 'GroupFocus1', name = 'Group',
-                        action = { type = 'focus', wheel = 'default' },
-                        trigger = 'Hold|Tap', sustained = true,
-                        optional = true, default = 0,
-                    },
-                    shared[1], shared[2], shared[3], shared[4],
+                name = 'Group Activation',
+                settings = {
+                    { id = 'DefaultGroup', name = 'Default Group',
+                        mirror = { section = 'module', map = 'default', setting = 'DefaultWheel' } },
                 },
-            },
-            {
-                name = 'Group 2', wheel = 'other',
                 keys = {
                     {
-                        id = 'GroupFocus2', name = 'Group',
+                        id = 'GroupFocus2', name = 'Secondary Group',
                         trigger = 'Hold|Tap', sustained = true,
                         action = { type = 'focus', wheel = 'other' },
-                        defaultControl = 'IA_Combat_ToggleQuickslots',
+                        optional = true, default = 0,
+                    },
+                    {
+                        id = 'GroupFocus1', name = 'Primary Group',
+                        action = { type = 'focus', wheel = 'default' },
+                        trigger = 'Hold|Tap', sustained = true,
                         optional = true, default = 0,
                     },
                 },
@@ -114,43 +112,6 @@ M.addSectionMap('actions', {
         contexts= {'exploration', 'combat'},
         map = {
             { name = 'Global Bindings', keys = fixed },
-        },
-    })
-
-local function advancedSlots(first,kind,group,inactive)
-    local keys={
-        {
-            id='AdvancedGroup'..group, name='Group', trigger='Hold|Tap',
-            sustained=true, optional=true, default=0,
-            defaultControl=group==2 and 'IA_Combat_ToggleQuickslots' or nil,
-            action={type='focus',group=group}, inactive=inactive,
-        },
-    }
-    for offset=0,3 do
-        keys[#keys+1]={
-            id='AdvancedSlot'..(first+offset), name='Slot '..(first+offset),
-            trigger='Tap|Hold', default=inactive and 0 or 48+first+offset,
-            action={type=kind,slot=offset+1}, inactive=inactive,
-            groupedBy='AdvancedGroup'..group,
-            -- Unassigned virtual-key range, used only as a stable display
-            -- alias for Slots 1–8.  It is never offered to key capture or
-            -- emitted as an Enhanced Input mapping.
-            displayAlias=not inactive and first+offset+0xC0 or nil,
-        }
-    end
-    return {name='Slots '..first..'–'..(first+3)..' · Global',keys=keys}
-end
-
-M.addSectionMap('actions', {
-        id='advanced',
-        name='Advanced',
-        value=3,
-        contexts={'exploration','combat'},
-        map={
-            advancedSlots(1,'ability',1,false),
-            advancedSlots(5,'consumable',2,false),
-            -- Saved now, deliberately inactive until a third game group exists.
-            advancedSlots(9,'ability',3,true),
         },
     })
 

@@ -6,9 +6,9 @@ for name, section in pairs(registry.sections) do
     assert(section.description == '' and next(section.sets) == nil, name)
     count = count + 1
 end
-assert(count == 3)
-for _, name in ipairs({ 'actions', 'movement', 'system' }) do
-    assert(registry.sections[name])
+assert(count == 4)
+for index, name in ipairs({ 'module', 'actions', 'movement', 'system' }) do
+    assert(registry.sections[name] and registry.order[index] == name)
 end
 local added = registry.addSection('flight', 'Flying controls')
 assert(added == registry.sections.flight and added.description == 'Flying controls')
@@ -47,27 +47,37 @@ for section, sectionMaps in pairs(maps.maps) do
         end
     end
 end
+-- Default holds module-wide settings, so it lives in the Module section.
+assert(maps.maps.module.default and maps.maps.actions.default == nil)
 local actions = maps.maps.actions
 assert(#actions.global.map[1].keys == 8)
--- Grouped: Group 1 is the Default wheel (Group key and shared slots), Group 2 the other.
-assert(#actions.grouped.map == 2 and #actions.grouped.map[1].keys == 5 and #actions.grouped.map[2].keys == 1)
-assert(actions.grouped.map[1].wheel == 'default' and actions.grouped.map[2].wheel == 'other')
-assert(actions.grouped.map[1].keys[1].action.wheel == 'default'
-    and actions.grouped.map[2].keys[1].action.wheel == 'other')
-assert(actions.grouped.map[1].keys[1].id == 'GroupFocus1' and actions.grouped.map[2].keys[1].id == 'GroupFocus2',
+-- Quickslot Groups: Active Group holds the shared slots; Group Activation mirrors
+-- Default's Default wheel, then the Secondary and Primary Group keys.
+local grouped = actions.grouped
+assert(grouped.name == 'Quickslot Groups' and #grouped.map == 2)
+assert(grouped.map[1].name == 'Active Group' and #grouped.map[1].keys == 4
+    and grouped.map[1].keys[1].action.type == 'selected')
+local activation = grouped.map[2]
+assert(activation.name == 'Group Activation' and #activation.keys == 2)
+assert(activation.settings[1].mirror.map == 'default' and activation.settings[1].mirror.setting == 'DefaultWheel')
+assert(activation.keys[1].id == 'GroupFocus2' and activation.keys[1].action.wheel == 'other'
+    and activation.keys[2].id == 'GroupFocus1' and activation.keys[2].action.wheel == 'default',
     'Group keys keep their config IDs')
 assert(#actions.global.map == 1, 'Global has no optional focus key')
-assert(actions.global.map[1].keys[1] ~= actions.grouped.map[1].keys[2])
--- Focus keys inherit the toggle's key binding but no longer override the toggle.
-assert(actions.grouped.map[2].keys[1].override == nil
-    and actions.grouped.map[2].keys[1].defaultControl=='IA_Combat_ToggleQuickslots')
+assert(actions.global.map[1].keys[1] ~= actions.grouped.map[1].keys[1])
+-- Maps coexist with Default's swap on the Toggle Quickslots key, so no other key
+-- inherits it, and nothing is bound by default.
+assert(activation.keys[1].override == nil and activation.keys[1].defaultControl == nil)
 assert(actions.grouped.override == nil and actions.global.override == nil)
 assert(actions.global.map[1].keys[1].override.action=='IA_Quickslot_Left')
-assert(#actions.advanced.map==3)
-assert(#actions.advanced.map[1].keys==5 and #actions.advanced.map[3].keys==5)
-assert(actions.advanced.map[1].keys[1].optional)
-assert(actions.advanced.map[2].keys[1].defaultControl=='IA_Combat_ToggleQuickslots')
-assert(actions.advanced.map[3].keys[1].inactive and actions.advanced.map[3].keys[5].inactive)
+for _, mapId in ipairs({'grouped', 'global'}) do
+    for _, group in ipairs(actions[mapId].map) do
+        for _, key in ipairs(group.keys) do
+            assert(key.default == 0, 'key must default to Unbound: ' .. key.id)
+        end
+    end
+end
+assert(actions.advanced == nil, 'Advanced was removed')
 local flight = maps.addSectionMap('flight', { id='direct', name='Direct', value=0, map={} })
 assert(flight == maps.maps.flight.direct and maps.order.flight[1] == 'direct')
 assert(not pcall(maps.addSectionMap, 'flight', flight))

@@ -2,10 +2,12 @@ package.path='Scripts/?.lua;' .. package.path
 local Menu,Config=require('mc_menu'),require('mc_config')
 local definition=Menu.define(require('mc_sections'),require('mc_maps'))
 local values=Menu.new(definition,{}).values
+local wheel='MCC_module_default_DefaultWheel'
+assert(values[wheel]==2)
 local first=Config.encode('[Other]\nkeep=one\n',definition,values)
 local changed={}
 for id,value in pairs(values) do changed[id]=value end
-changed.MCC_actions_Map=1
+changed[wheel]=1
 local second=Config.encode(first,definition,changed)
 local path=os.tmpname()
 assert(os.remove(path))
@@ -28,24 +30,24 @@ local function fails()
 end
 
 clear()
-assert(Menu.new(definition,Config.open(path,definition).values).values.MCC_actions_Map==0)
+assert(Menu.new(definition,Config.open(path,definition).values).values[wheel]==2)
 write(path,first)
-assert(Config.open(path,definition).values.MCC_actions_Map==0)
+assert(Config.open(path,definition).values[wheel]==2)
 
 clear();write(path,first);write(temporary,second)
-assert(Config.open(path,definition).values.MCC_actions_Map==0)
+assert(Config.open(path,definition).values[wheel]==2)
 assert(read(path)==first and read(temporary)==nil)
 
 clear();write(previous,first);write(temporary,second)
-assert(Config.open(path,definition).values.MCC_actions_Map==0)
+assert(Config.open(path,definition).values[wheel]==2)
 assert(read(path)==first and read(previous)==nil and read(temporary)==nil)
 
 clear();write(previous,first)
-assert(Config.open(path,definition).values.MCC_actions_Map==0)
+assert(Config.open(path,definition).values[wheel]==2)
 assert(read(path)==first and read(previous)==nil)
 
 clear();write(path,second);write(previous,first)
-assert(Config.open(path,definition).values.MCC_actions_Map==1)
+assert(Config.open(path,definition).values[wheel]==1)
 assert(read(path)==second and read(previous)==nil)
 
 clear();write(temporary,second);fails()
@@ -54,7 +56,7 @@ assert(read(temporary)==second and read(path)==nil)
 clear();write(path,second);write(previous,first);write(temporary,second);fails()
 assert(read(path)==second and read(previous)==first and read(temporary)==second)
 
-clear();write(path,'[ModCoreControls.actions]\nmap=corrupt\n');write(previous,first);fails()
+clear();write(path,'[ModCoreControls.module]\ndefault.DefaultWheel=9\n');write(previous,first);fails()
 assert(read(previous)==first)
 
 clear();write(path,first)
@@ -68,7 +70,7 @@ local committed,warning=store:save(changed)
 os.remove=remove
 assert(committed and warning:find('cleanup pending',1,true))
 assert(read(path)==second and read(previous)==first)
-assert(Config.open(path,definition).values.MCC_actions_Map==1)
+assert(Config.open(path,definition).values[wheel]==1)
 assert(read(previous)==nil)
 
 clear();write(path,first)
@@ -106,7 +108,7 @@ for _,item in ipairs(definition.settings) do
 end
 assert(slot and migrated.values[slot]==74,'flat key value must survive the rename')
 local persisted=read(legacy)
-assert(persisted:find('map=global',1,true) and persisted:find('global.SlotAction1.key=74',1,true)
+assert(not persisted:find('map=',1,true) and persisted:find('global.SlotAction1.key=74',1,true)
     and not persisted:find('\nflat.SlotAction',1,true) and persisted:find('[Other]\nflat.keep=1',1,true),
     'migration must persist renamed keys and leave other sections untouched')
 assert(Config.migrate(persisted)==persisted,'migration must be idempotent')

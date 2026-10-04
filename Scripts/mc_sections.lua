@@ -13,7 +13,8 @@ end
 
 function M.seal() M.sealed=true end
 
-for _, section in ipairs({ 'actions', 'movement', 'system' }) do
+-- Module holds settings that apply across sections, such as the wheel swap.
+for _, section in ipairs({ 'module', 'actions', 'movement', 'system' }) do
     M.addSection(section, '')
 end
 

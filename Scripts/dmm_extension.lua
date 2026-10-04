@@ -5,10 +5,11 @@ package.path=scripts .. '/?.lua;' .. package.path
 return {
     id='ModCoreControls', apiVersion=1,
     install=function(dmm)
-        -- Generate choices when controls are built, after ModCoreSettings has
-        -- installed its parsers and configuration initializers.
-        local build=dmm.controls.build
-        dmm.controls.build=function(tree,providers,...)
+        -- Generate choices before each menu build. DMM installs extensions in
+        -- path order, so ModCoreSettings' wrapper is inner: MCC's page and its
+        -- row slot exist when ModCoreSettings decides on slots and links.
+        local build=dmm.pages.build
+        dmm.pages.build=function(tree,providers,...)
             local page=require('mc_dmm')
             page.installStorage(dmm.choices)
             page.populate(dmm.choices,providers)

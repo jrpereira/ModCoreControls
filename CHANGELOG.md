@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Maps coexist: Default, Grouped and Global are active together and Control Map
+  only navigates between their pages; it is no longer saved. The same key and
+  trigger in two maps is rejected at Apply. Slot and Group keys start Unbound,
+  and Grouped's Group 2 no longer inherits the Toggle Quickslots key, which
+  Default's swap owns. Removed the Advanced map and Global's Show Controls key.
+  On first open, saved `map=` and the entries of unselected and removed maps are
+  dropped.
+- Rename Grouped to Quickslot Groups (config ID `grouped` unchanged). Its
+  sections are Active Group (shared slot keys) and Group Activation: Default
+  Group, a mirror of Default's Default wheel, then Secondary and Primary Group
+  keys labelled after the wheel they show. Primary is optional and Unbound.
+- Move Default to a new Module section for module-wide settings; Actions keeps
+  Quickslot Groups and Global. Saved `default.*` lines move from
+  `[ModCoreControls.actions]` to `[ModCoreControls.module]` on first open.
+- Replace the Section picker with a Page picker: Options (Module settings),
+  Visuals (placeholder for ModCore Templates' quickslot selection), Key & Mouse
+  (Section picker and controls) and Controller (gamepad buttons with their
+  current actions, read when the menu builds; work in progress).
 - Activate the Default wheel as an action: MCC publishes `controls.group.focus`
   after settings load (first transition has no `from`, encoded `-`) and when
   retirement resets to Default. Removed assumed starting groups.

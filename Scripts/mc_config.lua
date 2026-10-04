@@ -1,4 +1,4 @@
--- Shared persistence: [ModCoreControls.<section>], map=<map ID>, numeric keys/triggers.
+-- Shared persistence: [ModCoreControls.<section>], numeric keys/triggers.
 local M = {}
 local function lines(content)
     local out={}
@@ -15,11 +15,44 @@ local function index(definition)
     end
     return sections,order
 end
-local function stored(item,value) return item.storedValues and item.storedValues[value] or tostring(value) end
 -- Renamed map IDs per section. Old keys move to the new ID unless the new key
 -- already exists, in which case the stale old line is dropped.
 local renamedMaps={['ModCoreControls.actions']={flat='global'}}
-function M.migrate(content)
+-- Maps once were alternatives chosen by map=<ID>. They now coexist: the choice
+-- is dropped with the entries of every map it did not select, so no saved key
+-- activates silently. Default is the base map and keeps its entries. Removed
+-- maps and keys are dropped whenever they appear.
+local coexisting={['ModCoreControls.actions']={base='default',removedMaps={advanced=true},
+    removedKeys={['global.FixedGroupFocus2.key']=true,['global.FixedGroupFocus2.trigger']=true}}}
+local function coexist(content)
+    local selected,section={},nil
+    for _,line in ipairs(lines(content)) do
+        local heading=line:match('^%s*%[([^%]]+)%]%s*$')
+        if heading then section=heading
+        else
+            local key,raw=line:match('^%s*([^=;#]-)%s*=%s*([^;#]*)')
+            if key=='map' and coexisting[section] then selected[section]=raw:match('^%s*(.-)%s*$') end
+        end
+    end
+    local output,changed={},false
+    section=nil
+    for _,line in ipairs(lines(content)) do
+        local heading=line:match('^%s*%[([^%]]+)%]%s*$')
+        if heading then section=heading
+        elseif coexisting[section] then
+            local rule,key=coexisting[section],line:match('^%s*([^=;#]-)%s*=')
+            local prefix=key and key:match('^([^.]+)%.')
+            if key=='map' or (key and rule.removedKeys[key]) or (prefix and rule.removedMaps[prefix])
+                or (prefix and selected[section] and prefix~=rule.base and prefix~=selected[section]) then
+                line=nil
+            end
+        end
+        if line then output[#output+1]=line else changed=true end
+    end
+    if not changed then return content end
+    return table.concat(output,'\n') .. '\n'
+end
+local function rename(content)
     local function renamed(section,key,raw)
         local maps=renamedMaps[section]
         if not maps then return nil end
@@ -64,6 +97,51 @@ function M.migrate(content)
     if not changed then return content end
     return table.concat(output,'\n') .. '\n'
 end
+-- Maps that moved to another section carry their saved lines along; a line
+-- already present at the destination wins over the moved one.
+local moved={{from='ModCoreControls.actions',to='ModCoreControls.module',prefix='default'}}
+local function relocate(content)
+    for _,move in ipairs(moved) do
+        local carried,present,output,section={}, {}, {}, nil
+        for _,line in ipairs(lines(content)) do
+            local heading=line:match('^%s*%[([^%]]+)%]%s*$')
+            if heading then section=heading
+            else
+                local key=line:match('^%s*([^=;#]-)%s*=')
+                if section==move.to and key then present[key]=true end
+            end
+        end
+        section=nil
+        local target
+        for _,line in ipairs(lines(content)) do
+            local heading=line:match('^%s*%[([^%]]+)%]%s*$')
+            if heading then section=heading;output[#output+1]=line
+                if section==move.to then target=#output end
+            else
+                local key=line:match('^%s*([^=;#]-)%s*=')
+                if section==move.from and key and key:match('^([^.]+)%.')==move.prefix then
+                    if not present[key] then carried[#carried+1]=line end
+                else output[#output+1]=line end
+            end
+        end
+        if #carried>0 or #output~=#lines(content) then
+            if target then
+                -- Append to the end of the destination section.
+                local finish=#output
+                for i=target+1,#output do
+                    if output[i]:match('^%s*%[([^%]]+)%]%s*$') then finish=i-1;break end
+                end
+                for offset,line in ipairs(carried) do table.insert(output,finish+offset,line) end
+            elseif #carried>0 then
+                output[#output+1]='[' .. move.to .. ']'
+                for _,line in ipairs(carried) do output[#output+1]=line end
+            end
+            content=table.concat(output,'\n') .. '\n'
+        end
+    end
+    return content
+end
+function M.migrate(content) return relocate(coexist(rename(content))) end
 function M.decode(content,definition)
     content=M.migrate(content)
     local sections=index(definition)
@@ -79,10 +157,7 @@ function M.decode(content,definition)
             if item then
                 assert(values[item.id]==nil,'duplicate config key: ' .. key)
                 raw=raw:match('^%s*(.-)%s*$')
-                local value
-                if item.storedValues then
-                    for number,name in pairs(item.storedValues) do if name==raw then value=number end end
-                else value=tonumber(raw) end
+                local value=tonumber(raw)
                 assert(require('mc_menu').valid(item,value),'invalid config value: ' .. key)
                 values[item.id]=value
             end
@@ -101,7 +176,7 @@ function M.encode(content,definition,values)
     local function missing(name)
         for _,item in ipairs(definition.settings) do
             if item.configSection==name and not written[item.id] then
-                output[#output+1]=item.configKey .. '=' .. stored(item,values[item.id]); written[item.id]=true
+                output[#output+1]=item.configKey .. '=' .. tostring(values[item.id]); written[item.id]=true
             end
         end
     end
@@ -115,7 +190,7 @@ function M.encode(content,definition,values)
             local item=key and sections[section][key]
             if item then
                 local comment=line:match('([;#].*)$')
-                line=key .. '=' .. stored(item,values[item.id]) .. (comment and ' ' .. comment or '')
+                line=key .. '=' .. tostring(values[item.id]) .. (comment and ' ' .. comment or '')
                 written[item.id]=true
             end
         end

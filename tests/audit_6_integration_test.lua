@@ -416,12 +416,11 @@ case('F09 DMM Apply, runtime delivery, and invalid-file retention',function()
         check(not model.error,model.error)
         local indices={}
         for i,item in ipairs(model.items) do indices[item.id]=i end
-        local map=assert(indices.MCC_actions_Map)
         local slot=assert(indices.MCC_actions_global_SlotAction1_Key)
-        model.pending[map]=2;model.pending[slot]=74
+        model.pending[slot]=74
         local saved,saveWhy,event=model:apply()
         check(saved,saveWhy)
-        check(event and event.values.MCC_actions_Map==2,'Apply event missing selected map')
+        check(event and event.values.MCC_actions_global_SlotAction1_Key==74,'Apply event missing key')
         local store=Config.open(configPath,definition)
         local selected=Menu.new(definition,store.values)
         local plan=Plan.build(definition,selected.values)
@@ -436,7 +435,7 @@ case('F09 DMM Apply, runtime delivery, and invalid-file retention',function()
         callback({})
         check(activations(f)==1,'saved plan did not deliver')
         local file=assert(io.open(configPath,'wb'))
-        assert(file:write('[ModCoreControls.actions]\nmap=corrupt\n'))
+        assert(file:write('[ModCoreControls.module]\ndefault.DefaultWheel=9\n'))
         assert(file:close())
         local decoded=pcall(Config.open,configPath,definition)
         check(not decoded,'corrupt config was accepted')

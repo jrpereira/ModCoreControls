@@ -11,7 +11,9 @@ The model is independent of DMM presentation and persistence.
 
 ## Sections
 
-The initial sections are Actions, Movement, and System. Add declarations to
+The initial sections are Module, Actions, Movement, and System. Module holds
+module-wide settings (the Default map); its maps feed the runtime plan with
+Actions. Add declarations to
 the source modules before DMM or gameplay loads them. For example:
 
 ```lua
@@ -35,7 +37,7 @@ MCC navigation and have no controls on the right.
 These registries are local to each Lua state. `ModCoreControls.addSection()` and
 `addSectionMap()` reject calls after that state's definition is built. Declare
 sections and maps in the source modules before gameplay or DMM loads them;
-there is no runtime registration transport between those Lua states. Only selected Actions
+there is no runtime registration transport between those Lua states. Only Actions
 maps have runtime output today; other sections can describe menu choices but
 have no input adapter. `description` and `sets` remain reserved registry data.
 
@@ -43,25 +45,33 @@ have no input adapter. `description` and `sets` remain reserved registry data.
 
 `mod_settings.ini` contains only the `[Mod]` identity DMM needs for discovery.
 When DMM builds Controls, `dmm_extension.lua` asks `mc_dmm.lua` to convert the
-Lua definitions into DMM choices. The first generated setting is the Section
+Lua definitions into DMM choices. The first generated setting is the Page
 picker:
 
 ```ini
-[Setting.MCC_Section]
+[Setting.MCC_Page]
 Type=picker
-Label=Section
-PresetLabels=Actions|Movement|System
-PresetValues=0|1|2
+Label=Page
+PresetLabels=Options|Visuals|Key & Mouse|Controller
+PresetValues=0|1|2|3
 Default=0
 mcNavigation=1
-mcLevel=1
+mcHeading=true
 ```
 
-Every section row uses `VisibleWhen=MCC_Section` and its corresponding numeric
-value, directly or through that section's Control Map picker. DMM therefore
-shows only the selected section. `mcNavigation=1` keeps the Section choice out
-of persistence and Apply events. `mcLevel=1` places it first in DMM's Controls
-header area.
+The Module section's rows use `VisibleWhen=MCC_Page` with Options. Key & Mouse
+holds the `MCC_Section` picker over the other sections; their rows use
+`VisibleWhen=MCC_Section`, directly or through that section's Control Map
+picker. DMM visibility is transitive, so a row is shown only while every picker
+above it is shown and matches. `mcNavigation=1` keeps Page, Section and Control
+Map out of persistence and Apply events: a section's maps coexist, so Control
+Map only picks which map's rows are shown.
+
+Visuals and Controller use read-only rows (`mcReadOnly=1`, two equal labels that
+ModCoreSettings collapses to one). `mc_gamepad.lua` reads Controller's rows when
+DMM builds the page: every standard gamepad button with the actions mapped to it
+in the player's applied contexts and Settings key profile. Outside gameplay one
+row says the list is available in game.
 
 Every named `map` group becomes a visible DMM category heading. Its key and
 trigger rows share that category, so DMM renders them together beneath the Lua
@@ -75,15 +85,19 @@ storage adapter through DMM's extension entrypoint.
 DMM saves through `mc_config.lua`. Each section owns an INI section:
 
 ```ini
+[ModCoreControls.module]
+default.DefaultWheel=2
 [ModCoreControls.actions]
-map=global
 global.SlotAction1.key=74
 global.SlotAction1.trigger=0
 ```
 
-Map IDs are strings. Keys and triggers are integers. Choice keys include their
-map ID so switching maps does not discard the other map's values. Active section
-navigation is transient and is never saved.
+Keys and triggers are integers. Choice keys include their map ID. Section and map
+navigation is transient and is never saved. Files from before maps coexisted
+carry `map=<ID>`: on open, MCC drops it with the entries of every map it did not
+select (Default's entries stay), plus removed maps and keys, so no saved key
+activates silently. Default's `default.*` lines then move from
+`[ModCoreControls.actions]` to `[ModCoreControls.module]`.
 
 Saving preserves unrelated INI content. It refuses to overwrite a file changed
 since the menu opened and uses a temporary file plus rollback copy while replacing
@@ -91,7 +105,7 @@ the original.
 
 ## Input runtime
 
-`mc_input_plan.lua` converts the selected Actions map and current values into
+`mc_input_plan.lua` converts every Actions map and current values into
 active native bindings. An Actions map needs a unique section-local `id`, a
 unique numeric `value`, supported `contexts` (`exploration` or `combat`), and
 groups of keys. A runtime key needs a unique `id`, a supported trigger and
@@ -127,7 +141,7 @@ the combat toggle in open world, it falls back to the Settings key profile. With
 map- or key-level `override` metadata. A key descriptor can use
 `{ action='IA_Name', value=164 }`; `value` becomes its default key.
 A map can use `override={'IA_First','IA_Second'}`; those overrides remain active
-for the selected map independently of individual key values.
+for that map independently of individual key values.
 `mc_input_host.lua` discovers the live player stack, orders binding before
 attachment, replaces bindings when the component or subsystem changes, and
 rejects callbacks from retired generations. `mc_quickslots.lua` is the current
@@ -164,8 +178,13 @@ reset to Default on retirement emit their transitions too. Failed selection and 
 unchanged group emit nothing; a failed reset keeps the last published group and
 leaves Default pending for the next presentation. The Default map's Default wheel
 is in effect under every map. A focus action names a fixed `group`, or a `wheel`
-of `'default'` or `'other'` that the plan resolves against the Default wheel; a
-map group with the same `wheel` field is titled after the wheel it shows. Emissions are not logged:
+of `'default'` or `'other'` that the plan resolves against the Default wheel, and
+its key row is labelled after that wheel. A map group can list `settings` that
+mirror another map's choice, such as Quickslot Groups' Default Group:
+`{id='DefaultGroup', mirror={map='default', setting='DefaultWheel'}}`. A mirror
+is a DMM row with no config key. MCC's storage loads it from the mirrored
+setting and writes a change back on Apply; changing both to different values in
+one Apply is rejected. Emissions are not logged:
 writing the log on every swap made swapping lag. `Events.format` still renders
 the stable JSON-shaped form for diagnostics, for example
 `controls.group.focus {"group":{"from":1,"to":2}}`.

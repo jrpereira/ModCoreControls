@@ -9,7 +9,9 @@ local function token(value)
 end
 
 function M.define(registry, mapRegistry)
-    local result = { sections = {}, settings = {}, byId = {} }
+    -- mirrors repeat a map setting on another page; they are never stored.
+    local result = { sections = {}, settings = {}, byId = {}, mirrors = {} }
+    local mapSettings = {}
     local function setting(id, name, kind, default, values, labels)
         assert(not result.byId[id], 'duplicate setting: ' .. id)
         local item = { id=id, name=name, kind=kind, default=default, values=values, labels=labels }
@@ -56,11 +58,10 @@ function M.define(registry, mapRegistry)
                 used[map.value] = true
                 values[#values+1], labels[#labels+1] = map.value, map.name
             end
-            section.selector = setting('MCC_' .. token(id) .. '_Map', 'Control Map', 'choice', values[1], values, labels)
-            section.selector.configSection='ModCoreControls.' .. id
-            section.selector.configKey='map'
-            section.selector.storedValues={}
-            for _, map in ipairs(section.maps) do section.selector.storedValues[map.value]=map.id end
+            -- Maps coexist. The picker only navigates between their pages, so it
+            -- is neither a stored setting nor an input to the runtime plan.
+            section.selector = { id='MCC_' .. token(id) .. '_Map', name='Control Map', kind='choice',
+                default=values[1], values=values, labels=labels, navigation=true }
         end
         for _, map in ipairs(section.maps) do
             local declaredSettings=map.declaration.settings or {}
@@ -85,6 +86,7 @@ function M.define(registry, mapRegistry)
                 map.settings[#map.settings+1]=item
                 settingsById[source.id]=item
             end
+            mapSettings[id .. '\0' .. map.id]=settingsById
             if map.holdSwap then
                 assert(type(map.holdSwap)=='table','invalid Hold Swap declaration: '..map.id)
                 map.holdSwap={enabled=assert(settingsById[map.holdSwap.enabled],
@@ -102,9 +104,24 @@ function M.define(registry, mapRegistry)
                 assert(type(group.name)=='string' and group.name:match('%S'),
                     'group needs a name in ' .. map.id)
                 assert(type(group.keys)=='table','group needs keys in ' .. map.id)
-                assert(group.wheel==nil or group.wheel=='default' or group.wheel=='other',
-                    'invalid group wheel in ' .. map.id)
-                local output = { name=group.name, wheel=group.wheel, keys={} }
+                local output = { name=group.name, keys={}, settings={} }
+                for _,source in ipairs(group.settings or {}) do
+                    assert(type(source)=='table' and type(source.id)=='string' and source.id:match('%S')
+                        and type(source.mirror)=='table','group settings mirror a map setting: ' .. map.id)
+                    local owner=mapSettings[(source.mirror.section or id) .. '\0' .. tostring(source.mirror.map)]
+                    local target=assert(owner and owner[source.mirror.setting],
+                        'unknown mirrored setting in ' .. map.id .. ': ' .. tostring(source.mirror.setting))
+                    assert(target.kind=='choice','only choices can be mirrored: ' .. source.id)
+                    local item={id='MCC_'..token(id)..'_'..token(map.id)..'_'..token(source.id),
+                        name=source.name or target.name,kind='choice',default=target.default,
+                        values=target.values,labels=target.labels,mirror=target}
+                    assert(not result.byId[item.id],'duplicate setting: ' .. item.id)
+                    for _,other in ipairs(result.mirrors) do
+                        assert(other.id~=item.id,'duplicate setting: ' .. item.id)
+                    end
+                    result.mirrors[#result.mirrors+1]=item
+                    output.settings[#output.settings+1]=item
+                end
                 map.groups[#map.groups+1] = output
                 for _, key in ipairs(group.keys) do
                     assert(type(key.id)=='string' and key.id:match('%S') and not bindingIds[key.id],
