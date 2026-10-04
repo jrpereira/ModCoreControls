@@ -73,9 +73,13 @@ for _,id in ipairs({'MCC_Visuals_Pending','MCC_Pad_Unavailable','MCC_Pad_Note'})
     local item=items[assert(indices[id],id)]
     assert(item.mcReadOnly and #item.values==1,'read-only display row: ' .. id)
 end
-assert(DMM.schema(definition):find('[Setting.MCC_Visuals_Pending]',1,true)
-    and DMM.schema(definition):match('%[Setting%.MCC_Visuals_Pending%][^%[]*mcSlot=visuals'),
-    'the Visuals placeholder is the ModCoreSettings row slot')
+local slotRow=DMM.schema(definition):match('%[Setting%.MCC_Visuals_Pending%][^%[]*')
+assert(slotRow and slotRow:find('mcSlot=visuals',1,true) and slotRow:find('mcSlotLabel=1',1,true)
+    and slotRow:find('Label=Quickslots Visuals',1,true) and slotRow:find('mcLevel=2',1,true),
+    'the Visuals placeholder is the labelled ModCoreSettings row slot')
+assert(DMM.schema(definition):match('%[Category%.Visuals%][^%[]*mcHeading=0'),
+    'the template picker row replaces the Visuals heading')
+assert(items[indices.MCC_Visuals_Pending].label=='Quickslots Visuals')
 local map=indices.MCC_actions_Map
 assert(items[map].mcFont==nil and not items[map].mcTabs,
     'Control Map must use DMM arrows without a presentation level')
