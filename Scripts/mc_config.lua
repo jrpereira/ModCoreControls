@@ -142,28 +142,38 @@ local function relocate(content)
     return content
 end
 function M.migrate(content) return relocate(coexist(rename(content))) end
+-- Configuration never prevents startup: an unreadable or invalid value is left out,
+-- so its default applies, and a repeated key keeps its first value.
 function M.decode(content,definition)
     content=M.migrate(content)
     local sections=index(definition)
-    local values,seen,section={},{},nil
+    local values,section={},nil
     for _,line in ipairs(lines(content)) do
         local heading=line:match('^%s*%[([^%]]+)%]%s*$')
         if heading then
             section=heading
-            if sections[section] then assert(not seen[section],'duplicate config section: ' .. section); seen[section]=true end
         elseif sections[section] then
             local key,raw=line:match('^%s*([^=;#]-)%s*=%s*([^;#]*)')
             local item=key and sections[section][key]
-            if item then
-                assert(values[item.id]==nil,'duplicate config key: ' .. key)
+            if item and values[item.id]==nil then
                 raw=raw:match('^%s*(.-)%s*$')
-                local value=tonumber(raw)
-                assert(require('mc_menu').valid(item,value),'invalid config value: ' .. key)
+                local value
+                if item.kind=='keybind' then
+                    -- 'default' reads as the declared binding.
+                    value=raw:lower()=='default' and item.default or require('mc_menu').keybind(item,raw)
+                else
+                    value=tonumber(raw)
+                    if not require('mc_menu').valid(item,value) then value=nil end
+                end
                 values[item.id]=value
             end
         end
     end
     return values
+end
+-- Numbers are written as integers; keybinds as their text.
+local function text(value)
+    return type(value)=='number' and tostring(math.tointeger(value) or value) or value
 end
 function M.encode(content,definition,values)
     content=M.migrate(content)
@@ -176,7 +186,7 @@ function M.encode(content,definition,values)
     local function missing(name)
         for _,item in ipairs(definition.settings) do
             if item.configSection==name and not written[item.id] then
-                output[#output+1]=item.configKey .. '=' .. tostring(values[item.id]); written[item.id]=true
+                output[#output+1]=item.configKey .. '=' .. text(values[item.id]); written[item.id]=true
             end
         end
     end
@@ -190,7 +200,7 @@ function M.encode(content,definition,values)
             local item=key and sections[section][key]
             if item then
                 local comment=line:match('([;#].*)$')
-                line=key .. '=' .. tostring(values[item.id]) .. (comment and ' ' .. comment or '')
+                line=key .. '=' .. text(values[item.id]) .. (comment and ' ' .. comment or '')
                 written[item.id]=true
             end
         end
@@ -242,7 +252,15 @@ function M.open(path,definition)
         assert(staged==nil,'unresolved initial config transaction: ' .. temporary)
         return nil,M.decode('',definition)
     end
-    local original,initial=recover()
+    -- An unresolved save transaction needs review before anything is written, but the
+    -- mod still starts on defaults; only saving is refused.
+    local recovered,original,initial=pcall(recover)
+    if not recovered then
+        local why=tostring(original)
+        local self={values=M.decode('',definition),recoveryError=why}
+        function self:save() error('config unavailable until reviewed: ' .. why,0) end
+        return self
+    end
     local self={values=initial}
     -- Persist renamed map keys once so the settings menu, which reads config.ini
     -- directly, finds them under their current names.

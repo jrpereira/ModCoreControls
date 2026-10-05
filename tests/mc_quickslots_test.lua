@@ -23,6 +23,28 @@ assert(calls[#calls]=='consumable:2')
 Quickslots.deliver(state,focus,'Triggered',service)
 assert(state.selectedGroup==1)
 assert(events[2].payload.group.from==2 and events[2].payload.group.to==1)
+-- With a key on each wheel, tapping a group key always focuses its own wheel.
+do
+    local directEvents={}
+    local directService={select=function() return true end,
+        emit=function(_,name,payload) directEvents[#directEvents+1]=payload end}
+    local direct={selectedGroup=1,defaultGroup=1}
+    local directOne={action={type='focus',group=1},mode=0,direct=true}
+    local directTwo={action={type='focus',group=2},mode=0,direct=true}
+    Quickslots.deliver(direct,directTwo,'Triggered',directService)
+    assert(direct.selectedGroup==2)
+    Quickslots.deliver(direct,directTwo,'Triggered',directService)
+    assert(direct.selectedGroup==2,'a direct group key never swaps away from its own wheel')
+    Quickslots.deliver(direct,directOne,'Triggered',directService)
+    Quickslots.deliver(direct,directOne,'Triggered',directService)
+    assert(direct.selectedGroup==1 and #directEvents==2,'only real focus changes are published')
+    -- A tapped group key fires on press (Pressed, mode 3) with the same tap behavior.
+    local pressedTwo={action={type='focus',group=2},mode=3,direct=true}
+    assert(Quickslots.deliver(direct,pressedTwo,'Triggered',directService) and direct.selectedGroup==2)
+    local swapping={action={type='focus',group=2},mode=3}
+    Quickslots.deliver(direct,swapping,'Triggered',directService)
+    assert(direct.selectedGroup==1,'a single pressed group key still swaps back')
+end
 local hold={action={type='focus',group=2},mode=2}
 Quickslots.deliver(state,hold,'Started',service)
 assert(state.selectedGroup==2)

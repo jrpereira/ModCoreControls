@@ -23,25 +23,30 @@ end
 
 function M.seal() M.sealed=true end
 
+-- Every setting has an id, a name and a type; what is specific to its type sits in
+-- params. Map settings are pickers. A group lists its keybinds and mirrors in the
+-- order the page shows them.
 M.addSectionMap('module', {
         id='default',
         name='Default',
         value=0,
         contexts={'exploration','combat'},
         settings={
-            {id='SwapOutsideCombat',name='Allow Swap outside of combat',kind='choice',default=1,
-                values={0,1},labels={'Off','On'}},
-            {id='HoldSwap',name='Hold to Swap, release to return',kind='choice',default=1,
-                values={0,1},labels={'Off','On'}},
-            {id='DefaultWheel',name='Default wheel',kind='choice',default=2,
-                values={1,2},labels={'Abilities','Consumables'}},
+            {id='SwapOutsideCombat',name='Allow Swap outside of combat',type='picker',default=1,
+                params={values={0,1},labels={'Off','On'}}},
+            {id='HoldSwap',name='Hold to Swap, release to return',type='picker',default=1,
+                description='Applies to the Toggle Quickslots key. If you bind Swap to that same key'
+                    ..' in Quickslot Groups, the Swap key\'s own Tap or Hold is used instead.',
+                params={values={0,1},labels={'Off','On'}}},
+            {id='DefaultWheel',name='Default wheel',type='picker',default=2,
+                params={values={1,2},labels={'Abilities','Consumables'}}},
         },
         holdSwap={enabled='HoldSwap', defaultWheel='DefaultWheel', outsideCombat='SwapOutsideCombat',
             action='IA_Combat_ToggleQuickslots'},
         map={},
     })
 
-    
+
 local arrows = { 'Left', 'Top', 'Right', 'Bottom' }
 
 local grouped = {}
@@ -49,11 +54,14 @@ for slot = 1, 4 do
     grouped[slot] = {
         id = 'QuickSlot' .. slot,
         name = 'Quickslot ' .. slot,
-        trigger = 'Tap|Hold',
-        action = { type = 'selected', slot = slot },
-        defaultControl = 'IA_Quickslot_' .. arrows[slot],
-        override = true,
-        optional = true
+        type = 'keybind',
+        params = {
+            trigger = 'Tap|Hold',
+            action = { type = 'selected', slot = slot },
+            defaultControl = 'IA_Quickslot_' .. arrows[slot],
+            override = true,
+            optional = true,
+        },
     }
 end
 
@@ -62,29 +70,46 @@ M.addSectionMap('actions', {
         name = 'Quickslot Groups',
         value = 1,
         contexts= {'exploration', 'combat'},
-        -- The grouped slot keys fire the focused wheel. Group keys show a wheel
-        -- relative to the Default wheel, mirrored here from Default.
+        -- The grouped slot keys fire the focused wheel. Alternate Activation swaps
+        -- between the Default wheel, mirrored here from Default, and the other one;
+        -- Explicit Activation focuses a fixed wheel and never swaps.
         map = {
-            { name = 'Active Group', keys = grouped  },
+            { name = 'Active Group', settings = grouped },
             {
-                name = 'Group Activation',
+                name = 'Alternate Activation',
                 settings = {
-                    { id = 'DefaultGroup', name = 'Default Group',
-                        mirror = { section = 'module', map = 'default', setting = 'DefaultWheel' } },
-                },
-                keys = {
-                    {
-                        id = 'GroupFocus2', name = 'Secondary Group',
-                        trigger = 'Hold|Tap', sustained = true,
-                        action = { type = 'focus', wheel = 'other' },
-                        optional = true, default = 0,
-                        defaultControl = 'IA_Combat_ToggleQuickslots',
+                    -- {wheel} is the name of the wheel the key shows.
+                    { id = 'GroupFocus2', name = 'Swap to {wheel}', type = 'keybind', default = 0,
+                        description = 'Tap swaps, and tapping again swaps back. Hold shows the wheel until'
+                            .. ' release. Unbound, it uses the Toggle Quickslots key and Hold to Swap.',
+                        params = {
+                            trigger = 'Hold|Tap', sustained = true,
+                            action = { type = 'focus', wheel = 'other' },
+                            optional = true,
+                            defaultControl = 'IA_Combat_ToggleQuickslots',
+                            override = true,
+                        },
                     },
-                    {
-                        id = 'GroupFocus1', name = 'Primary Group',
-                        action = { type = 'focus', wheel = 'default' },
-                        trigger = 'Hold|Tap', sustained = true,
-                        optional = true, default = 0,
+                    { id = 'DefaultGroup', name = 'Swap back to default', type = 'mirror',
+                        params = { section = 'module', map = 'default', setting = 'DefaultWheel', cycle = true } },
+                },
+            },
+            {
+                name = 'Explicit Activation',
+                settings = {
+                    { id = 'ActivateAbilities', name = 'Activate Abilities', type = 'keybind', default = 0,
+                        params = {
+                            trigger = 'Hold|Tap', sustained = true,
+                            action = { type = 'focus', group = 1 },
+                            optional = true,
+                        },
+                    },
+                    { id = 'ActivateConsumables', name = 'Activate Consumables', type = 'keybind', default = 0,
+                        params = {
+                            trigger = 'Hold|Tap', sustained = true,
+                            action = { type = 'focus', group = 2 },
+                            optional = true,
+                        },
                     },
                 },
             },
@@ -100,16 +125,16 @@ for slot = 1, 4 do
     abilities[slot] = {
         id = 'AbilitySlot' .. slot,
         name = 'Ability Slot ' .. slot,
-        trigger = 'Tap|Hold',
+        type = 'keybind',
         default = 0,
-        action = { type = 'ability', slot = slot },
+        params = { trigger = 'Tap|Hold', action = { type = 'ability', slot = slot }, optional = true },
     }
     consumables[slot] = {
         id = 'ConsumableSlot' .. slot,
         name = 'Consumable Slot ' .. slot,
-        trigger = 'Tap|Hold',
+        type = 'keybind',
         default = 0,
-        action = { type =  'consumable', slot = slot},
+        params = { trigger = 'Tap|Hold', action = { type = 'consumable', slot = slot }, optional = true },
     }
 end
 
@@ -119,8 +144,8 @@ M.addSectionMap('actions', {
         value = 2,
         contexts= {'exploration', 'combat'},
         map = {
-            { name = 'Abilities', keys = abilities },
-            { name = 'Consumables', keys = consumables },
+            { name = 'Abilities', settings = abilities },
+            { name = 'Consumables', settings = consumables },
         },
     })
 

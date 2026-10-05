@@ -32,9 +32,14 @@ end
 local function clear()
     os.remove(path);os.remove(temporary);os.remove(previous)
 end
+-- An unresolved transaction never blocks startup: the store opens on defaults,
+-- leaves every file for review and refuses to save.
 local function fails()
-    local ok,why=pcall(Config.open,path,definition)
-    assert(not ok and tostring(why):find('unresolved',1,true),tostring(why))
+    local store=Config.open(path,definition)
+    assert(tostring(store.recoveryError):find('unresolved',1,true),tostring(store.recoveryError))
+    assert(Menu.new(definition,store.values).values[wheel]==2)
+    local saved,why=pcall(store.save,store,changed)
+    assert(not saved and tostring(why):find('reviewed',1,true),tostring(why))
 end
 
 clear()
@@ -64,8 +69,13 @@ assert(read(temporary)==second and read(path)==nil)
 clear();write(path,second);write(previous,first);write(temporary,second);fails()
 assert(read(path)==second and read(previous)==first and read(temporary)==second)
 
-clear();write(path,'[ModCoreControls.module]\ndefault.DefaultWheel=9\n');write(previous,first);fails()
-assert(read(previous)==first)
+-- An invalid saved value falls back to its default; the published file wins.
+clear();write(path,'[ModCoreControls.module]\ndefault.DefaultWheel=9\n');write(previous,first)
+assert(Menu.new(definition,Config.open(path,definition).values).values[wheel]==2)
+assert(read(previous)==nil)
+-- Repeated sections and keys keep the first value.
+clear();write(path,'[ModCoreControls.module]\ndefault.DefaultWheel=1\n[ModCoreControls.module]\ndefault.DefaultWheel=2\n')
+assert(Config.open(path,definition).values[wheel]==1)
 
 clear();write(path,first)
 local store=Config.open(path,definition)
@@ -112,9 +122,11 @@ local migrated=Config.open(legacy,definition)
 assert(migrated.migrationError==nil,migrated.migrationError)
 local slot
 for _,item in ipairs(definition.settings) do
-    if item.configKey=='global.AbilitySlot1.key' then slot=item.id end
+    if item.configKey=='global.AbilitySlot1' then slot=item.id end
 end
-assert(slot and migrated.values[slot]==74,'flat key value must survive the rename')
+-- Key-code lines predate keybind text; the binding keeps its default.
+assert(slot and migrated.values[slot]==nil and Menu.new(definition,migrated.values).values[slot]=='none',
+    'old key-code values are ignored')
 local persisted=read(legacy)
 assert(not persisted:find('map=',1,true) and persisted:find('global.AbilitySlot1.key=74',1,true)
     and not persisted:find('\nflat.AbilitySlot',1,true) and persisted:find('[Other]\nflat.keep=1',1,true),

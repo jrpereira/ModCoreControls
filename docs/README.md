@@ -52,14 +52,21 @@ M.addSectionMap('actions', {
     map = {
         {
             name = 'Fixed Controls',
-            keys = {
-                { id = 'DemoAbility1', name = 'Ability 1', trigger = 'Tap|Hold',
-                  default = 49, action = { type = 'ability', slot = 1 } },
+            settings = {
+                { id = 'DemoAbility1', name = 'Ability 1', type = 'keybind', default = '1|Tap',
+                  params = { trigger = 'Tap|Hold', action = { type = 'ability', slot = 1 } } },
             },
         },
     },
 })
 ```
+
+Every setting has an `id`, a `name`, a `type` and an optional `default`; the
+arguments specific to its type sit in `params`, and any other field is rejected.
+Map-level `settings` are `picker`s (`params={values,labels}`). A group's
+`settings` list its `keybind`s (`params={trigger,action,optional,defaultControl,
+override,sustained,…}`) and `mirror`s (`params={section,map,setting}`) in the
+order the page shows them.
 
 The menu definition sources are:
 
@@ -67,9 +74,10 @@ The menu definition sources are:
 - `Scripts/mc_maps.lua`
 - `Scripts/mc_triggers.lua`
 
-`mod_settings.ini` contains only DMM discovery metadata. The DMM extension
-reads these Lua definitions and creates the settings schema when DMM builds its
-Controls page.
+MCC installs no DMM extension and ships no `mod_settings.ini`. At startup it
+publishes the Controls page to ModCoreSettings, which builds the page's settings
+from these Lua definitions through `Scripts/mcs_page.lua` each time the menu
+opens. The page appears once MCC has started.
 
 ## DMM and storage
 
@@ -92,9 +100,15 @@ default.SwapOutsideCombat=1
 default.HoldSwap=1
 default.DefaultWheel=2
 [ModCoreControls.actions]
-global.SlotAction1.key=74
-global.SlotAction1.trigger=0
+global.AbilitySlot1=J|Hold
+global.AbilitySlot2=1|Tap
+grouped.QuickSlot1=none
 ```
+
+A binding is one value: `none`, or the key's Unreal name and its trigger, joined
+by `|`. Number keys are written as their digit (`1`, not `One`). `default` reads
+as the declared binding. Lines from earlier versions (`….key=74`, `….trigger=0`)
+are ignored, so those bindings return to their defaults.
 
 Only the selected page's and section's rows are visible.
 Actions shows **Control Map** with **Quickslot Groups | Global**, followed by
@@ -114,11 +128,15 @@ activates it after settings load, and released or re-tapped group keys return to
 it. Focus enables the focused wheel and disables the other
 when a layout has moved the wheels out of the native switcher; native slot keys
 follow the enabled wheel.
-Quickslot Groups has two sections. **Active Group** holds the four shared slot
-keys, which fire the focused wheel. **Group Activation** repeats Default's
-Default wheel as **Default Group**, then a Hold/Tap key that shows the other
-wheel and an optional one that shows the Default wheel; each key is labelled
-after the wheel it shows. Global binds the four
+Quickslot Groups has three sections. **Active Group** holds the four shared slot
+keys, which fire the focused wheel. **Alternate Activation** has **Swap to
+<wheel>**, a Hold/Tap key labelled after the wheel other than Default: tapping
+it shows that wheel and tapping again swaps back, and holding shows it until
+release. It inherits the Toggle Quickslots key while unbound. **Swap back to
+default** repeats Default's Default wheel. **Explicit Activation** has
+**Activate Abilities** and **Activate Consumables**, optional and unbound by
+default: each always focuses its own wheel and never swaps. The swap key set to
+Tap acts on press; explicit keys keep a real Tap. Global binds the four
 ability and four consumable slots directly. An optional key with `defaultControl`
 stores zero while inheriting that standard game control dynamically; a custom
 nonzero key replaces the inheritance. Sections
@@ -165,8 +183,8 @@ bounded process-lifetime pool.
 
 ## Installation
 
-Install and enable this mod as `Mods/_ModCore_2_Controls`. Install its
-ModCoreSettings dependency as `Mods/_ModCore_1_Settings`. Preserve `config.ini`
+Install and enable this mod as `Mods/2_ModCore_Controls`. Install its
+ModCoreSettings dependency as `Mods/1_ModCore_Settings`. Preserve `config.ini`
 when updating.
 
 Map-level `override` lists apply for as long as the map is loaded. A key-level
@@ -176,10 +194,22 @@ Unbound disables that MCC binding; it does not necessarily suppress the native
 action. Map-level overrides remain active independently of individual keys.
 A key with a `defaultControl` can declare `override=true`: while the player
 binds a custom key in its place, the native `defaultControl` action is
-suppressed; on its default key the native action is left alone.
+suppressed; on its default key MCC adds no binding and leaves that key to the
+native action.
+
+A player key bound on the key Default's swap inherits from Toggle Quickslots
+takes that key over: the swap steps aside until the key is free again.
+
+## Logging
+
+ModCore Controls writes to the UE4SS log at levels TRACE, DEBUG, INFO, WARN, ERROR
+and CRITICAL. Only WARN and above are written by default. To see more, create
+`Mods/2_ModCore_Controls/log_level.txt` containing one level name and restart the
+game: `info` adds attachment and swap notices, `debug` adds pending syncs and
+mappings, and `trace` adds key-profile lookups.
 
 ## Documentation
 
-- [Developer guide](docs/DEVELOPERS.md)
-- [Build guide](docs/BUILD.md)
+- [Developer guide](DEVELOPERS.md)
+- [Build guide](BUILD.md)
 - [Changelog](CHANGELOG.md)

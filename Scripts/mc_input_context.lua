@@ -9,7 +9,7 @@ M.native={exploration='IMC_OW',combat='IMC_RTCombat',base='IMC_Base'}
 local gameplay={'exploration','combat'}
 
 function M.new(e,log)
-    log=log or function() end
+    log=require('mc_log').wrap(log)
     local actions={}
     -- attached[logical]={context=<native IMC>,entries={{action,keyName},...}}
     local attached={}
@@ -67,8 +67,14 @@ function M.new(e,log)
         for _,binding in ipairs(plan.bindings) do
             if usable(binding,logical) then
                 local target=current[binding.id]
-                record.context:MapKey(target,{KeyName=e.name(binding.keyName)})
-                record.entries[#record.entries+1]={target,binding.keyName}
+                -- An inherited binding carries every key the player bound to its
+                -- source action; a suppressed key is left to its claimant.
+                for _,keyName in ipairs(binding.keyNames or {binding.keyName}) do
+                    if not (binding.suppressed and binding.suppressed[keyName]) then
+                        record.context:MapKey(target,{KeyName=e.name(keyName)})
+                        record.entries[#record.entries+1]={target,keyName}
+                    end
+                end
             end
         end
     end
@@ -93,7 +99,7 @@ function M.new(e,log)
         if attached[logical] and attached[logical].context~=native then self:detach(logical) end
         attached[logical]=attached[logical] or {context=native,entries={}}
         map(logical)
-        log('mapped into '..M.native[logical]..': '..#attached[logical].entries..' key(s)')
+        log.debug('mapped into ',M.native[logical],': ',#attached[logical].entries,' key(s)')
         -- IMC_Base takes over keys usable everywhere from the gameplay contexts.
         if logical=='base' then
             for _,other in ipairs(gameplay) do if attached[other] then map(other) end end

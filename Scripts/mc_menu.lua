@@ -1,11 +1,50 @@
 -- Shared menu definitions and state. Rendering and persistence are separate.
 local M = {}
 local triggers = require('mc_triggers')
-local keyNames = require('mc_key_names')
 local contexts={exploration=true,combat=true}
 
 local function token(value)
     return (value:gsub('[^%w]', function(c) return ('_%02X'):format(c:byte()) end))
+end
+
+-- Declared settings carry id, name, type and default; the rest of a type's
+-- arguments sit in params. Unknown fields are rejected so a misplaced argument
+-- cannot be silently ignored.
+local common={id=true,name=true,type=true,default=true,params=true,description=true}
+local paramFields={
+    -- tab=true shows the choices as tabs instead of a left/right picker; cycle=true
+    -- shows only the current choice, in the keybind key column, advancing on click.
+    picker={values=true,labels=true,tab=true,cycle=true},
+    mirror={section=true,map=true,setting=true,tab=true,cycle=true},
+    keybind={trigger=true,action=true,optional=true,defaultControl=true,override=true,
+        sustained=true,inactive=true,groupedBy=true,displayAlias=true},
+}
+-- Descriptions pass through to DMM, or nil when empty. DMM takes a value to the end of
+-- its line, so any text fits except line breaks and other control characters, and
+-- it accepts at most 4096 characters.
+local function description(value,where)
+    if value==nil or value=='' then return nil end
+    assert(type(value)=='string' and #value<=4096 and not value:find('%c'),'invalid description: ' .. where)
+    return value
+end
+M.description=description
+
+local function declared(entry,types,where)
+    assert(type(entry)=='table' and type(entry.id)=='string' and entry.id:match('%S'),
+        'setting needs an id in ' .. where)
+    assert(types[entry.type],'unsupported setting type in ' .. where .. ': ' .. entry.id
+        .. ' (' .. tostring(entry.type) .. ')')
+    for field in pairs(entry) do
+        assert(common[field],'unknown setting field in ' .. where .. ': ' .. entry.id .. '.' .. tostring(field))
+    end
+    local params=entry.params or {}
+    assert(type(params)=='table','params must be a table: ' .. entry.id)
+    -- A setting's description is shown when its row is selected.
+    description(entry.description,entry.id)
+    for field in pairs(params) do
+        assert(paramFields[entry.type][field],'unknown ' .. entry.type .. ' param: ' .. entry.id .. '.' .. tostring(field))
+    end
+    return params
 end
 
 function M.define(registry, mapRegistry)
@@ -24,7 +63,10 @@ function M.define(registry, mapRegistry)
         assert(type(id)=='string' and id:match('%S') and not known[id],
             'invalid or duplicate section id: ' .. tostring(id))
         known[id] = true
-        local section = { id=id, name=id:sub(1,1):upper() .. id:sub(2), maps={}, settings={} }
+        -- A section's description is shown under the first heading on its page.
+        local declaredSection = registry.sections and registry.sections[id] or {}
+        local section = { id=id, name=id:sub(1,1):upper() .. id:sub(2), maps={}, settings={},
+            description=description(declaredSection.description,id) }
         result.sections[#result.sections + 1] = section
         local maps = mapRegistry.maps[id] or {}
         for _, mapId in ipairs(mapRegistry.order[id] or {}) do
@@ -67,21 +109,21 @@ function M.define(registry, mapRegistry)
             local declaredSettings=map.declaration.settings or {}
             local settingsById={}
             for _,source in ipairs(declaredSettings) do
-                assert(type(source)=='table' and type(source.id)=='string'
-                    and source.id:match('%S') and not settingsById[source.id],
-                    'invalid or duplicate map setting in '..map.id)
+                local params=declared(source,{picker=true},map.id)
+                assert(not settingsById[source.id],'duplicate map setting in '..map.id..': '..source.id)
                 assert(type(source.name)=='string' and source.name:match('%S'),
                     'map setting needs a name: '..source.id)
-                assert(source.kind=='key' or source.kind=='choice',
-                    'unsupported map setting kind: '..source.id)
-                local values,labels=source.values or {},source.labels or {}
-                if source.kind=='choice' then
-                    assert(#values>0 and #values==#labels,'invalid map setting choices: '..source.id)
-                end
+                local values,labels=params.values or {},params.labels or {}
+                assert(#values>0 and #values==#labels,'invalid map setting choices: '..source.id)
                 local item=setting('MCC_'..token(id)..'_'..token(map.id)..'_'..token(source.id),
-                    source.name,source.kind,source.default,values,labels)
+                    source.name,'choice',source.default,values,labels)
                 item.configSection='ModCoreControls.'..id
                 item.configKey=map.id..'.'..token(source.id)
+                item.description=description(source.description,source.id)
+                assert(params.tab==nil or type(params.tab)=='boolean','tab must be true or false: '..source.id)
+                assert(params.cycle==nil or type(params.cycle)=='boolean','cycle must be true or false: '..source.id)
+                assert(not (params.tab and params.cycle),'a setting is tabs or a cycle, not both: '..source.id)
+                item.tab,item.cycle=params.tab==true,params.cycle==true
                 assert(M.valid(item,item.default),'invalid map setting default: '..source.id)
                 map.settings[#map.settings+1]=item
                 settingsById[source.id]=item
@@ -103,111 +145,128 @@ function M.define(registry, mapRegistry)
             for _, group in ipairs(map.declaration.map) do
                 assert(type(group.name)=='string' and group.name:match('%S'),
                     'group needs a name in ' .. map.id)
-                assert(type(group.keys)=='table','group needs keys in ' .. map.id)
-                local output = { name=group.name, keys={}, settings={} }
-                for _,source in ipairs(group.settings or {}) do
-                    assert(type(source)=='table' and type(source.id)=='string' and source.id:match('%S')
-                        and type(source.mirror)=='table','group settings mirror a map setting: ' .. map.id)
-                    local owner=mapSettings[(source.mirror.section or id) .. '\0' .. tostring(source.mirror.map)]
-                    local target=assert(owner and owner[source.mirror.setting],
-                        'unknown mirrored setting in ' .. map.id .. ': ' .. tostring(source.mirror.setting))
-                    assert(target.kind=='choice','only choices can be mirrored: ' .. source.id)
-                    local item={id='MCC_'..token(id)..'_'..token(map.id)..'_'..token(source.id),
-                        name=source.name or target.name,kind='choice',default=target.default,
-                        values=target.values,labels=target.labels,mirror=target}
-                    assert(not result.byId[item.id],'duplicate setting: ' .. item.id)
-                    for _,other in ipairs(result.mirrors) do
-                        assert(other.id~=item.id,'duplicate setting: ' .. item.id)
-                    end
-                    result.mirrors[#result.mirrors+1]=item
-                    output.settings[#output.settings+1]=item
+                for field in pairs(group) do
+                    assert(field=='name' or field=='settings' or field=='description',
+                        'unknown group field in ' .. map.id .. ': ' .. tostring(field))
                 end
+                assert(type(group.settings)=='table','group needs settings in ' .. map.id)
+                -- items keeps the declared order for the page; keys and settings
+                -- split it for the input plan and storage.
+                -- A group's description is shown under its heading.
+                local output = { name=group.name, keys={}, settings={}, items={},
+                    description=description(group.description,map.id .. '.' .. group.name) }
                 map.groups[#map.groups+1] = output
-                for _, key in ipairs(group.keys) do
-                    assert(type(key.id)=='string' and key.id:match('%S') and not bindingIds[key.id],
-                        'invalid or duplicate binding id in ' .. map.id .. ': ' .. tostring(key.id))
-                    bindingIds[key.id]=true
-                    assert(type(key.name)=='string' and key.name:match('%S'),
-                        'binding needs a name: ' .. key.id)
-                    assert(type(key.trigger)=='string','binding needs triggers: ' .. key.id)
-                    assert(key.sustained==nil or type(key.sustained)=='boolean',
-                        'invalid sustained flag: ' .. key.id)
-                    assert(key.inactive==nil or type(key.inactive)=='boolean',
-                        'invalid inactive flag: ' .. key.id)
-                    assert(key.defaultControl==nil or type(key.defaultControl)=='string'
-                        and key.defaultControl:match('%S'),
-                        'invalid default control: ' .. key.id)
-                    assert(key.defaultControl==nil or key.optional==true,
-                        'default control requires an optional key: ' .. key.id)
-                    assert(key.groupedBy==nil or type(key.groupedBy)=='string' and key.groupedBy:match('%S'),
-                        'invalid groupedBy: ' .. key.id)
-                    assert(key.displayAlias==nil or type(key.displayAlias)=='number'
-                        and key.displayAlias%1==0 and key.displayAlias>=0xC1 and key.displayAlias<=0xC8,
-                        'invalid displayAlias: ' .. key.id)
-                    local action=key.action
-                    assert(type(action)=='table' and
-                        (action.type=='ability' or action.type=='consumable' or action.type=='selected' or action.type=='focus'),
-                        'invalid action: ' .. key.id)
-                    local field=action.type=='focus' and 'group' or 'slot'
-                    -- A focus action names a fixed group, or the Default wheel
-                    -- or the other wheel relative to it.
-                    if action.type=='focus' and action.group==nil then
-                        field='wheel'
-                        assert(action.wheel=='default' or action.wheel=='other',
-                            'invalid action wheel: ' .. key.id)
+                for _, entry in ipairs(group.settings) do
+                    local params=declared(entry,{keybind=true,mirror=true},map.id)
+                    if entry.type=='mirror' then
+                        local source={id=entry.id,name=entry.name,mirror=params}
+                        assert(entry.default==nil,'a mirror takes its default from its setting: ' .. entry.id)
+                        local owner=mapSettings[(source.mirror.section or id) .. '\0' .. tostring(source.mirror.map)]
+                        local target=assert(owner and owner[source.mirror.setting],
+                            'unknown mirrored setting in ' .. map.id .. ': ' .. tostring(source.mirror.setting))
+                        assert(target.kind=='choice','only choices can be mirrored: ' .. source.id)
+                        local item={id='MCC_'..token(id)..'_'..token(map.id)..'_'..token(source.id),
+                            name=source.name or target.name,kind='choice',default=target.default,
+                            values=target.values,labels=target.labels,mirror=target,
+                            description=description(entry.description,entry.id),tab=params.tab==true,
+                            cycle=params.cycle==true}
+                        assert(params.tab==nil or type(params.tab)=='boolean','tab must be true or false: '..entry.id)
+                        assert(params.cycle==nil or type(params.cycle)=='boolean','cycle must be true or false: '..entry.id)
+                        assert(not (params.tab and params.cycle),'a setting is tabs or a cycle, not both: '..entry.id)
+                        assert(not result.byId[item.id],'duplicate setting: ' .. item.id)
+                        for _,other in ipairs(result.mirrors) do
+                            assert(other.id~=item.id,'duplicate setting: ' .. item.id)
+                        end
+                        result.mirrors[#result.mirrors+1]=item
+                        output.settings[#output.settings+1]=item
+                        output.items[#output.items+1]={mirror=item}
                     else
-                        -- Group 3 is configuration-only until the game exposes a
-                        -- third quickslot target; inactive bindings never enter
-                        -- the runtime plan.
-                        local limit=action.type=='focus' and 3 or 4
-                        local value=action[field]
-                        assert(type(value)=='number' and value%1==0 and value>=1 and value<=limit,
-                            'invalid action ' .. field .. ': ' .. key.id)
-                    end
-                    for name in pairs(action) do
-                        assert(name=='type' or name==field,'unknown action field: ' .. key.id)
-                    end
-                    assert(not key.sustained or action.type=='focus',
-                        'sustained non-focus action: ' .. key.id)
-                    -- override=true overrides the key's own defaultControl, and only
-                    -- while the player binds a custom key in its place.
-                    if key.override==true then
-                        assert(key.defaultControl,'override=true requires defaultControl: ' .. key.id)
-                    else
-                        require('mc_input_plan').validateOverride(key.override)
-                    end
-                    local prefix = 'MCC_' .. token(id) .. '_' .. token(map.id) .. '_' .. token(key.id)
-                    local modes, names, usedModes = {}, {}, {}
-                    for name in key.trigger:gmatch('[^|]+') do
-                        local mode=triggers.toEnhancedInput(name, key.sustained)
-                        assert(not usedModes[mode],'duplicate trigger: ' .. key.id)
-                        usedModes[mode]=true
-                        modes[#modes+1] = mode
-                        names[#names+1] = name
-                    end
-                    assert(#modes>0, 'key must declare a trigger')
-                    local overrideDefault=type(key.override)=='table' and key.override.action
-                        and key.override.value or nil
-                    local binding = {
-                        id=key.id,
-                        key=setting(prefix .. '_Key', key.name, 'key',
-                            key.default~=nil and key.default or overrideDefault or 0),
-                        trigger=setting(prefix .. '_Trigger', key.name, 'choice', modes[1], modes, names),
-                        optional=key.optional == true,
-                        defaultControl=key.defaultControl,
-                        inactive=key.inactive == true,
-                        groupedBy=key.groupedBy,
-                        displayAlias=key.displayAlias,
-                        sustained=key.sustained == true,
-                        action=key.action,
-                        override=key.override,
-                    }
-                    assert(M.valid(binding.key,binding.key.default),
-                        'unsupported default key: ' .. binding.key.id)
-                    output.keys[#output.keys+1] = binding
-                    for kind,item in pairs({key=binding.key,trigger=binding.trigger}) do
-                        item.configSection='ModCoreControls.' .. id
-                        item.configKey=map.id .. '.' .. token(key.id) .. '.' .. kind
+                        local key={id=entry.id,name=entry.name,default=entry.default}
+                        for field,value in pairs(params) do key[field]=value end
+                        assert(type(key.id)=='string' and key.id:match('%S') and not bindingIds[key.id],
+                            'invalid or duplicate binding id in ' .. map.id .. ': ' .. tostring(key.id))
+                        bindingIds[key.id]=true
+                        assert(type(key.name)=='string' and key.name:match('%S'),
+                            'binding needs a name: ' .. key.id)
+                        assert(type(key.trigger)=='string','binding needs triggers: ' .. key.id)
+                        assert(key.sustained==nil or type(key.sustained)=='boolean',
+                            'invalid sustained flag: ' .. key.id)
+                        assert(key.inactive==nil or type(key.inactive)=='boolean',
+                            'invalid inactive flag: ' .. key.id)
+                        assert(key.defaultControl==nil or type(key.defaultControl)=='string'
+                            and key.defaultControl:match('%S'),
+                            'invalid default control: ' .. key.id)
+                        assert(key.defaultControl==nil or key.optional==true,
+                            'default control requires an optional key: ' .. key.id)
+                        assert(key.groupedBy==nil or type(key.groupedBy)=='string' and key.groupedBy:match('%S'),
+                            'invalid groupedBy: ' .. key.id)
+                        assert(key.displayAlias==nil or type(key.displayAlias)=='number'
+                            and key.displayAlias%1==0 and key.displayAlias>=0xC1 and key.displayAlias<=0xC8,
+                            'invalid displayAlias: ' .. key.id)
+                        local action=key.action
+                        assert(type(action)=='table' and
+                            (action.type=='ability' or action.type=='consumable' or action.type=='selected' or action.type=='focus'),
+                            'invalid action: ' .. key.id)
+                        local field=action.type=='focus' and 'group' or 'slot'
+                        -- A focus action names a fixed group, or the Default wheel
+                        -- or the other wheel relative to it.
+                        if action.type=='focus' and action.group==nil then
+                            field='wheel'
+                            assert(action.wheel=='default' or action.wheel=='other',
+                                'invalid action wheel: ' .. key.id)
+                        else
+                            -- Group 3 is configuration-only until the game exposes a
+                            -- third quickslot target; inactive bindings never enter
+                            -- the runtime plan.
+                            local limit=action.type=='focus' and 3 or 4
+                            local value=action[field]
+                            assert(type(value)=='number' and value%1==0 and value>=1 and value<=limit,
+                                'invalid action ' .. field .. ': ' .. key.id)
+                        end
+                        for name in pairs(action) do
+                            assert(name=='type' or name==field,'unknown action field: ' .. key.id)
+                        end
+                        assert(not key.sustained or action.type=='focus',
+                            'sustained non-focus action: ' .. key.id)
+                        -- override=true overrides the key's own defaultControl, and only
+                        -- while the player binds a custom key in its place.
+                        if key.override==true then
+                            assert(key.defaultControl,'override=true requires defaultControl: ' .. key.id)
+                        else
+                            require('mc_input_plan').validateOverride(key.override)
+                        end
+                        local prefix = 'MCC_' .. token(id) .. '_' .. token(map.id) .. '_' .. token(key.id)
+                        local modes, names, usedModes = {}, {}, {}
+                        for name in key.trigger:gmatch('[^|]+') do
+                            local mode=triggers.toEnhancedInput(name, key.sustained)
+                            assert(not usedModes[mode],'duplicate trigger: ' .. key.id)
+                            usedModes[mode]=true
+                            modes[name] = mode
+                            names[#names+1] = name
+                        end
+                        assert(#names>0, 'key must declare a trigger')
+                        -- One setting holds the whole binding as text: 'none' or '<FKey>|<trigger>'.
+                        local bind=setting(prefix, key.name, 'keybind', nil, nil, names)
+                        bind.modes=modes
+                        bind.description=description(entry.description,entry.id)
+                        bind.default=assert(M.keybind(bind, key.default==nil and 'none' or key.default),
+                            'unsupported default key: ' .. prefix)
+                        local binding = {
+                            id=key.id,
+                            setting=bind,
+                            optional=key.optional == true,
+                            defaultControl=key.defaultControl,
+                            inactive=key.inactive == true,
+                            groupedBy=key.groupedBy,
+                            displayAlias=key.displayAlias,
+                            sustained=key.sustained == true,
+                            action=key.action,
+                            override=key.override,
+                        }
+                        output.keys[#output.keys+1] = binding
+                        output.items[#output.items+1]={binding=binding}
+                        bind.configSection='ModCoreControls.' .. id
+                        bind.configKey=map.id .. '.' .. token(key.id)
                     end
                 end
             end
@@ -222,9 +281,42 @@ function M.define(registry, mapRegistry)
     return result
 end
 
+-- Number keys are stored as their digit ('1'), and bound by their FKey name ('One').
+local numbers={'Zero','One','Two','Three','Four','Five','Six','Seven','Eight','Nine'}
+local digits={}
+for digit,word in ipairs(numbers) do digits[word:lower()]=tostring(digit-1) end
+
+-- Canonical text of a keybind value, or nil when it is not one. 'none' and 0 are
+-- unbound; '<FKey>' takes the first declared trigger.
+-- This matches ModCoreSettings' keybind editor, which reads the same text.
+function M.keybind(setting, raw)
+    if raw==0 then return 'none' end
+    if type(raw)~='string' then return nil end
+    raw=raw:match('^%s*(.-)%s*$')
+    -- A bare 0 is unbound; the 0 key is always written with its trigger, '0|Tap'.
+    if raw=='' or raw=='0' or raw:lower()=='none' then return 'none' end
+    local key,trigger=raw:match('^([^|]+)|(.+)$')
+    key=(key or raw):match('^%s*(.-)%s*$')
+    key=digits[key:lower()] or key
+    if not key:match('^%d$') and (not key:match('^%a[%w_]*$') or key=='None' or key=='Escape'
+        or key:find('^Gamepad_')) then return nil end
+    local names=setting.labels
+    if not trigger then return key .. '|' .. names[1] end
+    trigger=trigger:match('^%s*(.-)%s*$'):lower()
+    for _,name in ipairs(names) do if name:lower()==trigger then return key .. '|' .. name end end
+end
+
+-- The key name and Enhanced Input mode of a canonical keybind value; nil when unbound.
+function M.binding(setting, value)
+    if value=='none' then return nil end
+    local key,trigger=value:match('^([^|]+)|(.+)$')
+    if key:match('^%d$') then key=numbers[tonumber(key)+1] end
+    return key, setting.modes[trigger]
+end
+
 function M.valid(setting, value)
+    if setting.kind=='keybind' then return type(value)=='string' and M.keybind(setting,value)==value end
     if type(value)~='number' or value%1~=0 then return false end
-    if setting.kind=='key' then return value>=0 and value<=254 and keyNames.toName(value)~=nil end
     for _, allowed in ipairs(setting.values) do if value==allowed then return true end end
     return false
 end

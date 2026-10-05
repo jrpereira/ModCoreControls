@@ -3,7 +3,25 @@
   "id": "ModCoreControls",
   "name": "ModCore Controls",
   "description": "Define, save, and apply extensible input sections and control maps through DMM.",
-  "version_source": "mod_settings.ini",
+  "version_source": "VERSION",
+  "dependencies": [
+    {
+      "id": "UE4SS",
+      "name": "UE4SS compatible with The Blood of Dawnwalker",
+      "url": "https://github.com/UE4SS-RE/RE-UE4SS"
+    },
+    {
+      "id": "UE4SSLuaEventBridge",
+      "name": "UE4SSLuaEventBridge with Enhanced Input API 4 or newer",
+      "version": "API 4+"
+    },
+    {
+      "id": "ModCoreSettings",
+      "name": "ModCore Settings",
+      "version": "1.0.1+",
+      "url": "https://www.nexusmods.com/thebloodofdawnwalker/mods/590"
+    }
+  ],
   "links": {
     "source": "https://github.com/jrpereira/ModCoreControls",
     "nexus": "https://www.nexusmods.com/thebloodofdawnwalker/mods/640"

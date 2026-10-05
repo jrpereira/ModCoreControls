@@ -7,87 +7,84 @@ local function tmpname()
     assert(io.open(path,'wb')):close()
     return path
 end
-local Menu,DMM=require('mc_menu'),require('mc_dmm')
-local definition=Menu.define(require('mc_sections'),require('mc_maps'))
+local DMM=require('mc_dmm')
 local directory=tmpname()
 assert(os.remove(directory))
 assert(os.execute('mkdir ' .. string.format('%q',directory)))
-local choices={}
-function choices.open()
-    local model={items={},pending={},committed={}}
-    for i,item in ipairs(definition.settings) do
-        model.items[i]={id=item.id}
-        model.pending[i],model.committed[i]=item.default,item.default
+
+-- ModCoreSettings' page hooks call load() when the page opens and apply() with
+-- every stored value by id plus the edited ones as {old=,new=}.
+local committed
+local function open() committed=DMM.load(directory) end
+local function apply(edits)
+    local values,changes={},{}
+    for id,value in pairs(committed) do values[id]=value end
+    for id,value in pairs(edits) do
+        values[id]=value
+        if committed[id]~=value then changes[id]={old=committed[id],new=value} end
     end
-    return model
+    local ok,saved,warning=pcall(DMM.apply,directory,values,changes)
+    if ok then for id,value in pairs(saved) do committed[id]=value end end
+    return ok,saved,warning
 end
-DMM.installStorage(choices)
-local model=choices.open({id='ModCoreControls',path=directory .. '/mod_settings.ini'})
-assert(not model.error,model.error)
-local indices={}
-for i,item in ipairs(model.items) do indices[item.id]=i end
-assert(indices.MCC_actions_Map==nil,'the map picker is navigation, not a stored item')
+local function config()
+    local file=io.open(directory .. '/config.ini','rb')
+    if not file then return nil end
+    local content=file:read('*a');file:close();return content
+end
+
+open()
+assert(committed.MCC_actions_Map==nil,'the map picker is navigation, not a stored value')
 -- Maps coexist: the same key in two maps is rejected like a duplicate in one.
-local first=indices.MCC_actions_grouped_QuickSlot1_Key
-local second=indices.MCC_actions_global_AbilitySlot2_Key
-model.pending[first]=49
-model.pending[second]=model.pending[first]
-local ok,why,event=model:apply()
-assert(not ok and why:find(model.items[second].id,1,true) and event==nil)
-assert(model.pending[second]==model.pending[first] and
-    model.committed[second]~=model.pending[second])
-assert(io.open(directory .. '/config.ini','rb')==nil,'rejected Apply published a config')
-model.pending[second]=3
-ok,why,event=model:apply()
-assert(not ok and why:find(model.items[second].id,1,true) and event==nil)
-model.pending[second]=model.committed[second]
-ok,why,event=model:apply()
-assert(ok,why)
-assert(event and event.values[model.items[second].id]~=nil)
+local first,second='MCC_actions_grouped_QuickSlot1','MCC_actions_global_AbilitySlot2'
+assert(committed[first]=='none' and committed[second]=='none','keybinds load as text')
+local ok,why=apply({[first]='1|Tap',[second]='1|Tap'})
+assert(not ok and tostring(why):find(second,1,true))
+assert(config()==nil,'rejected Apply published a config')
+ok,why=apply({[second]=3})
+assert(not ok and tostring(why):find(second,1,true),'a key code is rejected by id')
+local saved
+ok,saved=apply({[first]='1|Hold'})
+assert(ok,saved)
+assert(saved[first]=='1|Hold' and config():find('grouped.QuickSlot1=1|Hold\n',1,true))
+-- Number settings stay integers in the same file.
+assert(config():find('default.DefaultWheel=2\n',1,true))
 
 -- Default Group mirrors Default's Default wheel: it loads from that setting, a
 -- change is saved there, and changing both to different values is rejected.
-local schema=DMM.schema(definition)
+local schema=DMM.schema(require('mc_menu').define(require('mc_sections'),require('mc_maps')))
 assert(schema:find('[Setting.MCC_actions_grouped_DefaultGroup]',1,true)
     and not schema:find('ConfigKey=grouped.DefaultGroup',1,true))
-assert(schema:find('mcLabelWhen=MCC_actions_grouped_DefaultGroup\nmcLabels=1:Consumables;2:Abilities',1,true),
-    'Secondary Group is labelled after the wheel other than Default')
--- DMM lists the mirror row beside the stored settings.
-local open=choices.open
-function choices.open(provider)
-    local opened=open(provider)
-    opened.items[#opened.items+1]={id='MCC_actions_grouped_DefaultGroup'}
-    opened.pending[#opened.items],opened.committed[#opened.items]=0,0
-    return opened
-end
-choices.mccStorageInstalled=nil
-DMM.installStorage(choices)
-local function reopen()
-    local opened=choices.open({id='ModCoreControls',path=directory .. '/mod_settings.ini'})
-    local at={}
-    for i,item in ipairs(opened.items) do at[item.id]=i end
-    return opened,at.MCC_actions_grouped_DefaultGroup,at.MCC_module_default_DefaultWheel
-end
-local mirrored,m,w=reopen()
-assert(mirrored.pending[m]==2 and mirrored.committed[m]==2,'mirror loads the Default wheel')
-mirrored.pending[m]=1
-ok,why=mirrored:apply()
-assert(ok,why)
-assert(mirrored.committed[w]==1 and mirrored.committed[m]==1)
-mirrored,m,w=reopen()
-assert(mirrored.pending[m]==1 and mirrored.pending[w]==1,'mirror change persists to Default')
-mirrored.pending[w]=2
-assert(mirrored:apply() and mirrored.committed[m]==2,'source change reaches the mirror')
-mirrored.pending[m],mirrored.pending[w]=1,1
-assert(mirrored:apply() and mirrored.committed[w]==1,'matching changes are accepted')
-mirrored.pending[m],mirrored.pending[w]=2,1
-assert(mirrored:apply() and mirrored.committed[w]==2,'a mirror change wins over an unchanged source')
--- With two wheels, both rows can differ from their committed values only if
--- those values disagree; force that state to reach the conflict check.
-mirrored.committed[m],mirrored.committed[w]=2,1
-mirrored.pending[m],mirrored.pending[w]=1,2
-local conflictOk,conflict=mirrored:apply()
-assert(not conflictOk and conflict:find('different values',1,true),'conflicting changes are rejected')
+assert(schema:find('mcLabelWhen=MCC_actions_grouped_DefaultGroup\nmcLabels=1:Swap to Consumables;2:Swap to Abilities',1,true),
+    'the swap key is labelled after the wheel other than Default')
+assert(schema:find('Label=Swap to Abilities\n',1,true),'its static label names the wheel for the default setting')
+-- Swap back to default shows its wheels as tabs.
+assert(schema:match('%[Setting%.MCC_actions_grouped_DefaultGroup%]\n(.-)\n\n'):find('\nmcType=cycle$'))
+-- Hold to Swap and the Swap key explain how they interact.
+assert(schema:find('Description=Applies to the Toggle Quickslots key. If you bind Swap',1,true)
+    and schema:find('Description=Tap swaps, and tapping again swaps back.',1,true))
+assert(schema:find('Label=Swap back to default\n',1,true) and schema:find('Label=Activate Abilities\n',1,true)
+    and schema:find('Label=Activate Consumables\n',1,true) and schema:find('[Category.actions.grouped.3]',1,true))
+local m,w='MCC_actions_grouped_DefaultGroup','MCC_module_default_DefaultWheel'
+open()
+assert(committed[m]==2 and committed[w]==2,'mirror loads the Default wheel')
+assert(apply({[m]=1}) and committed[w]==1 and committed[m]==1)
+open()
+assert(committed[m]==1 and committed[w]==1,'mirror change persists to Default')
+assert(apply({[w]=2}) and committed[m]==2,'source change reaches the mirror')
+assert(apply({[m]=1,[w]=1}) and committed[w]==1,'matching changes are accepted')
+assert(apply({[m]=2}) and committed[w]==2,'a mirror change wins over an unchanged source')
+-- With two wheels, both rows can change only from disagreeing committed values;
+-- force that state to reach the conflict check.
+committed[m],committed[w]=2,1
+local conflictOk,conflict=apply({[m]=1,[w]=2})
+assert(not conflictOk and tostring(conflict):find('different values',1,true),'conflicting changes are rejected')
+
+-- A config changed since the page opened is refused, not overwritten.
+local file=assert(io.open(directory .. '/config.ini','ab'));file:write('; edited elsewhere\n');file:close()
+ok,why=apply({[first]='2|Tap'})
+assert(not ok and tostring(why):find('changed externally',1,true))
+assert(not config():find('2|Tap',1,true))
 assert(os.remove(directory .. '/config.ini'))
 assert(os.execute('rmdir ' .. string.format('%q',directory)))
 print('PASS DMM Apply validates the combined plan before persistence')

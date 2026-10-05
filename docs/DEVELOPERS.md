@@ -43,10 +43,16 @@ have no input adapter. `description` and `sets` remain reserved registry data.
 
 ## DMM page
 
-`mod_settings.ini` contains only the `[Mod]` identity DMM needs for discovery.
-When DMM builds Controls, `dmm_extension.lua` asks `mc_dmm.lua` to convert the
-Lua definitions into DMM choices. The first generated setting is the Page
-picker:
+ModCoreSettings is MCC's only route into DMM. At startup `main.lua` publishes
+one page through the vendored `menu_contributions.lua`: id `ModCoreControls`,
+`attach` set to the mod folder, `hooks` naming `Scripts/mcs_page.lua`, and the
+mod folder as `configDirectory`. It publishes before input startup, so the
+page survives an input failure. Descriptor files go to `cache/`.
+
+ModCoreSettings loads `mcs_page.lua` in its menu state. Its `manifest` hook
+calls `mc_dmm.manifest()`, which converts the Lua definitions into the page's
+settings on every menu build. `load` and `apply` are MCC's storage (see
+[Storage](#storage)). The first generated setting is the Page picker:
 
 ```ini
 [Setting.MCC_Page]
@@ -73,26 +79,34 @@ DMM builds the page: every standard gamepad button with the actions mapped to it
 in the player's applied contexts and Settings key profile. Outside gameplay one
 row says the list is available in game.
 
-Every named `map` group becomes a visible DMM category heading. Its key and
-trigger rows share that category, so DMM renders them together beneath the Lua
-group name.
-
-`Scripts/dmm_extension.lua` supplies both the generated choices and MCC's
-storage adapter through DMM's extension entrypoint.
+Every named `map` group becomes a visible DMM category heading. Each keybind is
+one `Type=keybind` row of ModCoreSettings (`Triggers`, `Optional`,
+`DefaultControl`); its editor shows the key, its trigger and the default keys on
+that row. There is no separate trigger row.
 
 ## Storage
 
-DMM saves through `mc_config.lua`. Each section owns an INI section:
+The page's `load` hook opens `config.ini` through `mc_config.lua` and returns
+every stored value by id, mirrors included. `apply` receives every stored value
+and the edited ones, resolves mirrors, validates the combined plan with
+`mc_input_plan.build`, saves through the store `load` opened, and returns the
+saved values. A raised error rejects the Apply and keeps the page dirty.
+
+Each section owns an INI section:
 
 ```ini
 [ModCoreControls.module]
 default.DefaultWheel=2
 [ModCoreControls.actions]
-global.SlotAction1.key=74
-global.SlotAction1.trigger=0
+global.AbilitySlot1=J|Hold
+grouped.QuickSlot1=none
 ```
 
-Keys and triggers are integers. Choice keys include their map ID. Section and map
+A keybind is one text value, `none` or `<FKey>|<trigger>` (`mc_menu.keybind`
+gives the canonical form). Number keys are stored as digits and bound by their
+FKey name (`mc_menu.binding`). On read, `default` is the declared binding and an
+unreadable value falls back to it; old `.key`/`.trigger` lines are ignored.
+Choices are integers. Keys include their map ID. Section and map
 navigation is transient and is never saved. Files from before maps coexisted
 carry `map=<ID>`: on open, MCC drops it with the entries of every map it did not
 select (Default's entries stay), plus removed maps and keys, so no saved key
@@ -108,10 +122,17 @@ the original.
 `mc_input_plan.lua` converts every Actions map and current values into
 active native bindings. An Actions map needs a unique section-local `id`, a
 unique numeric `value`, supported `contexts` (`exploration` or `combat`), and
-groups of keys. A runtime key needs a unique `id`, a supported trigger and
-an `action` descriptor (`ability` or `consumable` with slot 1–4, `selected`
-with slot 1–4, or `focus` with group 1–2). Use a supported virtual-key default;
-zero means Unbound. These are static declarations, not a runtime registration
+groups of settings. Every declared setting has `id`, `name`, `type` and an
+optional `default`; the arguments specific to its type sit in `params`, and
+unknown fields in either place are rejected. Map-level settings are `picker`s
+(`params={values,labels}`). A group's `settings` hold `keybind`s and `mirror`s
+in display order; `mc_menu` splits them into the group's `keys`, `settings` and
+ordered `items`. A `keybind` needs a unique `id` and, in `params`, a supported
+`trigger` and an `action` descriptor (`ability` or `consumable` with slot 1–4,
+`selected` with slot 1–4, or `focus` with group 1–2); its other params are
+`optional`, `defaultControl`, `override`, `sustained`, `inactive`, `groupedBy`
+and `displayAlias`. A keybind's `default` is `none` (or 0), `<FKey>` (Tap) or
+`<FKey>|<trigger>`. These are static declarations, not a runtime registration
 transport.
 
 `mc_input_context.lua` owns generated Input Actions and maps their keys into the
@@ -129,20 +150,24 @@ Default generates its own swap bindings on the inherited
 generates one Pressed `flip` binding; Hold on generates `holdSwapEdge` press and
 release bindings. Their `contexts` are `{'combat'}`, or both contexts when swap
 outside of combat is on. `Quickslots.flip` and focus enable the focused wheel and
-disable the other when the wheels are outside the native switcher.
+disable the other when the wheels are outside the native switcher. Swap bindings
+carry `swap=true`; when a custom (nonzero) key resolves to one of a swap
+binding's key names, the host records it in that binding's `suppressed`
+(key name → claimant ID) and leaves only that key unmapped until it moves.
 
 Optional key declarations may set `defaultControl` to a standard Enhanced Input
 action ID. Their stored zero value means “inherit”; the runtime resolves the
-current keyboard mapping from native `/Game/` contexts and refreshes it after
-`ApplyPendingKeyboardMappings`. When no applied context maps the action, as for
-the combat toggle in open world, it falls back to the Settings key profile. Without `defaultControl`, zero remains unbound.
+player's keyboard keys for that action from the Settings key profile into
+`keyNames`, maps the binding on each of them, and refreshes them after `ApplyPendingKeyboardMappings`. The profile holds the key
+whether or not an applied context maps the action, as for the combat toggle in
+open world. Without `defaultControl`, zero remains unbound.
 `mc_native_callbacks.lua` owns the bridge target and its phase subscriptions.
 `mc_overrides.lua` owns root-captured chord gates for native actions declared by
 map- or key-level `override` metadata. A key descriptor can use
 `{ action='IA_Name', value=164 }`; `value` becomes its default key.
 `override=true` is valid only with `defaultControl`. It overrides that action
-while the key holds a custom (nonzero) value and adds nothing while the key
-inherits the default control. Maps cannot use `override=true`.
+while the key holds a custom (nonzero) value. While the key inherits the default
+control, the plan creates no binding for it: the native action keeps that key. Maps cannot use `override=true`.
 A map can use `override={'IA_First','IA_Second'}`; those overrides remain active
 for that map independently of individual key values.
 `mc_input_host.lua` discovers the live player stack, orders binding before
@@ -182,9 +207,10 @@ unchanged group emit nothing; a failed reset keeps the last published group and
 leaves Default pending for the next presentation. The Default map's Default wheel
 is in effect under every map. A focus action names a fixed `group`, or a `wheel`
 of `'default'` or `'other'` that the plan resolves against the Default wheel, and
-its key row is labelled after that wheel. A map group can list `settings` that
-mirror another map's choice, such as Quickslot Groups' Default Group:
-`{id='DefaultGroup', mirror={map='default', setting='DefaultWheel'}}`. A mirror
+its key row is labelled after that wheel. A map group can list `mirror` settings
+that repeat another map's choice, such as Quickslot Groups' Default Group:
+`{id='DefaultGroup', name='Default Group', type='mirror', params={section='module',
+map='default', setting='DefaultWheel'}}`. A mirror
 is a DMM row with no config key. MCC's storage loads it from the mirrored
 setting and writes a change back on Apply; changing both to different values in
 one Apply is rejected. Emissions are not logged:

@@ -5,6 +5,7 @@ local Quickslots=require('mc_quickslots')
 local KeyIndicators=require('mc_key_indicators')
 local Overrides=require('mc_overrides')
 local Events=require('mc_events')
+local Log=require('mc_log')
 local M={}
 
 local function defaultEnvironment()
@@ -65,9 +66,6 @@ local function defaultEnvironment()
         all=function(class)
             local ok,items=pcall(FindAllOf,class)
             return ok and type(items)=='table' and items or {}
-        end,
-        runtimeKeys=function(live,action)
-            return live.subsystem:QueryKeysMappedToAction(action)
         end,
         -- The Settings key profile holds the player's binding even when no
         -- applied context maps the action, e.g. the combat toggle in open world.
@@ -145,22 +143,22 @@ local function defaultEnvironment()
         hook=function(name,callback) return RegisterHook(name,function() end,callback) end,
         preHook=function(name,callback) return RegisterHook(name,callback) end,
         notify=function(name,callback) return NotifyOnNewObject(name,callback) end,
-        mapHook=rawget(_G,'RegisterLoadMapPostHook'),
-        preMapHook=rawget(_G,'RegisterLoadMapPreHook'),
         unhook=rawget(_G,'UnregisterHook'),
+        inGameThread=rawget(_G,'IsInGameThread'),
         delay=rawget(_G,'ExecuteWithDelay'),
     }
 end
 
 function M.new(queue,log,service,environment)
     assert(type(queue)=='function','game-thread queue required')
-    log=log or function() end
+    -- A leveled logger, or a plain function(message) as tests pass.
+    log=Log.wrap(log)
     local api
     local publishControl=Events.publisher(rawget(_G,'ModRef'))
     service=service or Quickslots.new({emit=function(name,payload)
         local ok,why=pcall(publishControl,name,payload,api and api.owner)
         if not ok or why==false then
-            log('control event publication failed: '..tostring(why))
+            log.warn('control event publication failed: ',why)
         end
     end})
     local e=environment or defaultEnvironment()
@@ -205,6 +203,7 @@ function M.new(queue,log,service,environment)
     local callbacks,bridge
     api={enabled=false,ready=false,generation=0,active={},state={},phase='pending'}
     local wakeQueued,busy,pendingWake,internalDepth=false,false,false,0
+    local indicatorsQueued=false
     local wake,scheduleRetry
     local registrations={}
     local lastPending
@@ -333,7 +332,6 @@ function M.new(queue,log,service,environment)
     end
     local function standardAction(actionName)
         if type(actionName)~='string' or actionName=='' then return nil end
-        log('Resolving IA: '..actionName)
         local nativeAction
         if actionName=='IA_Combat_ToggleQuickslots' and type(e.resolve)=='function' then
             nativeAction=e.resolve('/Game/_Dawnwalker/Player/Input/Actions/Combat/'
@@ -350,80 +348,114 @@ function M.new(queue,log,service,environment)
             end
         end
         if not e.valid(nativeAction) then
-            log('IA resolution failed: '..actionName)
+            log.debug('Failed to resolve IA: ',actionName)
             return nil,'standard input action unavailable: '..actionName
         end
-        log('Resolved IA: '..tostring(e.path(nativeAction)))
+        log.trace('Resolved IA: ',actionName)
         return nativeAction
     end
     local function standardKey(actionName,live)
         local nativeAction,why=standardAction(actionName)
         if not nativeAction then return nil,why end
-        local found={}
-        if type(e.runtimeKeys)~='function' then return nil,'runtime key query unavailable: '..actionName end
-        -- Query the same player's subsystem used for callback/context attachment.
-        -- Raw IMC keys can be None while this query returns the resolved binding.
-        log('Finding keys: '..actionName..' on '..tostring(e.path(live.subsystem)))
-        local ok,keys=pcall(e.runtimeKeys,live,nativeAction)
-        if not ok then return nil,'runtime key query failed: '..tostring(keys) end
-        if keys==nil then return nil,'runtime key query returned nil: '..actionName end
-        local queriedKeys={}
+        -- The player's key comes from the Settings key profile, which holds it
+        -- whether or not an applied context maps the action.
+        if type(e.profileKeys)~='function' then return nil,'key profile query unavailable: '..actionName end
+        local ok,keys=pcall(e.profileKeys,live,nativeAction)
+        if not ok then return nil,'key profile query failed: '..tostring(keys) end
+        if keys==nil then return nil,'key profile unavailable: '..actionName end
+        local found,listed={},{}
         local walked,walkWhy=e.each(keys,function(key)
             local keyName=nameString(property(key,'KeyName'))
-            queriedKeys[#queriedKeys+1]=keyName or '<unreadable>'
+            listed[#listed+1]=keyName or '<unreadable>'
             if keyName and keyName~='' and keyName~='None'
                 and not keyName:find('^Gamepad_') then found[keyName]=true end
         end)
-        if walked==false then return nil,'runtime key query array could not be read: '..tostring(walkWhy) end
-        log('Keys found: '..actionName..' -> '
-            ..(#queriedKeys>0 and table.concat(queriedKeys,', ') or '<none>'))
-        if next(found)==nil and type(e.profileKeys)=='function' then
-            local okProfile,profileKeys=pcall(e.profileKeys,live,nativeAction)
-            if okProfile and profileKeys~=nil then
-                local fromProfile={}
-                e.each(profileKeys,function(key)
-                    local keyName=nameString(property(key,'KeyName'))
-                    fromProfile[#fromProfile+1]=keyName or '<unreadable>'
-                    if keyName and keyName~='' and keyName~='None'
-                        and not keyName:find('^Gamepad_') then found[keyName]=true end
-                end)
-                log('Profile keys: '..actionName..' -> '
-                    ..(#fromProfile>0 and table.concat(fromProfile,', ') or '<none>'))
-            elseif not okProfile then
-                log('profile key query failed: '..tostring(profileKeys))
-            end
-        end
-        local result
-        for keyName in pairs(found) do
-            if result and result~=keyName then
-                return nil,'multiple standard keyboard bindings for ' .. actionName
-            end
-            result=keyName
-        end
-        if result then return result,nil,nativeAction end
-        return nil,'standard control binding unavailable: ' .. actionName
+        if walked==false then return nil,'key profile array could not be read: '..tostring(walkWhy) end
+        log.trace('Profile keys: ',actionName,' -> ',#listed>0 and table.concat(listed,', ') or '<none>')
+        -- Every keyboard key the player bound to the action is attached.
+        local result={}
+        for keyName in pairs(found) do result[#result+1]=keyName end
+        if #result==0 then return nil,'standard control binding unavailable: ' .. actionName end
+        table.sort(result)
+        return result,nil,nativeAction
     end
+    -- Returns whether any inherited key changed, and the actions whose keys could not
+    -- be resolved (action name -> reason). An unresolved action leaves only its own
+    -- bindings without keys; every other binding still attaches.
     local function assignStandardKeys(plan,playerInput,live)
-        local resolved,resolvedActions,changed={},{},{false}
+        local resolved,resolvedActions,changed,unresolved={},{},{false},{}
         local function resolve(actionName)
-            if not resolved[actionName] then
-                local keyName,why,action=standardKey(actionName,live)
-                if not keyName then return nil,why end
-                resolved[actionName]=keyName
-                resolvedActions[actionName]=action
+            if resolved[actionName]==nil then
+                local keyNames,why,action=standardKey(actionName,live)
+                if not keyNames then
+                    resolved[actionName]=false;unresolved[actionName]=tostring(why)
+                else
+                    resolved[actionName]=keyNames
+                    resolvedActions[actionName]=action
+                end
             end
-            return resolved[actionName]
+            return resolved[actionName] or nil
+        end
+        local function same(a,b)
+            if not a or #a~=#b then return false end
+            for i,name in ipairs(b) do if a[i]~=name then return false end end
+            return true
         end
         for _,binding in ipairs(plan.bindings) do
             local actionName=binding.standardAction
                 or binding.holdSwapEdge and plan.holdSwap and plan.holdSwap.sourceAction
             if actionName then
-                local keyName,why=resolve(actionName)
-                if not keyName then return nil,why end
-                if binding.keyName~=keyName then changed[1]=true;binding.keyName=keyName end
+                local keyNames=resolve(actionName)
+                if not keyNames then
+                    -- No key to inherit: this binding maps nothing until one resolves.
+                    if binding.keyNames~=nil then changed[1]=true;binding.keyNames=nil end
+                    binding.unresolved=true
+                elseif not same(binding.keyNames,keyNames) then
+                    changed[1]=true;binding.keyNames={table.unpack(keyNames)}
+                end
+                if keyNames then binding.unresolved=nil end
             end
         end
-        return changed[1]
+        -- A player key bound on one of the swap's inherited keys takes that key
+        -- over: the swap steps aside on it rather than firing alongside it.
+        local claimed={}
+        for _,binding in ipairs(plan.bindings) do
+            if not binding.swap and binding.keyName then
+                claimed[binding.keyName]=binding.id
+            end
+        end
+        for _,binding in ipairs(plan.bindings) do
+            if binding.swap then
+                local suppressed=nil
+                for _,keyName in ipairs(binding.keyNames or {}) do
+                    if claimed[keyName] then suppressed=suppressed or {};suppressed[keyName]=claimed[keyName] end
+                end
+                local previous=binding.suppressed or {}
+                local differs=false
+                for keyName,owner in pairs(suppressed or {}) do if previous[keyName]~=owner then differs=true end end
+                for keyName in pairs(previous) do if not (suppressed and suppressed[keyName]) then differs=true end end
+                if differs then
+                    changed[1]=true;binding.suppressed=suppressed
+                    for keyName,owner in pairs(suppressed or {}) do
+                        log.info('swap steps aside on ',keyName,' for ',owner)
+                    end
+                end
+            end
+        end
+        return changed[1],unresolved
+    end
+    -- Report each unresolved inherited key once, and again only when its reason changes.
+    local function reportUnresolved(unresolved)
+        local previous=api.unresolved or {}
+        for actionName,why in pairs(unresolved) do
+            if previous[actionName]~=why then
+                log.warn('inherited key unavailable; skipping its bindings: ',actionName,' (',why,')')
+            end
+        end
+        for actionName in pairs(previous) do
+            if not unresolved[actionName] then log.info('inherited key resolved: ',actionName) end
+        end
+        api.unresolved=next(unresolved) and unresolved or nil
     end
     local function invalidate()
         api.generation=api.generation+1
@@ -516,16 +548,18 @@ function M.new(queue,log,service,environment)
         if type(service.bind)=='function' then
             live.hud=ownerHud(live)
             local ok,why=service:bind(live,api.generation)
-            if ok==false then log('quickslot HUD pending: ' .. tostring(why)) end
+            if ok==false then log.debug('quickslot HUD pending: ',why) end
         end
     end
-    local function refreshIndicators(force)
+    -- Indicators are updated at the points where MCC knows they may be stale,
+    -- never from widget hooks.
+    local function updateIndicators(force)
         local ok,complete,count,expected=pcall(indicators.refresh,indicators,api.actions,api.plan,
             {revision=api.generation,force=force==true})
-        if not ok then log('key indicator update failed: ' .. tostring(complete))
-        elseif not complete and (expected or count or 0)>0 then
-            log('key indicators updated partially: ' .. tostring(count) .. '/' .. tostring(expected))
-        end
+        if not ok then log.warn('key indicator update failed: ',complete);return false end
+        if complete or (expected or count or 0)==0 then return true end
+        log.debug('key indicators updated partially: ',count,'/',expected)
+        return false
     end
     local function doSync(force,beforeRebuild)
         if api.phase=='stopped' then return false,'controls stopped',{status='failure'} end
@@ -565,10 +599,11 @@ function M.new(queue,log,service,environment)
             end
             return false,'native gameplay context unavailable',{status='pending'}
         end
-        local standardKeyChanged=false
-        local resolved,standardWhy=assignStandardKeys(api.plan,live.playerInput,live)
-        if resolved==nil then return false,standardWhy,{status='pending'} end
-        standardKeyChanged=api.ready and resolved
+        -- An inherited key that cannot be resolved skips only its own bindings; the rest
+        -- attach, and the key is resolved again on every later sync.
+        local resolved,unresolved=assignStandardKeys(api.plan,live.playerInput,live)
+        reportUnresolved(unresolved)
+        local standardKeyChanged=api.ready and resolved
         local targets,selected
         local contextChanged=false
         for logical,priority in pairs(desired) do
@@ -588,7 +623,7 @@ function M.new(queue,log,service,environment)
             api.overrideTargets,api.overrideWanted=a,b
             api.missingOverride=#c>0
             if api.missingOverride then
-                log('override actions unavailable; skipping: ' .. table.concat(c,', '))
+                log.warn('override actions unavailable; skipping: ',table.concat(c,', '))
             end
         end
         if not api.ready then
@@ -598,14 +633,22 @@ function M.new(queue,log,service,environment)
             api.generation=generation
             local installed,why=callbackOwner:install(live.componentPath,actions,api.plan,function(binding,phase,event)
                 if api.phase~='ready' or api.generation~=generation then return end
-                local queued,queueWhy=pcall(queue,function()
+                local function deliver()
                     if api.phase=='ready' and api.generation==generation then
                         local ok,result=pcall(Quickslots.deliver,api.state,binding,phase,service)
-                        if not ok or result==false then log('input callback failed: ' .. tostring(result)) end
+                        if not ok or result==false then log.warn('input callback failed: ',result) end
                     end
-                end)
+                end
+                -- A wheel change applies within the input frame, so a native slot action
+                -- on the same key sees the new focus. Other work waits for the queue.
+                local kind=binding.action and binding.action.type
+                if (kind=='focus' or kind=='flip') and type(e.inGameThread)=='function' then
+                    local onThread,current=pcall(e.inGameThread)
+                    if onThread and current==true then return deliver() end
+                end
+                local queued,queueWhy=pcall(queue,deliver)
                 if not queued or queueWhy==false then
-                    log('input callback queue failed: ' .. tostring(queueWhy))
+                    log.error('input callback queue failed: ',queueWhy)
                 end
             end)
             if not installed then
@@ -642,11 +685,11 @@ function M.new(queue,log,service,environment)
         overrides:apply(selected,live.playerInput,targets)
         if api.phase=='attaching' then
             api.phase='ready';api.ready=true
-            log('controls attached to player input')
+            log.info('controls attached to player input')
         end
         bindOwner(live)
         if type(Quickslots.reconcile)=='function' then pcall(Quickslots.reconcile,api.state,service) end
-        refreshIndicators(force)
+        updateIndicators(force)
         return true
     end
     local function operate(callback)
@@ -694,6 +737,10 @@ function M.new(queue,log,service,environment)
         end)
     end
     function api:deactivate() return operate(function() return retire(true,false) end) end
+    function api:updateIndicators(force)
+        if busy or api.phase~='ready' then return false end
+        return updateIndicators(force)
+    end
 
     scheduleRetry=function()
         if type(e.delay)~='function' or not api.enabled or api.phase=='stopped' then return end
@@ -708,7 +755,7 @@ function M.new(queue,log,service,environment)
             wake()
         end)
         if not ok or result==false then
-            log('lifecycle retry registration failed: ' .. tostring(result))
+            log.warn('lifecycle retry registration failed: ',result)
         end
     end
 
@@ -724,12 +771,12 @@ function M.new(queue,log,service,environment)
             local active,reason=api:sync()
             if active then lastPending=nil
             elseif reason~=lastPending and reason~='gameplay Enhanced Input stack unavailable' then
-                log('lifecycle sync pending: ' .. tostring(reason))
+                log.debug('lifecycle sync pending: ',reason)
                 lastPending=reason
             end
         end)
         if not ok or why==false then
-            wakeQueued=false;log('lifecycle wake failed: ' .. tostring(why))
+            wakeQueued=false;log.error('lifecycle wake failed: ',why)
         end
     end
     local function register(kind,name,callback)
@@ -738,9 +785,22 @@ function M.new(queue,log,service,environment)
         local ok,id,second=pcall(method,name,callback)
         if not ok or id==false or ((kind=='hook' or kind=='preHook') and
             (type(id)~='number' or id%1~=0 or type(second)~='number' or second%1~=0)) then
-            log('lifecycle ' .. kind .. ' registration failed: ' .. name .. ': ' .. tostring(id))
+            log.warn('lifecycle ',kind,' registration failed: ',name,': ',id)
         elseif kind=='hook' or kind=='preHook' then
             registrations[#registrations+1]={id=id,second=second,name=name}
+        end
+    end
+    -- Updates indicators on the next game-thread turn, once the current change
+    -- has completed. Requests made before it runs share it.
+    local function queueIndicators()
+        if indicatorsQueued or api.phase=='stopped' then return end
+        indicatorsQueued=true
+        local ok,why=pcall(queue,function()
+            indicatorsQueued=false
+            api:updateIndicators()
+        end)
+        if not ok or why==false then
+            indicatorsQueued=false;log.warn('indicator update failed to queue: ',why)
         end
     end
     if e.preHook then
@@ -757,9 +817,11 @@ function M.new(queue,log,service,environment)
                     or e.path(subsystem)~=e.path(live.subsystem) then return end
                 local active,why=operate(function() return doSync(false,true) end)
                 if active then
-                    log('MCC mappings prepared before control mapping rebuild')
+                    log.debug('MCC mappings prepared before control mapping rebuild')
+                    -- The rebuild runs after this pre-hook returns.
+                    queueIndicators()
                 elseif why~=lastPending then
-                    log('pre-rebuild sync pending: '..tostring(why))
+                    log.debug('pre-rebuild sync pending: ',why)
                     lastPending=why
                 end
             end)
@@ -788,25 +850,12 @@ function M.new(queue,log,service,environment)
             '/Game/_Dawnwalker/UI/_Unified/ActiveAbilities/WBP_AA_Quickslots.WBP_AA_Quickslots_C',
             '/Game/_Dawnwalker/UI/_Unified/HUD/Quickslots/WBP_HUD_Quickslots.WBP_HUD_Quickslots_C',
         }) do register('notify',name,wake) end
-    end
-    if e.hook then
-        register('hook','/Script/UMG.PanelWidget:AddChild',function(parent)
-            local name=e.full(e.unwrap(parent)) or ''
-            if name:find('Quickslots',1,true) then wake() end
-        end)
-    end
-    if type(e.mapHook)=='function' then
-        local ok,id=pcall(e.mapHook,wake)
-        if not ok or id==false then log('lifecycle map post-hook registration failed: ' .. tostring(id)) end
-    end
-    if type(e.preMapHook)=='function' then
-        local ok,id=pcall(e.preMapHook,function()
-            if api.phase~='stopped' then
-                local cleared,why=retire(false,true,true)
-                if not cleared then log('pre-map cleanup pending: ' .. tostring(why)) end
-            end
-        end)
-        if not ok or id==false then log('lifecycle map pre-hook registration failed: ' .. tostring(id)) end
+        -- Each Bindings widget owns its wheel's four key indicators, which exist
+        -- once its construction has returned.
+        for _,name in ipairs({
+            '/Game/_Dawnwalker/UI/_Unified/ActiveAbilities/WBP_AA_Quickslots_Bindings.WBP_AA_Quickslots_Bindings_C',
+            '/Game/_Dawnwalker/UI/_Unified/HUD/Quickslots/WBP_HUD_Quickslots_Bindings.WBP_HUD_Quickslots_Bindings_C',
+        }) do register('notify',name,queueIndicators) end
     end
     function api:stop()
         return operate(function()

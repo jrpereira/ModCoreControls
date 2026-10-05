@@ -1,7 +1,6 @@
 -- Convert the Module and Actions maps and shared menu values into native
 -- bindings. Maps coexist; the menu's map picker only navigates between pages.
 local M={}
-local keyNames=require('mc_key_names')
 local supportedContexts={exploration=true,combat=true}
 local runtimeSections={'module','actions'}
 
@@ -72,9 +71,8 @@ local function addOverrides(result,declaration)
         assert(type(declaration.action)=='string' and declaration.action:match('%S'),
             'override descriptor action must be a non-empty string')
         if declaration.value~=nil then
-            assert(type(declaration.value)=='number' and declaration.value%1==0
-                and keyNames.toName(declaration.value)~=nil,
-                'override descriptor value must be a supported key')
+            assert(type(declaration.value)=='string' and declaration.value:match('^%a[%w_]*$'),
+                'override descriptor value must be a key name')
         end
         for field in pairs(declaration) do
             assert(field=='action' or field=='value','unknown override field: ' .. tostring(field))
@@ -115,27 +113,36 @@ function M.build(definition,values)
                 -- Keep future bindings in the menu and config without creating an
                 -- Enhanced Input action before their gameplay target exists.
                 if not binding.inactive then
-                    local key=assert(values[binding.key.id],binding.key.id .. ' value missing')
-                    local mode=assert(values[binding.trigger.id],binding.trigger.id .. ' value missing')
-                    assert(require('mc_menu').valid(binding.key,key),'invalid key: ' .. binding.key.id)
-                    assert(require('mc_menu').valid(binding.trigger,mode),'invalid trigger: ' .. binding.trigger.id)
+                    local Menu=require('mc_menu')
+                    local setting=binding.setting
+                    local value=assert(values[setting.id],setting.id .. ' value missing')
+                    assert(Menu.valid(setting,value),'invalid key: ' .. setting.id)
+                    local name,mode=Menu.binding(setting,value)
+                    -- An inherited key uses the trigger a bare key name would get.
+                    if not name then mode=select(2,Menu.binding(setting,Menu.keybind(setting,'A'))) end
                     local resolved=resolve(binding.action,plan.defaultGroup)
                     action({id=binding.id,action=resolved,sustained=binding.sustained})
-                    if key~=0 or binding.defaultControl then
-                        local name=key~=0 and assert(keyNames.toName(key),
-                            'unsupported key: ' .. binding.key.id) or nil
+                    -- An override=true key on its default control leaves that
+                    -- key to the native action and adds no binding of its own.
+                    if name or (binding.defaultControl and binding.override~=true) then
                         -- The same key and trigger in two maps is rejected at Apply.
                         if name then
                             local identity=name .. ':' .. mode
-                            assert(not used[identity],'duplicate binding: ' .. tostring(used[identity]) .. ' and ' .. binding.key.id)
-                            used[identity]=binding.key.id
+                            assert(not used[identity],'duplicate binding: ' .. tostring(used[identity]) .. ' and ' .. setting.id)
+                            used[identity]=setting.id
                         end
                         local override=binding.override
-                        if override==true then override=key~=0 and binding.defaultControl or nil end
-                        local item={id=map.id .. '.' .. binding.id,key=key,keyName=name,mode=mode,
+                        if override==true then override=name and binding.defaultControl or nil end
+                        -- The swap key set to Tap acts on press (Pressed trigger), so its focus
+                        -- change starts before the key is released. Explicit keys keep Tap.
+                        if mode==0 and resolved.type=='focus' and binding.action.wheel then mode=3 end
+                        local item={id=map.id .. '.' .. binding.id,keyName=name,mode=mode,
                             phases=phases(binding,mode),sustained=binding.sustained,
                             action=resolved,override=override,
-                            standardAction=key==0 and binding.defaultControl or nil}
+                            standardAction=not name and binding.defaultControl or nil,
+                            -- A key for a fixed wheel (Explicit Activation) always focuses
+                            -- that wheel; a key relative to Default swaps.
+                            direct=binding.action.type=='focus' and binding.action.group~=nil or nil}
                         plan.bindings[#plan.bindings+1]=item
                         active[binding.id]=item
                         addOverrides(plan.overrides,item.override)
@@ -158,7 +165,7 @@ function M.build(definition,values)
             -- the game's toggle. Its contexts say where the swap can be used.
             local where=outside==1 and {'exploration','combat'} or {'combat'}
             local function swap(id,mode,extra)
-                local item={id=map.id..'.swap.'..id,key=0,mode=mode,phases={'Triggered'},consume=true,
+                local item={id=map.id..'.swap.'..id,swap=true,mode=mode,phases={'Triggered'},consume=true,
                     contexts=where,standardAction=map.holdSwap.action}
                 for field,value in pairs(extra) do item[field]=value end
                 plan.bindings[#plan.bindings+1]=item

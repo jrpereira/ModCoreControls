@@ -1,7 +1,7 @@
--- DMM page generation and shared MCC storage.
+-- Controls page generation and storage, run by ModCoreSettings' page hooks.
 local M = {}
-local metadata={Id='ModCoreControls',Name='Controls',Author='Jorge Pereira (kell)',Version='0.1.1',
-    Description='Choose options, visuals, keyboard and mouse controls, or view controller buttons.'}
+M.page={id='ModCoreControls',name='Controls',author='Jorge Pereira (kell)',version='1.0.1',
+    description='Choose options, visuals, keyboard and mouse controls, or view controller buttons.'}
 
 local function block(lines,name,fields)
     lines[#lines+1]='[' .. name .. ']'
@@ -12,10 +12,8 @@ local function block(lines,name,fields)
     lines[#lines+1]=''
 end
 
-function M.manifest()
-    local lines = {}
-    block(lines,'Mod',metadata)
-    return table.concat(lines,'\n')
+local function define()
+    return require('mc_menu').define(require('mc_sections'),require('mc_maps'))
 end
 
 -- gamepad: optional live button assignments from mc_gamepad.read().
@@ -23,15 +21,16 @@ function M.schema(definition,gamepad)
     local lines = {}
     local function row(item, group, extra)
         local data={Id=item.id,Label=item.name,Group=group,Default=item.default,
-            ConfigFile='config.ini',ConfigSection=item.configSection,ConfigKey=item.configKey}
-        if item.kind=='key' then
-            data.Type,data.Minimum,data.Maximum,data.Step='integer',0,254,1
-            data.mcType='keybind'
+            ConfigFile='config.ini',ConfigSection=item.configSection,ConfigKey=item.configKey,
+            Description=item.description}
+        if item.kind=='keybind' then
+            data.Type='keybind'
         elseif #item.values==1 then return
         else
             data.Type='picker'
             data.PresetValues=table.concat(item.values,'|')
             data.PresetLabels=table.concat(item.labels,'|')
+            data.mcType=item.tab and 'tab' or item.cycle and 'cycle' or nil
         end
         for k,v in pairs(extra or {}) do data[k]=v end
         block(lines,'Setting.' .. item.id,data)
@@ -84,8 +83,9 @@ function M.schema(definition,gamepad)
     block(lines,'Category.Controller',{VisibleWhen='MCC_Page',VisibleValues=page.controller})
     if gamepad then
         for _,button in ipairs(gamepad) do
+            -- Long action lists wrap at commas in a wider value column.
             display('MCC_Pad_'..button.key,'Controller',button.label,
-                #button.actions>0 and table.concat(button.actions,', ') or 'Unassigned')
+                #button.actions>0 and table.concat(button.actions,', ') or 'Unassigned',{mcWrap=1})
         end
     else
         display('MCC_Pad_Unavailable','Controller','Gamepad buttons','Available in game')
@@ -105,12 +105,20 @@ function M.schema(definition,gamepad)
                     mcNavigation=1,VisibleWhen=pageWhen,VisibleValues=pageValue})
             end
             for _,map in ipairs(section.maps) do
+                -- The section's description is help text under the first heading of each
+                -- of its map pages, ahead of that group's own description.
+                local sectionHelp=section.description
+                local function help(own)
+                    local text=sectionHelp and own and sectionHelp .. ' ' .. own or sectionHelp or own
+                    sectionHelp=nil
+                    return text
+                end
                 if #map.settings>0 then
                     local id=section.id..'.'..map.id..'.settings'
                     local when=#section.maps>1 and section.selector.id or pageWhen
                     local value=#section.maps>1 and map.value or pageValue
                     block(lines,'Category.'..id,{VisibleWhen=when,VisibleValues=value,
-                        mcLabelWhen=when,mcLabels=value..':'..map.name})
+                        mcLabelWhen=when,mcLabels=value..':'..map.name,mcHelp=help(nil)})
                     for _,item in ipairs(map.settings) do row(item,id) end
                 end
                 for groupIndex,group in ipairs(map.groups) do
@@ -119,39 +127,47 @@ function M.schema(definition,gamepad)
                     local value=#section.maps>1 and map.value or pageValue
                     assert(not group.name:find('[:;]'),'group name cannot contain : or ;')
                     block(lines,'Category.' .. id,{VisibleWhen=when,VisibleValues=value,
-                        mcLabelWhen=when,mcLabels=value .. ':' .. group.name})
+                        mcLabelWhen=when,mcLabels=value .. ':' .. group.name,mcHelp=help(group.description)})
                     -- A mirror shows another map's setting on this page; MCC's
                     -- storage keeps it in step with that setting.
                     local labelSource=defaultWheel
                     for _,mirror in ipairs(group.settings) do
-                        block(lines,'Setting.' .. mirror.id,{Id=mirror.id,Label=mirror.name,Group=id,
-                            Type='picker',Default=mirror.default,
-                            PresetValues=table.concat(mirror.values,'|'),
-                            PresetLabels=table.concat(mirror.labels,'|')})
                         if mirror.mirror==defaultWheel then labelSource=mirror end
                     end
-                    for _,binding in ipairs(group.keys) do
-                        local keyMetadata={}
-                        if #binding.trigger.values==1 then keyMetadata.mcMode=binding.trigger.labels[1] end
-                        if binding.optional then keyMetadata.mcOptional=1 end
-                        if binding.defaultControl then
-                            keyMetadata.mcDefaultControl=binding.defaultControl
-                        end
-                        if binding.action.type=='focus' and binding.action.wheel then
-                            local wheel=assert(labelSource,'relative focus needs a Default wheel: '..binding.id)
-                            local entries={}
-                            for index,default in ipairs(wheel.values) do
-                                local shown=binding.action.wheel=='default' and index
-                                    or #wheel.values+1-index
-                                entries[#entries+1]=default..':'..wheel.labels[shown]
+                    -- Rows follow the group's declared order.
+                    for _,entry in ipairs(group.items) do
+                        local mirror,binding=entry.mirror,entry.binding
+                        if mirror then
+                            block(lines,'Setting.' .. mirror.id,{Id=mirror.id,Label=mirror.name,Group=id,
+                                Type='picker',Default=mirror.default,
+                                PresetValues=table.concat(mirror.values,'|'),
+                                PresetLabels=table.concat(mirror.labels,'|'),Description=mirror.description,
+                                mcType=mirror.tab and 'tab' or mirror.cycle and 'cycle' or nil})
+                        else
+                            -- One ModCoreSettings keybind row: key, trigger and value together.
+                            local setting=binding.setting
+                            local keyMetadata={Triggers=table.concat(setting.labels,'|')}
+                            if binding.optional then keyMetadata.Optional=1 end
+                            if binding.defaultControl then keyMetadata.DefaultControl=binding.defaultControl end
+                            if binding.action.type=='focus' and binding.action.wheel then
+                                local wheel=assert(labelSource,'relative focus needs a Default wheel: '..binding.id)
+                                local entries={}
+                                for index,default in ipairs(wheel.values) do
+                                    local shown=binding.action.wheel=='default' and index
+                                        or #wheel.values+1-index
+                                    -- {wheel} in the name is the wheel the key shows; without
+                                    -- it the label is that wheel's name.
+                                    local label=setting.name:find('{wheel}',1,true)
+                                        and setting.name:gsub('{wheel}',(wheel.labels[shown]:gsub('%%','%%%%')))
+                                        or wheel.labels[shown]
+                                    entries[#entries+1]=default..':'..label
+                                    if default==wheel.default then keyMetadata.Label=label end
+                                end
+                                keyMetadata.mcLabelWhen=wheel.id
+                                keyMetadata.mcLabels=table.concat(entries,';')
                             end
-                            keyMetadata.mcLabelWhen=wheel.id
-                            keyMetadata.mcLabels=table.concat(entries,';')
+                            row(setting,id,keyMetadata)
                         end
-                        if binding.groupedBy then keyMetadata.mcGroupedBy='MCC_' .. section.id .. '_'
-                            .. map.id .. '_' .. binding.groupedBy .. '_Key' end
-                        row(binding.key,id,keyMetadata)
-                        row(binding.trigger,id,{Pair=binding.key.id})
                     end
                 end
             end
@@ -160,97 +176,56 @@ function M.schema(definition,gamepad)
     return table.concat(lines,'\n')
 end
 
-function M.populate(choices,providers)
-    local definition=require('mc_menu').define(require('mc_sections'),require('mc_maps'))
-    for _,provider in ipairs(providers) do
-        if provider.id=='ModCoreControls' then
-            local read,gamepad=pcall(function() return require('mc_gamepad').read() end)
-            local schema=M.schema(definition,read and gamepad or nil)
-            local ok,items=pcall(choices.parse,schema)
-            provider.choices=ok and items or {}
-            -- ModCoreSettings reads row slots from the manifest text; MCC's page
-            -- exists only in memory, so publish the exact text it parsed.
-            provider.mcManifest=ok and schema or nil
-            provider.choiceError=not ok and tostring(items) or nil
-            provider.settingsCount=#provider.choices
-            provider.deferred=false
-            provider.choicesLoaded=true
-        end
-    end
+-- The page's settings, rebuilt on every menu build so controller rows stay current.
+function M.manifest()
+    local read,gamepad=pcall(function() return require('mc_gamepad').read() end)
+    return M.schema(define(),read and gamepad or nil)
 end
 
-local function indices(model)
-    local result={}
-    for i,item in ipairs(model.items) do result[item.id]=i end
-    return result
+-- Each load opens the config; Apply saves through that store, so a file changed
+-- since the page opened is refused rather than overwritten.
+local opened={}
+
+function M.load(directory)
+    local definition=define()
+    local store=require('mc_config').open(directory .. '/config.ini',definition)
+    local shared=require('mc_menu').new(definition,store.values)
+    opened[directory]={definition=definition,store=store,shared=shared}
+    local values={}
+    for id,value in pairs(shared.values) do values[id]=value end
+    for _,mirror in ipairs(definition.mirrors) do values[mirror.id]=shared.values[mirror.mirror.id] end
+    return values
 end
 
-function M.installStorage(choices)
-    if choices.mccStorageInstalled then return end
-    local open=choices.open
-    choices.open=function(provider)
-        if provider.id~='ModCoreControls' then return open(provider) end
-        local definition=require('mc_menu').define(require('mc_sections'),require('mc_maps'))
-        local copy={}
-        for key,value in pairs(provider) do copy[key]=value end
-        -- DMM supplies navigation and editing; MCC owns its data and IO.
-        copy.testOnly=true
-        local model=open(copy)
-        model.provider=provider
-        local store,shared
-        local ok,why=pcall(function()
-            local directory=assert(provider.path:match('^(.*)[/\\][^/\\]+$'))
-            store=require('mc_config').open(directory .. '/config.ini',definition)
-            shared=require('mc_menu').new(definition,store.values)
-            for i,item in ipairs(model.items) do
-                local value=shared.values[item.id]
-                if value~=nil then model.pending[i],model.committed[i]=value,value end
-            end
-            for _,mirror in ipairs(definition.mirrors) do
-                local i=indices(model)[mirror.id]
-                if i then
-                    local value=shared.values[mirror.mirror.id]
-                    model.pending[i],model.committed[i]=value,value
-                end
-            end
-        end)
-        if not ok then model.error=tostring(why) end
-        function model:apply()
-            if self.error then return false,self.error end
-            local event={values={},changes={}}
-            local warning
-            local applied,err=pcall(function()
-                -- A changed mirror carries its value to the setting it mirrors.
-                local at=indices(self)
-                for _,mirror in ipairs(definition.mirrors) do
-                    local m,s=at[mirror.id],at[mirror.mirror.id]
-                    if m and s and self.pending[m]~=self.committed[m] then
-                        assert(self.pending[s]==self.committed[s] or self.pending[s]==self.pending[m],
-                            mirror.name .. ' and ' .. mirror.mirror.name .. ' were changed to different values')
-                        self.pending[s]=self.pending[m]
-                    end
-                end
-                for i,item in ipairs(self.items) do
-                    if definition.byId[item.id] then
-                        shared:set(item.id,self.pending[i])
-                        event.values[item.id]=self.pending[i]
-                        if self.pending[i]~=self.committed[i] then
-                            event.changes[item.id]={old=self.committed[i],new=self.pending[i]}
-                        end
-                    end
-                end
-                require('mc_input_plan').build(definition,shared.values)
-                warning=shared:apply(store)
-                for _,mirror in ipairs(definition.mirrors) do
-                    local m,s=at[mirror.id],at[mirror.mirror.id]
-                    if m and s then self.pending[m]=self.pending[s] end
-                end
-                for i,value in ipairs(self.pending) do self.committed[i]=value end
-            end)
-            return applied,applied and warning or tostring(err),applied and event or nil
+-- values holds every stored row by id; changes the edited ones as {old=,new=}.
+-- Returns the saved values, mirrors included, and an optional warning.
+function M.apply(directory,values,changes)
+    local page=assert(opened[directory],'Controls settings are not loaded')
+    local definition,shared=page.definition,page.shared
+    local resolved={}
+    for id,value in pairs(values) do resolved[id]=value end
+    -- A changed mirror carries its value to the setting it mirrors.
+    for _,mirror in ipairs(definition.mirrors) do
+        local source=mirror.mirror.id
+        if changes[mirror.id] then
+            assert(not changes[source] or resolved[source]==resolved[mirror.id],
+                mirror.name .. ' and ' .. mirror.mirror.name .. ' were changed to different values')
+            resolved[source]=resolved[mirror.id]
         end
-        return model
     end
-    choices.mccStorageInstalled=true
+    local candidate={}
+    for _,setting in ipairs(definition.settings) do
+        local value=resolved[setting.id]
+        if value==nil then value=shared.values[setting.id] end
+        assert(require('mc_menu').valid(setting,value),'invalid setting value: ' .. setting.id)
+        candidate[setting.id]=value
+    end
+    require('mc_input_plan').build(definition,candidate)
+    for id,value in pairs(candidate) do shared:set(id,value) end
+    local warning=shared:apply(page.store)
+    local saved={}
+    for id,value in pairs(candidate) do saved[id]=value end
+    for _,mirror in ipairs(definition.mirrors) do saved[mirror.id]=candidate[mirror.mirror.id] end
+    return saved,warning
 end
 return M

@@ -229,10 +229,13 @@ function M.deliver(state,binding,phase,service)
         state.holdSwapPrevious,state.holdSwapActive=nil,nil
         return present(state,target,service)
     end
-    if binding.mode==0 then
+    -- Tap: a group key set to Tap fires on press (mode 3) or, declared directly, on release.
+    if binding.mode==0 or binding.mode==3 then
         if phase~='Triggered' then return true end
-        -- Tapping the focused group's key returns to Default, or to the other
-        -- wheel when that group is Default.
+        -- With a key on each wheel, each key focuses its own wheel.
+        if binding.direct then return present(state,action.group,service) end
+        -- With one group key, tapping it while its group is focused returns to
+        -- Default, or to the other wheel when that group is Default.
         local previous=state.pendingGroup or state.selectedGroup
         local default=state.defaultGroup~=action.group and state.defaultGroup or 3-action.group
         local target=previous==action.group and default or action.group
