@@ -1,0 +1,33 @@
+{
+  "module": "2_ModCore_Controls",
+  "version_file": "VERSION",
+  "version_pattern": "^\\s*([^\\s]+)",
+  "files": {
+    "mod.json": "mod.json",
+    "enabled.txt": "enabled.txt",
+    "VERSION": "VERSION",
+    "Scripts/main.lua": "Scripts/main.lua",
+    "Scripts/mc_config.lua": "Scripts/mc_config.lua",
+    "Scripts/mc_dmm.lua": "Scripts/mc_dmm.lua",
+    "Scripts/mc_events.lua": "Scripts/mc_events.lua",
+    "Scripts/mc_gamepad.lua": "Scripts/mc_gamepad.lua",
+    "Scripts/mc_input_context.lua": "Scripts/mc_input_context.lua",
+    "Scripts/mc_input_host.lua": "Scripts/mc_input_host.lua",
+    "Scripts/mc_input_plan.lua": "Scripts/mc_input_plan.lua",
+    "Scripts/mc_key_indicators.lua": "Scripts/mc_key_indicators.lua",
+    "Scripts/mc_log.lua": "Scripts/mc_log.lua",
+    "Scripts/mc_maps.lua": "Scripts/mc_maps.lua",
+    "Scripts/mc_menu.lua": "Scripts/mc_menu.lua",
+    "Scripts/mc_native_callbacks.lua": "Scripts/mc_native_callbacks.lua",
+    "Scripts/mc_overrides.lua": "Scripts/mc_overrides.lua",
+    "Scripts/mc_quickslots.lua": "Scripts/mc_quickslots.lua",
+    "Scripts/mc_sections.lua": "Scripts/mc_sections.lua",
+    "Scripts/mc_triggers.lua": "Scripts/mc_triggers.lua",
+    "Scripts/mcs_page.lua": "Scripts/mcs_page.lua",
+    "Scripts/menu_contributions.lua": "Scripts/menu_contributions.lua",
+    "README.md": "docs/README.md",
+    "CHANGELOG.md": "docs/CHANGELOG.md",
+    "BUILD.md": "docs/BUILD.md",
+    "DEVELOPERS.md": "docs/DEVELOPERS.md"
+  }
+}
