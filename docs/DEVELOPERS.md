@@ -140,6 +140,9 @@ the combat toggle in open world, it falls back to the Settings key profile. With
 `mc_overrides.lua` owns root-captured chord gates for native actions declared by
 map- or key-level `override` metadata. A key descriptor can use
 `{ action='IA_Name', value=164 }`; `value` becomes its default key.
+`override=true` is valid only with `defaultControl`. It overrides that action
+while the key holds a custom (nonzero) value and adds nothing while the key
+inherits the default control. Maps cannot use `override=true`.
 A map can use `override={'IA_First','IA_Second'}`; those overrides remain active
 for that map independently of individual key values.
 `mc_input_host.lua` discovers the live player stack, orders binding before

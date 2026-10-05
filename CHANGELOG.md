@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keys with a `defaultControl` can declare `override=true`, suppressing that
+  native action while the player binds a custom key in its place.
 - Enable Hold to Swap by default; saved choices remain in effect.
 - Maps coexist: Default, Grouped and Global are active together and Control Map
   only navigates between their pages; it is no longer saved. The same key and

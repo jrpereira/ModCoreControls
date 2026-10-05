@@ -50,7 +50,13 @@ end
 -- Default holds module-wide settings, so it lives in the Module section.
 assert(maps.maps.module.default and maps.maps.actions.default == nil)
 local actions = maps.maps.actions
-assert(#actions.global.map[1].keys == 8)
+assert(#actions.global.map == 2, 'Global has Abilities and Consumables')
+assert(actions.global.map[1].name == 'Abilities' and #actions.global.map[1].keys == 4
+    and actions.global.map[1].keys[1].id == 'AbilitySlot1'
+    and actions.global.map[1].keys[1].action.type == 'ability')
+assert(actions.global.map[2].name == 'Consumables' and #actions.global.map[2].keys == 4
+    and actions.global.map[2].keys[1].id == 'ConsumableSlot1'
+    and actions.global.map[2].keys[1].action.type == 'consumable')
 -- Quickslot Groups: Active Group holds the shared slots; Group Activation mirrors
 -- Default's Default wheel, then the Secondary and Primary Group keys.
 local grouped = actions.grouped
@@ -63,17 +69,25 @@ assert(activation.settings[1].mirror.map == 'default' and activation.settings[1]
 assert(activation.keys[1].id == 'GroupFocus2' and activation.keys[1].action.wheel == 'other'
     and activation.keys[2].id == 'GroupFocus1' and activation.keys[2].action.wheel == 'default',
     'Group keys keep their config IDs')
-assert(#actions.global.map == 1, 'Global has no optional focus key')
 assert(actions.global.map[1].keys[1] ~= actions.grouped.map[1].keys[1])
--- Maps coexist with Default's swap on the Toggle Quickslots key, so no other key
--- inherits it, and nothing is bound by default.
-assert(activation.keys[1].override == nil and activation.keys[1].defaultControl == nil)
+-- Nothing is bound by default. Optional keys name the game control they inherit
+-- while unbound: the slot keys their quickslot, Group 2 the Toggle Quickslots key.
+assert(activation.keys[1].override == nil and activation.keys[1].optional
+    and activation.keys[1].defaultControl == 'IA_Combat_ToggleQuickslots')
+assert(activation.keys[2].defaultControl == nil)
 assert(actions.grouped.override == nil and actions.global.override == nil)
-assert(actions.global.map[1].keys[1].override.action=='IA_Quickslot_Left')
+for slot, arrow in ipairs({ 'Left', 'Top', 'Right', 'Bottom' }) do
+    local key = grouped.map[1].keys[slot]
+    assert(key.id == 'QuickSlot' .. slot and key.optional
+        and key.defaultControl == 'IA_Quickslot_' .. arrow and key.override == true)
+end
 for _, mapId in ipairs({'grouped', 'global'}) do
     for _, group in ipairs(actions[mapId].map) do
         for _, key in ipairs(group.keys) do
-            assert(key.default == 0, 'key must default to Unbound: ' .. key.id)
+            assert((key.default or 0) == 0, 'key must default to Unbound: ' .. key.id)
+            -- Only the slot keys override, and only their own default control.
+            assert(key.override == nil or (key.override == true and key.defaultControl),
+                'key must not override a native action: ' .. key.id)
         end
     end
 end

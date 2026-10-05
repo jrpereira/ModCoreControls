@@ -1,4 +1,12 @@
 package.path='Scripts/?.lua;' .. package.path
+-- os.tmpname always uses /tmp; honour TMPDIR so the suite runs in sandboxes too.
+local function tmpname()
+    local dir=os.getenv('TMPDIR')
+    if not dir then return os.tmpname() end
+    local path=dir:gsub('/+$','') .. '/mcc_' .. os.time() .. '_' .. math.random(1000000000)
+    assert(io.open(path,'wb')):close()
+    return path
+end
 local path=assert(os.getenv('DMM_CHOICES_PATH'),'set DMM_CHOICES_PATH to the current DMM choices.lua')
 local settings=assert(os.getenv('MCS_SCRIPTS_PATH'),'set MCS_SCRIPTS_PATH to ModCoreSettings/Scripts')
 local choices=dofile(path)
@@ -12,7 +20,7 @@ local function same(actual,expected,label)
     assert(#actual==#expected,label .. ' count')
     for i,value in ipairs(expected) do assert(actual[i]==value,label .. ' value ' .. i) end
 end
-local temp=os.tmpname(); assert(os.remove(temp)); assert(os.execute('mkdir ' .. string.format('%q',temp)))
+local temp=tmpname(); assert(os.remove(temp)); assert(os.execute('mkdir ' .. string.format('%q',temp)))
 local provider={id='ModCoreControls',path=temp .. '/mod_settings.ini',choices={},deferred=true,choicesLoaded=false}
 DMM.populate(choices,{provider})
 local items=provider.choices
@@ -84,7 +92,7 @@ local map=indices.MCC_actions_Map
 assert(items[map].mcFont==nil and not items[map].mcTabs,
     'Control Map must use DMM arrows without a presentation level')
 local wheel=indices.MCC_module_default_DefaultWheel
-local slot=indices.MCC_actions_global_SlotAction1_Key
+local slot=indices.MCC_actions_global_AbilitySlot1_Key
 local function shown(i) return model:visibility()[i] end
 -- Options shows the Module section only.
 assert(shown(wheel) and not shown(nav) and not shown(map) and not shown(slot))
@@ -104,18 +112,18 @@ local ok,why,event=model:apply(); assert(ok,why)
 assert(not event.values.MCC_Section and not event.values.MCC_Page and not event.values.MCC_actions_Map)
 local file=assert(io.open(temp .. '/config.ini','rb')); local saved=file:read('*a'); file:close()
 assert(not saved:find('map=',1,true))
-assert(saved:find('global.SlotAction1.key=74',1,true))
+assert(saved:find('global.AbilitySlot1.key=74',1,true))
 assert(saved:find('[ModCoreControls.module]',1,true))
-local conflict=indices.MCC_actions_global_SlotAction2_Key
+local conflict=indices.MCC_actions_global_AbilitySlot2_Key
 model:set(conflict,74)
 local accepted,reason,failedEvent=model:apply()
-assert(not accepted and reason:find('MCC_actions_global_SlotAction2_Key',1,true))
+assert(not accepted and reason:find('MCC_actions_global_AbilitySlot2_Key',1,true))
 assert(failedEvent==nil and model.pending[conflict]==74 and model.committed[conflict]~=74)
 file=assert(io.open(temp .. '/config.ini','rb'))
 assert(file:read('*a')==saved,'invalid Apply changed persisted config')
 file:close()
 local native=Menu.new(definition,Config.decode(saved,definition))
-assert(native.values.MCC_actions_global_SlotAction1_Key==74)
+assert(native.values.MCC_actions_global_AbilitySlot1_Key==74)
 model=choices.open(provider)
 assert(not model.error,model.error)
 assert(model.pending[slot]==74)

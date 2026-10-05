@@ -23,37 +23,6 @@ end
 
 function M.seal() M.sealed=true end
 
--- Initial actions-section declarations.
-local fixed = {}
-for slot = 1, 8 do
-    local position = ((slot - 1) % 4) + 1
-    fixed[slot] = {
-        id = 'SlotAction' .. slot,
-        name = 'Slot ' .. slot,
-        trigger = 'Tap|Hold',
-        default = 0,
-        action = { type = slot <= 4 and 'ability' or 'consumable', slot = position },
-    }
-end
-
-local arrows = { 'Left', 'Top', 'Right', 'Bottom' }
-
-local shared = {}
-for slot = 1, 4 do
-    shared[slot] = {
-        id = 'FixedSlot' .. slot,
-        name = 'Slot ' .. slot,
-        trigger = 'Tap|Hold',
-        default = 0,
-        action = { type = 'selected', slot = slot },
-    }
-    shared[slot].override = {
-        action = 'IA_Quickslot_' .. arrows[slot],
-        value = 48 + slot,
-    }
-    fixed[slot].override = shared[slot].override
-end
-
 M.addSectionMap('module', {
         id='default',
         name='Default',
@@ -72,15 +41,31 @@ M.addSectionMap('module', {
         map={},
     })
 
+    
+local arrows = { 'Left', 'Top', 'Right', 'Bottom' }
+
+local grouped = {}
+for slot = 1, 4 do
+    grouped[slot] = {
+        id = 'QuickSlot' .. slot,
+        name = 'Quickslot ' .. slot,
+        trigger = 'Tap|Hold',
+        action = { type = 'selected', slot = slot },
+        defaultControl = 'IA_Quickslot_' .. arrows[slot],
+        override = true,
+        optional = true
+    }
+end
+
 M.addSectionMap('actions', {
         id = 'grouped',
         name = 'Quickslot Groups',
         value = 1,
         contexts= {'exploration', 'combat'},
-        -- The shared slot keys fire the focused wheel. Group keys show a wheel
+        -- The grouped slot keys fire the focused wheel. Group keys show a wheel
         -- relative to the Default wheel, mirrored here from Default.
         map = {
-            { name = 'Active Group', keys = { shared[1], shared[2], shared[3], shared[4] } },
+            { name = 'Active Group', keys = grouped  },
             {
                 name = 'Group Activation',
                 settings = {
@@ -93,6 +78,7 @@ M.addSectionMap('actions', {
                         trigger = 'Hold|Tap', sustained = true,
                         action = { type = 'focus', wheel = 'other' },
                         optional = true, default = 0,
+                        defaultControl = 'IA_Combat_ToggleQuickslots',
                     },
                     {
                         id = 'GroupFocus1', name = 'Primary Group',
@@ -105,13 +91,36 @@ M.addSectionMap('actions', {
         },
     })
 
+
+-- Initial actions-section declarations.
+local abilities = {}
+local consumables = {}
+
+for slot = 1, 4 do
+    abilities[slot] = {
+        id = 'AbilitySlot' .. slot,
+        name = 'Ability Slot ' .. slot,
+        trigger = 'Tap|Hold',
+        default = 0,
+        action = { type = 'ability', slot = slot },
+    }
+    consumables[slot] = {
+        id = 'ConsumableSlot' .. slot,
+        name = 'Consumable Slot ' .. slot,
+        trigger = 'Tap|Hold',
+        default = 0,
+        action = { type =  'consumable', slot = slot},
+    }
+end
+
 M.addSectionMap('actions', {
         id = 'global',
         name = 'Global',
         value = 2,
         contexts= {'exploration', 'combat'},
         map = {
-            { name = 'Global Bindings', keys = fixed },
+            { name = 'Abilities', keys = abilities },
+            { name = 'Consumables', keys = consumables },
         },
     })
 

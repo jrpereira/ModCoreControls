@@ -174,6 +174,9 @@ descriptor such as `{ action='IA_Name', value=164 }` uses `value` as that key's
 default and applies the override while the key is active. Setting a key to
 Unbound disables that MCC binding; it does not necessarily suppress the native
 action. Map-level overrides remain active independently of individual keys.
+A key with a `defaultControl` can declare `override=true`: while the player
+binds a custom key in its place, the native `defaultControl` action is
+suppressed; on its default key the native action is left alone.
 
 ## Documentation
 

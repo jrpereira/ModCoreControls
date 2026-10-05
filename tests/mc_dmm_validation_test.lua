@@ -1,7 +1,15 @@
 package.path='Scripts/?.lua;' .. package.path
+-- os.tmpname always uses /tmp; honour TMPDIR so the suite runs in sandboxes too.
+local function tmpname()
+    local dir=os.getenv('TMPDIR')
+    if not dir then return os.tmpname() end
+    local path=dir:gsub('/+$','') .. '/mcc_' .. os.time() .. '_' .. math.random(1000000000)
+    assert(io.open(path,'wb')):close()
+    return path
+end
 local Menu,DMM=require('mc_menu'),require('mc_dmm')
 local definition=Menu.define(require('mc_sections'),require('mc_maps'))
-local directory=os.tmpname()
+local directory=tmpname()
 assert(os.remove(directory))
 assert(os.execute('mkdir ' .. string.format('%q',directory)))
 local choices={}
@@ -20,8 +28,8 @@ local indices={}
 for i,item in ipairs(model.items) do indices[item.id]=i end
 assert(indices.MCC_actions_Map==nil,'the map picker is navigation, not a stored item')
 -- Maps coexist: the same key in two maps is rejected like a duplicate in one.
-local first=indices.MCC_actions_grouped_FixedSlot1_Key
-local second=indices.MCC_actions_global_SlotAction2_Key
+local first=indices.MCC_actions_grouped_QuickSlot1_Key
+local second=indices.MCC_actions_global_AbilitySlot2_Key
 model.pending[first]=49
 model.pending[second]=model.pending[first]
 local ok,why,event=model:apply()

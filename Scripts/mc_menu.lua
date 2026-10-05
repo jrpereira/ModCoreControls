@@ -169,7 +169,13 @@ function M.define(registry, mapRegistry)
                     end
                     assert(not key.sustained or action.type=='focus',
                         'sustained non-focus action: ' .. key.id)
-                    require('mc_input_plan').validateOverride(key.override)
+                    -- override=true overrides the key's own defaultControl, and only
+                    -- while the player binds a custom key in its place.
+                    if key.override==true then
+                        assert(key.defaultControl,'override=true requires defaultControl: ' .. key.id)
+                    else
+                        require('mc_input_plan').validateOverride(key.override)
+                    end
                     local prefix = 'MCC_' .. token(id) .. '_' .. token(map.id) .. '_' .. token(key.id)
                     local modes, names, usedModes = {}, {}, {}
                     for name in key.trigger:gmatch('[^|]+') do

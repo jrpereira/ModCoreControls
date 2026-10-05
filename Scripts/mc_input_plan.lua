@@ -130,9 +130,11 @@ function M.build(definition,values)
                             assert(not used[identity],'duplicate binding: ' .. tostring(used[identity]) .. ' and ' .. binding.key.id)
                             used[identity]=binding.key.id
                         end
+                        local override=binding.override
+                        if override==true then override=key~=0 and binding.defaultControl or nil end
                         local item={id=map.id .. '.' .. binding.id,key=key,keyName=name,mode=mode,
                             phases=phases(binding,mode),sustained=binding.sustained,
-                            action=resolved,override=binding.override,
+                            action=resolved,override=override,
                             standardAction=key==0 and binding.defaultControl or nil}
                         plan.bindings[#plan.bindings+1]=item
                         active[binding.id]=item

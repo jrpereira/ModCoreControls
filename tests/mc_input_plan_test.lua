@@ -17,20 +17,29 @@ local function find(plan,id)
 end
 
 local default=Plan.build(definition,model.values)
--- All maps coexist. Nothing but Default's swap is bound out of the box.
+-- All maps coexist. Out of the box Default's swap is bound, and the optional keys
+-- with a default control inherit the game's key for it.
 assert(table.concat(default.maps,',')=='default,grouped,global' and default.nativeSwap==nil)
 assert(table.concat(default.contexts,',')=='exploration,combat')
 assert(default.holdSwap.enabled and default.holdSwap.defaultGroup==2 and default.defaultGroup==2)
 assert(default.overrides.IA_Combat_ToggleQuickslots,'Default must suppress the native toggle')
-assert(#default.bindings==2,'Default swap binds press and release by default')
+assert(#default.bindings==7,'Default swap press and release, four slot keys and Group 2')
 assert(not default.overrides.IA_Quickslot_Left,'unbound slot keys must not override native slots')
+local arrows={'Left','Top','Right','Bottom'}
+for slot=1,4 do
+    local inherited=find(default,'grouped.QuickSlot'..slot)
+    assert(inherited.key==0 and inherited.standardAction=='IA_Quickslot_'..arrows[slot],
+        'an unbound slot key inherits its native quickslot key')
+end
+assert(find(default,'grouped.GroupFocus2').standardAction=='IA_Combat_ToggleQuickslots')
+assert(not find(default,'grouped.GroupFocus1'),'Group 1 has no default control')
 local defaultPress,defaultRelease=default.bindings[1],default.bindings[2]
 assert(defaultPress.holdSwapEdge=='press' and defaultPress.mode==3 and defaultPress.action.group==1
     and defaultRelease.holdSwapEdge=='release' and defaultRelease.mode==4
     and defaultRelease.action.group==2,'default hold swap must show Abilities and return to Consumables')
 model:set(defaultMap.holdSwap.enabled.id,0)
 local tapDefault=Plan.build(definition,model.values)
-assert(not tapDefault.holdSwap.enabled and #tapDefault.bindings==1,'saved Off must retain tap swapping')
+assert(not tapDefault.holdSwap.enabled and #tapDefault.bindings==6,'saved Off must retain tap swapping')
 local toggle=tapDefault.bindings[1]
 assert(toggle.action.type=='flip' and toggle.mode==3 and toggle.consume
     and toggle.standardAction=='IA_Combat_ToggleQuickslots' and toggle.key==0,
@@ -45,7 +54,7 @@ model:set(defaultMap.holdSwap.outsideCombat.id,1)
 model:set(defaultMap.holdSwap.enabled.id,1)
 model:set(defaultMap.holdSwap.defaultWheel.id,1)
 local changedDefault=Plan.build(definition,model.values)
-assert(#changedDefault.bindings==2 and changedDefault.holdSwap.defaultGroup==1
+assert(#changedDefault.bindings==7 and changedDefault.holdSwap.defaultGroup==1
     and changedDefault.defaultGroup==1,'the plan must activate the chosen Default wheel')
 local press,release=changedDefault.bindings[1],changedDefault.bindings[2]
 assert(press.holdSwapEdge=='press' and press.mode==3 and press.action.group==2,
@@ -66,27 +75,30 @@ local secondary,primary=activation.keys[1],activation.keys[2]
 local mirror=activation.settings[1]
 assert(mirror.mirror==defaultMap.holdSwap.defaultWheel and not definition.byId[mirror.id]
     and definition.mirrors[1]==mirror)
-local fixedOne,fixedFive=globalMap.groups[1].keys[1],globalMap.groups[1].keys[5]
-assert(#globalMap.groups==1,'Global has no Optional section')
+local fixedOne,fixedFive=globalMap.groups[1].keys[1],globalMap.groups[2].keys[1]
+assert(#globalMap.groups==2 and globalMap.groups[1].name=='Abilities'
+    and globalMap.groups[2].name=='Consumables','Global has Abilities and Consumables')
 model:set(sharedOne.key.id,49)
 model:set(secondary.key.id,74)
 model:set(fixedOne.key.id,50)
 model:set(fixedFive.key.id,51)
 local both=Plan.build(definition,model.values)
-assert(#both.bindings==5,'swap, one shared slot, Group 2 and two fixed slots')
-local shared=find(both,'grouped.FixedSlot1')
-assert(shared.action.type=='selected' and shared.keyName=='One')
+assert(#both.bindings==8,'tap swap, four slot keys, Group 2 and two fixed slots')
+local shared=find(both,'grouped.QuickSlot1')
+assert(shared.action.type=='selected' and shared.keyName=='One' and shared.standardAction==nil)
 assert(table.concat(shared.phases,',')=='Started,Triggered,Completed,Canceled')
 local focus=find(both,'grouped.GroupFocus2')
 assert(focus.keyName=='J' and focus.standardAction==nil and focus.mode==2 and focus.phases[1]=='Started')
 assert(focus.action.group==1,'Group 2 must focus the wheel other than Default')
-local ability,consumable=find(both,'global.SlotAction1'),find(both,'global.SlotAction5')
+local ability,consumable=find(both,'global.AbilitySlot1'),find(both,'global.ConsumableSlot1')
 assert(ability.action.type=='ability' and ability.action.slot==1 and ability.keyName=='Two')
 assert(consumable.action.type=='consumable' and consumable.action.slot==1)
-assert(both.overrides.IA_Quickslot_Left and both.overrides.IA_Combat_ToggleQuickslots)
+-- Quickslot 1 has a custom key, so override=true suppresses its native slot action.
+assert(both.overrides.IA_Quickslot_Left and shared.override=='IA_Quickslot_Left'
+    and not both.overrides.IA_Quickslot_Top and both.overrides.IA_Combat_ToggleQuickslots)
 model:set(secondary.key.id,0)
-assert(not find(Plan.build(definition,model.values),'grouped.GroupFocus2'),
-    'an unbound Group 2 key no longer inherits the Toggle Quickslots key')
+assert(find(Plan.build(definition,model.values),'grouped.GroupFocus2').standardAction
+    =='IA_Combat_ToggleQuickslots','an unbound Group 2 key inherits the Toggle Quickslots key')
 
 -- The same key and trigger in two maps is rejected and names both rows.
 model:set(fixedOne.key.id,49)

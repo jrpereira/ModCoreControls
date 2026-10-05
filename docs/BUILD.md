@@ -26,12 +26,12 @@ lua5.4 tests/main_test.lua
 lua5.4 tests/mc_input_plan_test.lua
 lua5.4 tests/mc_native_callbacks_test.lua
 lua5.4 tests/mc_overrides_test.lua
+lua5.4 tests/mc_override_default_test.lua
 lua5.4 tests/mc_input_context_test.lua
 lua5.4 tests/mc_events_test.lua
 lua5.4 tests/mc_quickslots_test.lua
 lua5.4 tests/mc_input_host_test.lua
 lua5.4 tests/mc_key_indicators_test.lua
-lua5.4 tests/audit_6_integration_test.lua
 lua5.4 tests/startup_failure_test.lua
 ```
 
@@ -46,10 +46,8 @@ lua5.4 tests/mc_dmm_test.lua
 
 `tests/menu_generation_test.lua` invokes the generator, which writes
 `mod_settings.ini`. Run it in an isolated copy of the MCC source and manifest;
-do not point it at an installed player configuration. The audit integration
-suite uses an injected host environment and reports deterministic operation
-counts. Native timing, object lifetimes, and frame-time impact require a game
-session.
+do not point it at an installed player configuration. Native timing, object
+lifetimes, and frame-time impact require a game session.
 
 Validate section navigation, map visibility, key capture, Apply, and Restore in
 DMM after installing the updated Lua definitions and minimal metadata. In game,
