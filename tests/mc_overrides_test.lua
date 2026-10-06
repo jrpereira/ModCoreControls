@@ -1,4 +1,5 @@
 package.path='Scripts/?.lua;'..package.path
+dofile('tests/support/lifetimes.lua').install()
 local registry,created={},{}
 local function object(kind,path)
     local value={kind=kind,path=path,valid=true,Triggers={}}

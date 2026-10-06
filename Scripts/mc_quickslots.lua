@@ -1,5 +1,6 @@
 -- Dawnwalker quickslot output used by MCC input callbacks.
 local Events=require('mc_events')
+local Lifetimes=require('mc_lifetimes')
 local M={}
 local positions={'Left','Top','Right','Bottom'}
 
@@ -13,25 +14,48 @@ local function valid(value)
     return ok and result==true
 end
 
+-- The owner, its HUD and the routed wheels outlive the call that found them,
+-- so they are kept as weak handles: a save load frees them while bound.
+local fields={'controller','playerInput','component','subsystem','hud'}
+
 function M.new(environment)
     local e=environment or {}
     local isValid=e.valid or valid
     local get=e.unwrap or unwrap
+    local keep,live=e.keep or Lifetimes.keep,e.live or Lifetimes.live
     local owner,generation,cached,presentationNeeded
+    -- A handle's get returns a new wrapper, so the same object is matched by path.
+    local path=e.path or function(object)
+        local ok,name=pcall(function() return object:GetFullName() end)
+        return ok and name or nil
+    end
+    local function sameObject(a,b)
+        if a==b then return true end
+        if not (isValid(a) and isValid(b)) then return false end
+        local left=path(a)
+        return left~=nil and left==path(b)
+    end
     local api={}
     function api:bind(nextOwner,nextGeneration)
         if type(nextOwner)~='table' or nextGeneration==nil then return false end
         local same=owner and generation==nextGeneration
         if same then
-            for _,field in ipairs({'controller','playerInput','component','subsystem','hud'}) do
-                if owner[field]~=nextOwner[field] then same=false;break end
+            for _,field in ipairs(fields) do
+                if not sameObject(live(owner[field]),get(nextOwner[field])) then same=false;break end
             end
         end
         if not same then
             cached=nil
             presentationNeeded=true
         end
-        owner,generation=nextOwner,nextGeneration
+        local kept={}
+        for _,field in ipairs(fields) do
+            if nextOwner[field]~=nil then
+                kept[field]=keep(nextOwner[field])
+                if kept[field]==nil then owner=nil;return false end
+            end
+        end
+        owner,generation=kept,nextGeneration
         return true
     end
     local routed
@@ -41,12 +65,14 @@ function M.new(environment)
         return ok and result~=false
     end
     -- Re-enable both wheels so native slot routing is left as the game expects.
+    -- A wheel that died needs nothing.
     function api:release()
         if not routed then return true end
         local wheels=routed
         routed=nil
-        local first=setEnabled(get(wheels[1]),true)
-        local second=setEnabled(get(wheels[2]),true)
+        local first,second=live(wheels[1]),live(wheels[2])
+        first=first==nil or setEnabled(first,true)
+        second=second==nil or setEnabled(second,true)
         return first and second
     end
     function api:invalidate(oldGeneration)
@@ -57,22 +83,28 @@ function M.new(environment)
     end
     function api:hud()
         if not owner then return nil end
-        for _,field in ipairs({'controller','playerInput','component','subsystem'}) do
-            if owner[field]~=nil and not isValid(owner[field]) then
-                cached=nil
-                return nil
+        local current={}
+        for _,field in ipairs(fields) do
+            if owner[field]~=nil then
+                current[field]=live(owner[field])
+                if current[field]==nil and field~='hud' then
+                    cached=nil
+                    return nil
+                end
             end
         end
-        local candidate=owner.hud
+        local candidate=current.hud
         if type(e.hudForOwner)=='function' then
-            local ok,resolved=pcall(e.hudForOwner,owner)
+            local ok,resolved=pcall(e.hudForOwner,current)
             if ok and isValid(resolved) then candidate=resolved end
         end
         candidate=get(candidate)
         if not isValid(candidate) then cached=nil;return nil end
-        if cached~=candidate then presentationNeeded=true end
-        cached=candidate
-        return cached
+        if not sameObject(live(cached),candidate) then
+            presentationNeeded=true
+            cached=keep(candidate)
+        end
+        return candidate
     end
     function api:needsPresentation()
         self:hud()
@@ -99,11 +131,14 @@ function M.new(environment)
             local consumableParentOK,consumableParent=pcall(function() return get(consumable:GetParent()) end)
             if abilityParentOK and consumableParentOK
                 and isValid(abilityParent) and isValid(consumableParent)
-                and abilityParent~=switcher and consumableParent~=switcher then
+                and not sameObject(abilityParent,switcher) and not sameObject(consumableParent,switcher) then
+                -- A wheel is disabled only while it can be re-enabled later.
+                local wheels={keep(ability),keep(consumable)}
+                if not (wheels[1] and wheels[2]) then return false end
                 local enabled=setEnabled(ability,group==1)
                 local disabled=setEnabled(consumable,group==2)
                 if not (enabled and disabled) then return false end
-                routed={ability,consumable}
+                routed=wheels
                 presentationNeeded=false
                 return true
             end

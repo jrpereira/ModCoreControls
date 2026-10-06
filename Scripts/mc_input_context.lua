@@ -17,8 +17,11 @@ local function keyId(name) return string.lower(tostring(name)) end
 
 function M.new(e,log)
     log=require('mc_log').wrap(log)
+    local Lifetimes=require('mc_lifetimes')
+    local keep,live=e.keep or Lifetimes.keep,e.live or Lifetimes.live
+    -- MCC's own actions are root-captured, so they never die while kept.
     local actions={}
-    -- attached[logical]={context=<native IMC>,entries={{action,keyName},...}}
+    -- attached[logical]={context=<weak handle of the native IMC>,entries={{action,keyName},...}}
     local attached={}
     local plan,current
     -- Bindings or keys that failed, keyed by binding id or 'id key'; each is
@@ -69,12 +72,14 @@ function M.new(e,log)
         end
         if removed>0 then log.info('removed ',removed,' stale MCC key mapping(s) from ',e.path(context)) end
     end
+    -- A context that died took MCC's mappings with it.
     local function unmap(record)
-        if e.valid(record.context) then
+        local context=live(record.context)
+        if context then
             for _,entry in ipairs(record.entries) do
-                record.context:UnmapKey(entry[1],{KeyName=e.name(entry[2])})
+                context:UnmapKey(entry[1],{KeyName=e.name(entry[2])})
             end
-            purge(record.context)
+            purge(context)
         end
         record.entries={}
     end
@@ -95,7 +100,8 @@ function M.new(e,log)
     local function map(logical)
         local record=attached[logical]
         unmap(record)
-        if not plan then return end
+        local context=live(record.context)
+        if not plan or not context then return end
         for _,binding in ipairs(plan.bindings) do
             local target=current[binding.id]
             if target and usable(binding,logical) then
@@ -111,7 +117,7 @@ function M.new(e,log)
                                 local checked,known=pcall(e.validKey,keyName)
                                 if checked and known==false then error('unknown key name',0) end
                             end
-                            record.context:MapKey(target,{KeyName=e.name(keyName)})
+                            context:MapKey(target,{KeyName=e.name(keyName)})
                         end)
                         if ok then
                             record.entries[#record.entries+1]={target,keyName}
@@ -154,8 +160,16 @@ function M.new(e,log)
     function api:attach(logical,_,_,native)
         assert(M.native[logical],'unsupported input context: '..tostring(logical))
         assert(e.valid(native),'native mapping context unavailable: '..M.native[logical])
-        if attached[logical] and attached[logical].context~=native then self:detach(logical) end
-        attached[logical]=attached[logical] or {context=native,entries={}}
+        -- A handle's get returns a new wrapper, so the same context is matched by path.
+        if attached[logical] then
+            local current=live(attached[logical].context)
+            if not (current and e.path(current)==e.path(native)) then self:detach(logical) end
+        end
+        if not attached[logical] then
+            local handle,why=keep(native)
+            assert(handle,'native mapping context cannot be kept: '..tostring(why))
+            attached[logical]={context=handle,entries={}}
+        end
         map(logical)
         log.debug('mapped into ',M.native[logical],': ',#attached[logical].entries,' key(s)')
         -- IMC_Base takes over keys usable everywhere from the gameplay contexts.
@@ -167,18 +181,19 @@ function M.new(e,log)
     -- True while the native context is applied and still holds every MCC entry.
     function api:attached(logical,playerInput)
         local record=attached[logical]
-        if not record or not e.valid(record.context) or not e.valid(playerInput)
+        local context=record and live(record.context)
+        if not context or not e.valid(playerInput)
             or not playerInput.AppliedInputContexts then return false end
         local applied=false
         e.each(playerInput.AppliedInputContexts,function(candidate)
             candidate=e.unwrap(candidate)
-            if e.valid(candidate) and e.path(candidate)==e.path(record.context) then applied=true end
+            if e.valid(candidate) and e.path(candidate)==e.path(context) then applied=true end
         end)
         if not applied then return false end
         -- Each action and key pair must still be there. Where the engine's key names
         -- cannot be read, the action alone is checked.
         local present,pairsPresent,keysRead={},{},false
-        e.each(record.context.Mappings or {},function(entry)
+        e.each(context.Mappings or {},function(entry)
             entry=e.unwrap(entry)
             local target=entry and e.unwrap(entry.Action)
             if e.valid(target) then

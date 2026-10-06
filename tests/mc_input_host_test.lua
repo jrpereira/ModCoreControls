@@ -1,4 +1,5 @@
 package.path='Scripts/?.lua;'..package.path
+dofile('tests/support/lifetimes.lua').install()
 local function object(class,path)
     local value={class=class,path=path,full=class..' '..path,valid=true}
     function value:IsValid()return self.valid end
@@ -561,3 +562,29 @@ do
     assert(indicator.EnhancedInputAction~=mccAction,'a stopped host must not reapply indicators')
 end
 print('PASS indicators update after a control mapping rebuild, without widget hooks')
+
+-- UE4SS returns a new wrapper for every lookup, including a weak handle's get;
+-- the same player stack must not read as a new owner and retire MCC's input.
+do
+    local lifetimes=UE4SSLuaEventBridge.lifetimes
+    local weak=lifetimes.weak
+    lifetimes.weak=function(object)
+        local handle,why=weak(object)
+        if not handle then return nil,why end
+        local get=handle.get
+        return {get=function()
+            local live=get(handle)
+            return live and setmetatable({},{__index=live}) or nil
+        end,release=function() handle:release() end}
+    end
+    local freshHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,service,environment)
+    assert(freshHost:apply(plan))
+    local closes,installed=closeCount,#callbacks
+    assert(freshHost:sync())
+    assert(freshHost:sync())
+    assert(closeCount==closes and #callbacks==installed,'a fresh wrapper of the same owner must not reattach')
+    assert(freshHost:stop())
+    lifetimes.weak=weak
+end
+print('PASS a fresh wrapper of the same player stack keeps MCC attached')

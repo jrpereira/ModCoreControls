@@ -6,6 +6,7 @@ local KeyIndicators=require('mc_key_indicators')
 local Overrides=require('mc_overrides')
 local Events=require('mc_events')
 local Log=require('mc_log')
+local Lifetimes=require('mc_lifetimes')
 local M={}
 
 local function defaultEnvironment()
@@ -63,6 +64,7 @@ local function defaultEnvironment()
     end
     return {
         valid=valid,unwrap=unwrap,full=full,path=path,each=each,find=find,
+        keep=Lifetimes.keep,live=Lifetimes.live,
         all=function(class)
             local ok,items=pcall(FindAllOf,class)
             return ok and type(items)=='table' and items or {}
@@ -165,15 +167,18 @@ function M.new(queue,log,service,environment)
     assert(type(queue)=='function','game-thread queue required')
     -- A leveled logger, or a plain function(message) as tests pass.
     log=Log.wrap(log)
-    local api
+    local api,liveOwner
+    local e=environment or defaultEnvironment()
+    if not (e.keep and e.live) then
+        e=setmetatable({keep=e.keep or Lifetimes.keep,live=e.live or Lifetimes.live},{__index=e})
+    end
     local publishControl=Events.publisher(rawget(_G,'ModRef'))
-    service=service or Quickslots.new({emit=function(name,payload)
-        local ok,why=pcall(publishControl,name,payload,api and api.owner)
+    service=service or Quickslots.new({keep=e.keep,live=e.live,emit=function(name,payload)
+        local ok,why=pcall(publishControl,name,payload,api and liveOwner())
         if not ok or why==false then
             log.warn('control event publication failed: ',why)
         end
     end})
-    local e=environment or defaultEnvironment()
     local context=Context.new(e,log)
     local function property(object,name)
         if object==nil then return nil end
@@ -199,6 +204,7 @@ function M.new(queue,log,service,environment)
     })
     local overrides=Overrides.new({
         marker='MCC_OverrideChord',valid=e.valid,path=e.path,unwrap=e.unwrap,
+        keep=e.keep,live=e.live,
         same=function(a,b) return a==b or (e.valid(a) and e.valid(b) and e.path(a)==e.path(b)) end,
         each=e.each,actions=function() return e.all('InputAction') end,
         inactive=function()
@@ -210,7 +216,12 @@ function M.new(queue,log,service,environment)
         chord=function(trigger) return e.unwrap(trigger.ChordAction) end,
         setChord=function(trigger,action) trigger.ChordAction=action end,
         setTriggers=function(action,value) action.Triggers=value end,
-        rebuild=e.rebuild or function() return true end,
+        -- Without a live player there is no mapping to rebuild; the next
+        -- player's mappings are built from the restored triggers.
+        rebuild=function(playerInput,changes)
+            if playerInput==nil or not e.rebuild then return true end
+            return e.rebuild(playerInput,changes)
+        end,
     })
     local callbacks,bridge
     api={enabled=false,ready=false,generation=0,active={},state={},phase='pending'}
@@ -218,7 +229,7 @@ function M.new(queue,log,service,environment)
     local indicatorsQueued=false
     local wake,scheduleRetry
     local registrations={}
-    local lastPending,reportedMissing
+    local lastPending,reportedMissing,reportedKeep
     local function internal(callback)
         internalDepth=internalDepth+1
         local ok,result,why=pcall(callback)
@@ -226,10 +237,43 @@ function M.new(queue,log,service,environment)
         if not ok then error(result,0) end
         return result,why
     end
+    -- Each lookup, including a weak handle's get, returns a new wrapper, so the same
+    -- object is matched by path.
+    local function sameObject(a,b)
+        return a==b or (e.valid(a) and e.valid(b) and e.path(a)==e.path(b))
+    end
     local function sameOwner(left,right)
-        return left and right and left.controller==right.controller
-            and left.playerInput==right.playerInput and left.component==right.component
-            and left.subsystem==right.subsystem
+        return left and right and sameObject(left.controller,right.controller)
+            and sameObject(left.playerInput,right.playerInput)
+            and sameObject(left.component,right.component)
+            and sameObject(left.subsystem,right.subsystem)
+    end
+    -- api.owner keeps the player stack as weak handles: a save load frees it
+    -- while MCC is attached, and its hooks run during that load.
+    local ownerFields={'controller','player','playerInput','component','subsystem'}
+    local function keepOwner(owner)
+        local kept={componentPath=owner.componentPath}
+        for _,field in ipairs(ownerFields) do
+            local handle,why=e.keep(owner[field])
+            if not handle then return nil,'cannot keep the player '..field..': '..tostring(why) end
+            kept[field]=handle
+        end
+        return kept
+    end
+    -- The kept owner's live objects, or nil once any of them died.
+    liveOwner=function()
+        local kept=api.owner
+        if not kept then return nil end
+        local owner={componentPath=kept.componentPath}
+        for _,field in ipairs(ownerFields) do
+            owner[field]=e.live(kept[field])
+            if owner[field]==nil then return nil end
+        end
+        return owner
+    end
+    local function ownerInput()
+        local owner=liveOwner()
+        return owner and owner.playerInput
     end
 
     local function resolveBridge()
@@ -362,13 +406,13 @@ function M.new(queue,log,service,environment)
         if preferred then return preferred end
         return nil,'ambiguous: '..#distinct..' actions'
     end
-    -- Native actions found once are reused while still valid and named the same, so a
-    -- sync does not scan every InputAction again.
+    -- Native actions found once are reused while still live and named the same, so a
+    -- sync does not scan every InputAction again. They are kept as weak handles.
     local standardActions={}
     local function standardAction(actionName)
         if type(actionName)~='string' or actionName=='' then return nil end
-        local cached=standardActions[actionName]
-        if cached and e.valid(cached) and (e.full(cached) or ''):match('([^%.:/%s]+)$')==actionName then
+        local cached=e.live(standardActions[actionName])
+        if cached and (e.full(cached) or ''):match('([^%.:/%s]+)$')==actionName then
             return cached
         end
         standardActions[actionName]=nil
@@ -392,7 +436,7 @@ function M.new(queue,log,service,environment)
             return nil,'standard input action unavailable: '..actionName
         end
         log.trace('Resolved IA: ',actionName)
-        standardActions[actionName]=nativeAction
+        standardActions[actionName]=e.keep(nativeAction)
         return nativeAction
     end
     local function standardKey(actionName,live)
@@ -513,16 +557,16 @@ function M.new(queue,log,service,environment)
     end
     local function retire(clearPlan,mandatory)
         local wasCleanupPending=api.phase=='cleanup-pending'
-        if not mandatory and api.ready and api.playerInput then
-            local ok,why=pcall(overrides.restoreAll,overrides,api.playerInput)
+        if not mandatory and api.ready and api.owner then
+            local ok,why=pcall(overrides.restoreAll,overrides,ownerInput())
             if not ok then return false,'override restoration failed: ' .. tostring(why),
                 {status='failure',original=why} end
         end
         invalidate()
         api.phase='retiring'
         local errors={}
-        if (mandatory or wasCleanupPending) and api.playerInput then
-            local ok,why=pcall(overrides.restoreAll,overrides,api.playerInput)
+        if (mandatory or wasCleanupPending) and api.owner then
+            local ok,why=pcall(overrides.restoreAll,overrides,ownerInput())
             if not ok then errors[#errors+1]='override restoration: ' .. tostring(why) end
         end
         local detached,detachWhy=pcall(function() return internal(function() return context:detachAll() end) end)
@@ -542,7 +586,7 @@ function M.new(queue,log,service,environment)
         end
         api.phase='pending'
         api.owner=nil;api.componentPath=nil
-        api.playerInput=nil;api.actions=nil;api.overrideTargets=nil;api.overrideWanted=nil
+        api.actions=nil;api.overrideTargets=nil;api.overrideWanted=nil
         api.missingOverride=nil
         if clearPlan then api.enabled=false;api.plan=nil end
         return true
@@ -625,7 +669,7 @@ function M.new(queue,log,service,environment)
             end
             return false,'gameplay Enhanced Input stack unavailable',{status='pending'}
         end
-        if api.owner and not sameOwner(api.owner,live) then
+        if api.owner and not sameOwner(liveOwner(),live) then
             local cleared,why,detail=retire(false,true)
             if not cleared then return false,why,detail end
         end
@@ -652,24 +696,32 @@ function M.new(queue,log,service,environment)
                 if desired[logical]==nil then contextChanged=true;break end
             end
         end
-        local reuse=api.ready and not (api.missingOverride and contextChanged)
+        local reuse=api.ready and api.overrideTargets~=nil
+            and not (api.missingOverride and contextChanged)
         if reuse then
             -- A native action unloaded or replaced since is resolved again; it never
             -- retires the rest of MCC input.
-            for _,target in ipairs(api.overrideTargets or {}) do
-                if not e.valid(target) then
+            targets={}
+            for _,handle in ipairs(api.overrideTargets) do
+                local target=e.live(handle)
+                if not target then
                     log.info('override target lost; resolving overrides again')
                     reuse=false;break
                 end
+                targets[#targets+1]=target
             end
         end
         if reuse then
-            targets,selected=api.overrideTargets,api.overrideWanted
+            selected=api.overrideWanted
         else
             local ok,a,b,c=pcall(resolveTargets,api.plan)
             if not ok then return false,a,{status='pending',original=a} end
             targets,selected=a,b
-            api.overrideTargets,api.overrideWanted=a,b
+            -- Kept as weak handles; one that cannot be kept is resolved again next time.
+            local kept={}
+            for _,target in ipairs(a) do kept[#kept+1]=e.keep(target) end
+            api.overrideTargets=#kept==#a and kept or nil
+            api.overrideWanted=b
             api.missingOverride=#c>0
             -- Reported once, and again only when the skipped set changes.
             local skipped=table.concat(c,', ')
@@ -680,7 +732,15 @@ function M.new(queue,log,service,environment)
             end
         end
         if not api.ready then
-            api.phase='attaching';api.owner=live;api.playerInput=live.playerInput
+            -- Fail closed: an owner that cannot be kept safely is not attached.
+            local kept,keepWhy=keepOwner(live)
+            if not kept then
+                if keepWhy~=reportedKeep then log.error('controls cannot attach: ',keepWhy) end
+                reportedKeep=keepWhy
+                return false,keepWhy,{status='failure',original=keepWhy}
+            end
+            reportedKeep=nil
+            api.phase='attaching';api.owner=kept
             local actions=context:configure(api.plan)
             local generation=api.generation+1
             api.generation=generation
@@ -892,7 +952,7 @@ function M.new(queue,log,service,environment)
                 -- covered by the outer operation and must not schedule another.
                 if busy or internalDepth>0 or not api.enabled or api.phase=='stopped' then return end
                 local subsystem=e.unwrap(caller)
-                local live=api.owner or stack()
+                local live=liveOwner() or stack()
                 if not live or not e.valid(subsystem) or not e.valid(live.subsystem)
                     or e.path(subsystem)~=e.path(live.subsystem) then return end
                 local active,why=operate(function() return doSync(false,true) end)

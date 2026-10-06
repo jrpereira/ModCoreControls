@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Fix a crash when loading a save from a running game. MCC kept the player's
+  input objects, the game's mapping contexts and overridden actions, and the
+  quickslot HUD and wheels across garbage collection, and the game's mapping
+  hooks during the load made MCC call them; UE4SS `IsValid` reads the freed
+  object. They are now UE4SSLuaEventBridge weak handles whose native lifetime is
+  checked first; MCC's own root-captured actions and chords stay as they are.
+- Require UE4SSLuaEventBridge 1.0.9 (API 6, weak handles). When the bridge's
+  object lifetimes are unavailable, controls do not attach and the log says why.
+
 ## v1.0.1
 
 - The Visuals page's "Quickslots Visuals" template picker shows at Category

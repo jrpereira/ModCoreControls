@@ -15,6 +15,7 @@
     "Scripts/mc_input_host.lua": "Scripts/mc_input_host.lua",
     "Scripts/mc_input_plan.lua": "Scripts/mc_input_plan.lua",
     "Scripts/mc_key_indicators.lua": "Scripts/mc_key_indicators.lua",
+    "Scripts/mc_lifetimes.lua": "Scripts/mc_lifetimes.lua",
     "Scripts/mc_log.lua": "Scripts/mc_log.lua",
     "Scripts/mc_maps.lua": "Scripts/mc_maps.lua",
     "Scripts/mc_menu.lua": "Scripts/mc_menu.lua",

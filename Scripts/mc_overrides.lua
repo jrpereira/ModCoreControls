@@ -1,9 +1,13 @@
 -- Reversible chord gates for native Input Actions replaced by MCC mappings.
+local Lifetimes=require('mc_lifetimes')
 local M={}
 
 function M.new(e)
     local marker=assert(e.marker,'override marker required')
+    local keep,live=e.keep or Lifetimes.keep,e.live or Lifetimes.live
     local api={}
+    -- Native actions carrying an MCC chord, by path, as weak handles: an action
+    -- can be unloaded while MCC owns its chord.
     local ownedActions={}
     local function triggers(action)
         local result={}
@@ -25,8 +29,8 @@ function M.new(e)
         local changes,snapshots,chords={},{},{}
         local candidates=targets or e.actions()
         -- An owned action that no longer exists took its chord with it.
-        for path,action in pairs(ownedActions) do
-            if not e.valid(action) then ownedActions[path]=nil end
+        for path,handle in pairs(ownedActions) do
+            if not live(handle) then ownedActions[path]=nil end
         end
         local previousOwned={}
         for path,action in pairs(ownedActions) do previousOwned[path]=action end
@@ -59,7 +63,9 @@ function M.new(e)
                             end
                         end
                         if changed then e.setTriggers(action,after);changes[#changes+1]=action end
-                        if wanted[actionPath] then ownedActions[actionPath]=action
+                        if wanted[actionPath] then
+                            ownedActions[actionPath]=assert(keep(action),
+                                'override action cannot be kept: '..actionPath)
                         elseif ownedActions[actionPath] then ownedActions[actionPath]=nil end
                     end
                 end
@@ -77,7 +83,7 @@ function M.new(e)
     end
     function api:restoreAll(playerInput)
         local targets={}
-        for _,action in pairs(ownedActions) do targets[#targets+1]=action end
+        for _,handle in pairs(ownedActions) do targets[#targets+1]=live(handle) end
         return self:apply({},playerInput,targets)
     end
     function api:hasOwners() return next(ownedActions)~=nil end

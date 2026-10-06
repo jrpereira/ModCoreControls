@@ -1,4 +1,5 @@
 package.path='Scripts/?.lua;'..package.path
+dofile('tests/support/lifetimes.lua').install()
 local Quickslots=require('mc_quickslots')
 local Events=require('mc_events')
 local calls={}
@@ -172,7 +173,8 @@ function recreated.QuickslotsSwitcher:SetActiveWidgetIndex(index)self.index=inde
 local live={hud=replacement}
 assert(bound:bind(live,13))
 assert(Quickslots.reconcile(pending,bound))
-live.hud=recreated
+-- The host binds every sync; the service keeps handles, not the owner table.
+assert(bound:bind({hud=recreated},13))
 assert(Quickslots.reconcile(pending,bound))
 assert(recreated.QuickslotsSwitcher.index==0,'recreated HUD needs focus presentation')
 
@@ -188,3 +190,30 @@ assert(Quickslots.deliver(edgeState,release,'Triggered',edgeService))
 assert(edgeState.selectedGroup==1 and edgeState.holdSwapPrevious==nil
     and edgeState.holdSwapActive==nil,'Hold Swap release must restore the group active on press')
 print('PASS quickslot callback routing and wheel focus')
+
+-- UE4SS returns a new wrapper for every lookup: a wheel whose GetParent wrapper is
+-- not the switcher wrapper, but the same switcher object, is still native.
+do
+    local function named(name)
+        local value=object()
+        function value:GetFullName()return name end
+        return value
+    end
+    local native=named('HUD')
+    native.QuickslotsSwitcher=named('WidgetSwitcher HUD.QuickslotsSwitcher')
+    function native.QuickslotsSwitcher:GetChildrenCount()return 2 end
+    function native.QuickslotsSwitcher:SetActiveWidgetIndex(index)self.index=index end
+    native.WBP_AA_Quickslots=named('Abilities')
+    native.WBP_HUD_Quickslots=named('Consumables')
+    for _,wheel in ipairs({native.WBP_AA_Quickslots,native.WBP_HUD_Quickslots}) do
+        function wheel:GetParent()return named('WidgetSwitcher HUD.QuickslotsSwitcher') end
+        function wheel:SetIsEnabled(value)self.enabled=value end
+    end
+    local service=Quickslots.new()
+    assert(service:bind({hud=native},11))
+    assert(service:select(2) and native.QuickslotsSwitcher.index==0,
+        'wheels in the native switcher must select through the switcher')
+    assert(native.WBP_AA_Quickslots.enabled==nil and native.WBP_HUD_Quickslots.enabled==nil,
+        'wheels in the native switcher must not be disabled')
+end
+print('PASS a fresh wrapper of the native switcher still selects natively')

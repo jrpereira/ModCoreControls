@@ -1,4 +1,5 @@
 package.path='Scripts/?.lua;'..package.path
+dofile('tests/support/lifetimes.lua').install()
 local created,mapped={},{}
 local function object(path)
     local value={path=path,Triggers={}}
