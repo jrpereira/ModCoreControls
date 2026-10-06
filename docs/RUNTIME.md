@@ -24,7 +24,7 @@ means no input. MCC refreshes inherited keys after `ApplyPendingKeyboardMappings
 | Declaration | Behavior |
 | --- | --- |
 | Key `override=true` with `defaultControl` | Custom key suppresses that native action; unbound leaves the action to the game |
-| Key `override={action='IA_Name',value=164}` | Overrides that action while bound; `value` supplies the legacy default key |
+| Key `override={action='IA_Name'}` | Overrides that action while bound; declare the key separately in `default` |
 | Map `override={'IA_First','IA_Second'}` | Overrides remain active independently of individual keys |
 
 A map cannot use `override=true`. Clearing a key does not disable a map-level
