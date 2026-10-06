@@ -2,6 +2,10 @@
 
 ## v1.0.1
 
+- A UTF-8 byte order mark at the start of `config.ini` no longer hides the first
+  section's saved controls; saving drops it.
+- A native Input Action is looked up once and reused while it stays valid, instead
+  of scanning every Input Action on each sync.
 - Release packages include `enabled.txt`, so the mod is enabled when installed.
 - MCC no longer hooks `PanelWidget:AddChild`, which ran Lua for every widget the
   game added, slowing menus that build many rows. Quickslot key indicators are

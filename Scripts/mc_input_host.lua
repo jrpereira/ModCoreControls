@@ -330,8 +330,16 @@ function M.new(queue,log,service,environment)
         if next(result) then api.nativeSeen=true end
         return result
     end
+    -- Native actions found once are reused while still valid and named the same, so a
+    -- sync does not scan every InputAction again.
+    local standardActions={}
     local function standardAction(actionName)
         if type(actionName)~='string' or actionName=='' then return nil end
+        local cached=standardActions[actionName]
+        if cached and e.valid(cached) and (e.full(cached) or ''):match('([^%.:/%s]+)$')==actionName then
+            return cached
+        end
+        standardActions[actionName]=nil
         local nativeAction
         if actionName=='IA_Combat_ToggleQuickslots' and type(e.resolve)=='function' then
             nativeAction=e.resolve('/Game/_Dawnwalker/Player/Input/Actions/Combat/'
@@ -352,6 +360,7 @@ function M.new(queue,log,service,environment)
             return nil,'standard input action unavailable: '..actionName
         end
         log.trace('Resolved IA: ',actionName)
+        standardActions[actionName]=nativeAction
         return nativeAction
     end
     local function standardKey(actionName,live)
@@ -497,7 +506,7 @@ function M.new(queue,log,service,environment)
             api.phase='cleanup-pending'
             return false,table.concat(errors,'; '),{status='failure',cleanup=errors}
         end
-        api.phase=clearPlan and 'pending' or 'pending'
+        api.phase='pending'
         api.owner=nil;api.lastOwner=resetNative and nil or (retiredOwner or api.lastOwner)
         api.componentPath=nil;api.subsystem=nil
         api.playerInput=nil;api.actions=nil;api.overrideTargets=nil;api.overrideWanted=nil

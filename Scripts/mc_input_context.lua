@@ -46,7 +46,6 @@ function M.new(e,log)
         record.entries={}
     end
     local function covers(binding,logical)
-        if binding.layer=='global' then return true end
         for _,name in ipairs(binding.contexts or plan.contexts) do
             if name==logical then return true end
         end

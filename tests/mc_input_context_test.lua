@@ -74,10 +74,10 @@ for name in pairs(created) do
     assert(not name:find('InputMappingContext',1,true),'MCC created a mapping context: '..name)
 end
 
--- Hold Swap's global edges map into every context MCC is attached to.
+-- Hold Swap's edges map into every context they declare, beyond the plan's own.
 local holdPlan={contexts={'exploration'},holdSwap={enabled=true},bindings={
-    {id='press',keyName='LeftAlt',mode=3,consume=true,layer='global'},
-    {id='release',keyName='LeftAlt',mode=4,consume=true,layer='global'},
+    {id='press',keyName='LeftAlt',mode=3,consume=true,contexts={'exploration','combat'}},
+    {id='release',keyName='LeftAlt',mode=4,consume=true,contexts={'exploration','combat'}},
 }}
 actions=context:configure(holdPlan)
 assert(actions.press.bConsumeInput and actions.release.bConsumeInput)

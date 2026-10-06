@@ -2,6 +2,8 @@
 local M = {}
 local function lines(content)
     local out={}
+    -- A UTF-8 byte order mark would hide the first section heading.
+    content=content:gsub('^\239\187\191','')
     for line in (content:gsub('\r\n','\n'):gsub('\r','\n') .. '\n'):gmatch('(.-)\n') do out[#out+1]=line end
     if out[#out]=='' then table.remove(out) end
     return out

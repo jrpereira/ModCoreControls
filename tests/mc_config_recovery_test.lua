@@ -134,3 +134,16 @@ assert(not persisted:find('map=',1,true) and persisted:find('global.AbilitySlot1
 assert(Config.migrate(persisted)==persisted,'migration must be idempotent')
 assert(os.remove(legacy))
 print('PASS legacy Flat config migrates to Global')
+
+-- A UTF-8 byte order mark must not hide the first section's saved values.
+local bomSlot
+for _,item in ipairs(definition.settings) do
+    if item.configKey=='global.AbilitySlot1' then bomSlot=item end
+end
+local saved='[' .. bomSlot.configSection .. ']\nglobal.AbilitySlot1=J|Hold\n'
+local plain=Config.decode(saved,definition)[bomSlot.id]
+assert(plain~=nil,'fixture value must decode')
+assert(Config.decode('\239\187\191' .. saved,definition)[bomSlot.id]==plain,'BOM must not drop the first section')
+assert(not Config.encode('\239\187\191' .. saved,definition,Menu.new(definition,{}).values):find('\239\187\191',1,true),
+    'saving drops the BOM')
+print('PASS config ignores a UTF-8 byte order mark')

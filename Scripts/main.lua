@@ -80,10 +80,15 @@ local ok,err=pcall(function()
         facade.inputHost=host
         facade.refresh=function() return refresh('manual input refresh') end
         facade.deactivate=function()
-            return queue(function()
-                local removed,why=host:deactivate()
-                if not removed then log.error('input deactivation failed: ',why) end
+            local queued,why=pcall(queue,function()
+                local removed,reason=host:deactivate()
+                if not removed then log.error('input deactivation failed: ',reason) end
             end)
+            if not queued or why==false then
+                log.error('input deactivation scheduling failed: ',why)
+                return false
+            end
+            return true
         end
         facade.stop=function()
             local queued,why=pcall(queue,stopResources)
