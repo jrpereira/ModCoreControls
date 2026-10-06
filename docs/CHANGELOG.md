@@ -1,7 +1,11 @@
 # Changelog
 
-## Unreleased
+## v1.0.2
 
+- Compare game objects by path. UE4SS returns a new wrapper for every lookup, so
+  comparing wrappers made MCC treat the same player as a new one and reattach all
+  controls whenever something woke it, such as using an ability, and made wheels
+  still inside the native switcher look moved.
 - Fix a crash when loading a save from a running game. MCC kept the player's
   input objects, the game's mapping contexts and overridden actions, and the
   quickslot HUD and wheels across garbage collection, and the game's mapping
