@@ -8,7 +8,7 @@
   hooks during the load made MCC call them; UE4SS `IsValid` reads the freed
   object. They are now UE4SSLuaEventBridge weak handles whose native lifetime is
   checked first; MCC's own root-captured actions and chords stay as they are.
-- Require UE4SSLuaEventBridge 1.0.9 (API 6, weak handles). When the bridge's
+- Require UE4SSLuaEventBridge 1.0.12 (API 6, weak handles). When the bridge's
   object lifetimes are unavailable, controls do not attach and the log says why.
 
 ## v1.0.1
