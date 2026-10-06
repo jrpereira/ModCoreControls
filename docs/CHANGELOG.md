@@ -49,7 +49,53 @@
   line of up to 4096 characters without control characters.
 - An inherited key that cannot be resolved, such as an unbound Toggle Quickslots
   key, skips only the bindings that use it; every other binding attaches. It is
-  reported once as a warning and attaches once the player binds a key.
+  reported once as a warning and attaches once the player binds a key. An error
+  while resolving it is handled the same way instead of failing the sync. A key
+  the game refuses to map, or a binding whose action or trigger cannot be built,
+  likewise skips only itself, with one warning until it succeeds.
+- When several Input Actions share a name MCC overrides or inherits a key from, MCC
+  uses the one in the game's own input folder. If that does not single one out, only
+  that override or key is skipped, with one warning; previously no MCC input attached.
+- A native action MCC overrides that is unloaded or replaced during play is resolved
+  again on the next sync, and the replacement takes the override. Previously this
+  detached all MCC input and reattached it.
+- MCC key mappings left in the game's contexts by an earlier Lua state, after a mod
+  restart or hot reload, are removed instead of being mapped a second time.
+- An Apply that arrives while an input operation is running is applied right after
+  it, instead of being dropped.
+- `mc_events.lua` writes event delivery failures through the subscriber's leveled
+  logger (`api.log`), or a WARN-level `mc_log` logger without one, instead of
+  `print`, so they follow `log_level.txt`. Subscribing while the stored event is
+  unreadable reports it instead of failing. The file now states that MCC holds its
+  source.
+- Key & Mouse lists only sections that have maps. Movement and System, which have
+  none yet, no longer show as empty pages, and with Actions alone there is no
+  Section picker.
+- While controls are enabled but not attached, attaching is retried after 100 ms,
+  500 ms and then every 3 s, instead of stopping after two attempts and waiting
+  for a game event.
+- The Quickslot Groups control map is named Groups again (config ID `grouped`
+  unchanged, so saved keys are kept).
+- Every keybind row on the Controls page declares `mcConflictScope=controls`. With a
+  ModCoreSettings that supports it, the same key and trigger on two rows shows a dim
+  red key background while editing, and the Control Map or Section picker turns red
+  when the pair is on different pages. Apply still rejects the pair.
+- An input callback that fails logs its binding and phase.
+- The Controller page reads the local player's own input subsystem and player
+  input, matched as the input host matches them, instead of the first ones found.
+- Key names compare without regard to case, as the engine compares them, when
+  detecting a key bound twice and when the swap steps aside for a player key. A
+  hand-edited single letter such as `j` reads as `J`.
+- A key name the engine does not know is skipped with one warning instead of being
+  mapped as a dead key. The check uses `KismetInputLibrary.Key_IsValid`, and only
+  once it accepts `SpaceBar`.
+- A key removed from a binding with several keys is detected and mapped again;
+  previously only the binding's action was checked.
+- The definition rejects bindings whose ids differ only in punctuation, since they
+  would share one generated Input Action.
+- Startup runs a shell command to create the `cache` folder only when it is missing.
+- The Controls page shows the version from `VERSION`, the release's version source,
+  instead of a second copy in `mc_dmm.lua`.
 - Log at levels TRACE, DEBUG, INFO, WARN, ERROR and CRITICAL, writing WARN and above
   by default; `log_level.txt` in the mod folder sets the level. Key-profile
   lookups, pending syncs and mappings no longer reach the log by default.

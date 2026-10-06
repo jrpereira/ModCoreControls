@@ -42,12 +42,51 @@ local function environment()
             end)
         end)
     end
-    local function first(class)
+    local function all(class)
         local ok,items=pcall(FindAllOf,class)
-        if not ok or type(items)~='table' then return nil end
-        for _,item in ipairs(items) do if valid(item) then return item end end
+        return ok and type(items)=='table' and items or {}
     end
-    return {unwrap=unwrap,valid=valid,each=each,first=first}
+    local function first(class)
+        for _,item in ipairs(all(class)) do if valid(item) then return item end end
+    end
+    local function full(value)
+        local ok,name=pcall(function() return value:GetFullName() end)
+        return ok and tostring(name) or nil
+    end
+    return {unwrap=unwrap,valid=valid,each=each,first=first,all=all,full=full}
+end
+
+-- The local player's own input and subsystem, matched as the input host matches them:
+-- the subsystem whose outer is the controller's player, or the only one there is.
+local function player(e)
+    if type(e.all)~='function' then return nil end
+    local function property(object,name)
+        local ok,value=pcall(function() return object[name] end)
+        return ok and e.unwrap(value) or nil
+    end
+    local function same(a,b)
+        if a==b then return true end
+        local left,right=e.full and e.full(a),e.full and e.full(b)
+        return left~=nil and left==right
+    end
+    for _,controller in ipairs(e.all('BP_PlayerController_C')) do
+        local name=e.full and e.full(controller) or ''
+        if e.valid(controller) and not name:find('Default__',1,true) then
+            local playerInput,owner=property(controller,'PlayerInput'),property(controller,'Player')
+            if e.valid(playerInput) and e.valid(owner) then
+                local match,count,only=nil,0,nil
+                for _,candidate in ipairs(e.all('EnhancedInputLocalPlayerSubsystem')) do
+                    if e.valid(candidate) then
+                        count=count+1;only=candidate
+                        local ok,outer=pcall(function() return e.unwrap(candidate:GetOuter()) end)
+                        if ok and e.valid(outer) and same(outer,owner) then match=candidate end
+                    end
+                end
+                local subsystem=match or (count==1 and only or nil)
+                if subsystem then return subsystem,playerInput end
+            end
+        end
+    end
 end
 
 local function text(value)
@@ -74,8 +113,12 @@ end
 -- Returns {{key,label,actions={...}}...} or nil when no player input is live.
 function M.read(e)
     e=e or environment()
-    local subsystem=e.first('EnhancedInputLocalPlayerSubsystem')
-    local playerInput=e.first('EnhancedPlayerInput')
+    -- Without a matched player, the first live objects stand in.
+    local subsystem,playerInput=player(e)
+    if not subsystem then
+        subsystem=e.first('EnhancedInputLocalPlayerSubsystem')
+        playerInput=e.first('EnhancedPlayerInput')
+    end
     if not subsystem and not playerInput then return nil end
     local assigned={}
     local function add(key,action)

@@ -307,9 +307,169 @@ assert(partialHost:sync())
 assert(#mccKeys()==2 and unboundSwap.keyNames[1]=='LeftAlt' and not unboundSwap.unresolved,
     'the skipped binding attaches once its key resolves')
 assert(count('inherited key resolved')==1)
+-- An error while resolving the key is treated the same way, not as a failed sync.
+local full=environment.full
+environment.full=function(value)
+    if value==toggle then error('action lookup exploded') end
+    return full(value)
+end
+assert(partialHost:sync(),'a resolution error must not fail the sync')
+assert(#mccKeys()==1 and mccKeys()[1]=='J' and unboundSwap.unresolved)
+assert(count('key resolution failed')==1)
+environment.full=full
 assert(partialHost:stop() and #mccKeys()==0)
 environment.profileKeys=nil
 print('PASS an unresolved inherited key skips only its own bindings')
+
+-- An override name shared by several actions picks the game's own input action; when
+-- that does not settle it, only that override is skipped and every key still attaches.
+do
+    local all,construct=environment.all,environment.constructOverride
+    local gates={}
+    environment.constructOverride=function(action,marker)
+        local path=action.path..':'..marker
+        gates[path]=gates[path] or object('InputTriggerChordAction',path)
+        return gates[path]
+    end
+    local function action(path) local value=object('InputAction',path);value.Triggers={};return value end
+    local game=action('/Game/_Dawnwalker/Player/Input/Actions/IA_Shared.IA_Shared')
+    local copy=action('/Game/Other/IA_Shared.IA_Shared')
+    local other=action('/Game/Elsewhere/IA_Shared.IA_Shared')
+    local actions={}
+    environment.all=function(class)
+        if class=='InputAction' then return actions end
+        return all(class)
+    end
+    local warnings={}
+    local function count(text)
+        local found=0
+        for _,message in ipairs(warnings) do if message:find(text,1,true) then found=found+1 end end
+        return found
+    end
+    local key={id='global.AbilitySlot1',key=74,keyName='J',mode=0,phases={'Triggered'},
+        action={type='ability',slot=1}}
+    local ambiguousPlan={contexts={'exploration','combat'},bindings={key},overrides={IA_Shared=true}}
+
+    actions={copy,other}
+    local ambiguousHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function(message) warnings[#warnings+1]=message end,service,environment)
+    assert(ambiguousHost:apply(ambiguousPlan),'an ambiguous override must not keep input from attaching')
+    assert(#mccKeys()==1 and mccKeys()[1]=='J')
+    assert(#copy.Triggers==0 and #other.Triggers==0,'neither ambiguous action is overridden')
+    assert(count('IA_Shared (ambiguous: 2 actions)')==1,'the skipped override is reported')
+    assert(ambiguousHost:apply(ambiguousPlan) and count('IA_Shared (ambiguous')==1,'and reported only once')
+    assert(ambiguousHost:stop() and #mccKeys()==0)
+
+    actions={copy,game,other}
+    local preferredHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function(message) warnings[#warnings+1]=message end,service,environment)
+    assert(preferredHost:apply(ambiguousPlan))
+    assert(#game.Triggers==1 and #copy.Triggers==0 and #other.Triggers==0,
+        'the action in the game input folder is the one overridden')
+    assert(preferredHost:stop() and #game.Triggers==0,'stopping restores it')
+    environment.all,environment.constructOverride=all,construct
+end
+print('PASS an ambiguous override skips only itself, preferring the game input action')
+
+-- A native override action lost while attached is resolved again: the rest of MCC
+-- input stays attached and the replacement action takes the override.
+do
+    local all,construct=environment.all,environment.constructOverride
+    local gates={}
+    environment.constructOverride=function(action,marker)
+        local path=action.path..':'..marker
+        gates[path]=gates[path] or object('InputTriggerChordAction',path)
+        return gates[path]
+    end
+    local function action(path) local value=object('InputAction',path);value.Triggers={};return value end
+    local original=action('/Game/_Dawnwalker/Player/Input/Actions/IA_Lost.IA_Lost')
+    local actions={original}
+    environment.all=function(class)
+        if class=='InputAction' then return actions end
+        return all(class)
+    end
+    local key={id='global.AbilitySlot1',key=74,keyName='J',mode=0,phases={'Triggered'},
+        action={type='ability',slot=1}}
+    local lostHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,service,environment)
+    assert(lostHost:apply({contexts={'exploration','combat'},bindings={key},overrides={IA_Lost=true}}))
+    assert(#original.Triggers==1)
+    local generation,closes=lostHost.generation,closeCount
+    original.valid=false
+    local replacement=action('/Game/_Dawnwalker/Player/Input/Actions/IA_Lost.IA_Lost')
+    actions={replacement}
+    assert(lostHost:sync(),'a lost override target must not fail the sync')
+    assert(lostHost.ready and lostHost.generation==generation and closeCount==closes,
+        'the rest of MCC input must stay attached')
+    assert(#mccKeys()==1 and mccKeys()[1]=='J')
+    assert(#replacement.Triggers==1,'the replacement action takes the override')
+    assert(lostHost:stop() and #replacement.Triggers==0 and #mccKeys()==0)
+    environment.all,environment.constructOverride=all,construct
+end
+print('PASS a lost override target is resolved again without retiring input')
+
+-- An Apply that arrives while another operation runs is kept and applied once that
+-- operation returns, rather than dropped.
+do
+    local rebuild=environment.rebuild
+    local function plan(keyName)
+        return {contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=1,keyName=keyName,
+            mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={}}
+    end
+    local deferred={}
+    local queuedHost
+    local nested
+    environment.rebuild=function()
+        if nested then
+            local later=nested;nested=nil
+            local active,why=queuedHost:apply(later)
+            assert(not active and why=='Apply queued','a busy host must queue the Apply')
+        end
+        return true
+    end
+    queuedHost=require('mc_input_host').new(function(callback)deferred[#deferred+1]=callback;return true end,
+        function()end,service,environment)
+    nested=plan('K')
+    assert(queuedHost:apply(plan('J')))
+    assert(#mccKeys()==1 and mccKeys()[1]=='J','the running Apply completes first')
+    assert(#deferred>=1,'the queued Apply waits for the next game-thread turn')
+    while #deferred>0 do table.remove(deferred,1)() end
+    assert(#mccKeys()==1 and mccKeys()[1]=='K','the queued Apply is applied, not dropped')
+    assert(queuedHost:stop() and #mccKeys()==0)
+    environment.rebuild=rebuild
+end
+print('PASS an Apply during a running operation is queued, not dropped')
+
+-- While enabled but not attached, retries continue at a steady interval rather than
+-- stopping after two, one at a time, and end once input attaches.
+do
+    local scheduled={}
+    environment.delay=function(ms,callback) scheduled[#scheduled+1]={ms=ms,callback=callback};return true end
+    input.AppliedInputContexts[native]=nil
+    local retryHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,service,environment)
+    local active,why=retryHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=74,
+        keyName='J',mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={}})
+    assert(not active and why=='native gameplay context unavailable')
+    assert(#scheduled==1 and scheduled[1].ms==100)
+    retryHost:sync()
+    assert(#scheduled==1,'only one retry is scheduled at a time')
+    local intervals={}
+    for _=1,4 do
+        local next=table.remove(scheduled,1)
+        intervals[#intervals+1]=next.ms
+        next.callback()
+    end
+    assert(table.concat(intervals,',')=='100,500,3000,3000','retries continue: '..table.concat(intervals,','))
+    assert(#scheduled==1 and not retryHost.ready)
+    input.AppliedInputContexts[native]=5
+    table.remove(scheduled,1).callback()
+    assert(retryHost.ready and #mccKeys()==1,'the retry attaches once gameplay is ready')
+    assert(#scheduled==0,'no retry once attached')
+    assert(retryHost:stop() and #mccKeys()==0)
+    environment.delay=nil
+end
+print('PASS sync retries continue while not attached')
 
 -- On the game thread a wheel change applies inside the input callback, so a native slot
 -- action on the same key sees the new focus; other callbacks still wait for the queue.

@@ -97,12 +97,24 @@ local function defaultEnvironment()
             return keys
         end,
         retain=retain,name=FName,
+        -- false for a key name the engine does not know; nil when it cannot tell. The
+        -- check is trusted only once it accepts a key that always exists.
+        validKey=function(keyName)
+            local library=StaticFindObject('/Script/Engine.Default__KismetInputLibrary')
+            if not valid(library) then return nil end
+            local function known(name)
+                local ok,result=pcall(function() return library:Key_IsValid({KeyName=FName(name)}) end)
+                if ok and type(result)=='boolean' then return result end
+                return nil
+            end
+            if known('SpaceBar')~=true then return nil end
+            return known(keyName)
+        end,
         initialize=function(action)
             local library=assert(StaticFindObject('/Script/Engine.Default__KismetSystemLibrary'))
             library:Conv_ObjectToSoftObjectReference(action)
         end,
         trigger=function(action,className) return StaticConstructObject(cls(className),action,0,0x40) end,
-        options={bIgnoreAllPressedKeysUntilRelease=true,bForceImmediately=false,bNotifyUserSettings=false},
         bridge=function() return rawget(_G,'UE4SSLuaEventBridge') end,
         resolve=function(name)
             local ok,value=pcall(StaticFindObject,name)
@@ -206,7 +218,7 @@ function M.new(queue,log,service,environment)
     local indicatorsQueued=false
     local wake,scheduleRetry
     local registrations={}
-    local lastPending
+    local lastPending,reportedMissing
     local function internal(callback)
         internalDepth=internalDepth+1
         local ok,result,why=pcall(callback)
@@ -325,10 +337,30 @@ function M.new(queue,log,service,environment)
         end)
         -- MCC maps its keys into these applied game contexts.
         api.nativeContexts=natives
-        if walked==false then return {} end
         -- Keys exist only inside an applied game context; without one MCC waits.
-        if next(result) then api.nativeSeen=true end
+        if walked==false then return {} end
         return result
+    end
+    -- The one action among same-named candidates: the only one, or else the only one in
+    -- the game's own input folder. Otherwise nil and why.
+    local gameInput='/Game/_Dawnwalker/Player/Input/'
+    local function gameAction(candidates)
+        local distinct,seen={},{}
+        for _,action in ipairs(candidates) do
+            local key=e.path(action) or action
+            if not seen[key] then seen[key]=true;distinct[#distinct+1]=action end
+        end
+        if #distinct==1 then return distinct[1] end
+        if #distinct==0 then return nil end
+        local preferred
+        for _,action in ipairs(distinct) do
+            if (e.path(action) or ''):sub(1,#gameInput)==gameInput then
+                if preferred then return nil,'ambiguous: '..#distinct..' actions' end
+                preferred=action
+            end
+        end
+        if preferred then return preferred end
+        return nil,'ambiguous: '..#distinct..' actions'
     end
     -- Native actions found once are reused while still valid and named the same, so a
     -- sync does not scan every InputAction again.
@@ -346,14 +378,14 @@ function M.new(queue,log,service,environment)
                 ..'IA_Combat_ToggleQuickslots.IA_Combat_ToggleQuickslots')
         end
         if not e.valid(nativeAction) then
-            nativeAction=nil
+            local candidates={}
             for _,candidate in ipairs(e.all('InputAction')) do
                 local name=(e.full(candidate) or ''):match('([^%.:/%s]+)$')
-                if e.valid(candidate) and name==actionName then
-                    if nativeAction then return nil,'ambiguous standard input action: '..actionName end
-                    nativeAction=candidate
-                end
+                if e.valid(candidate) and name==actionName then candidates[#candidates+1]=candidate end
             end
+            local why
+            nativeAction,why=gameAction(candidates)
+            if why then return nil,'standard input action '..why..': '..actionName end
         end
         if not e.valid(nativeAction) then
             log.debug('Failed to resolve IA: ',actionName)
@@ -395,7 +427,9 @@ function M.new(queue,log,service,environment)
         local resolved,resolvedActions,changed,unresolved={},{},{false},{}
         local function resolve(actionName)
             if resolved[actionName]==nil then
-                local keyNames,why,action=standardKey(actionName,live)
+                -- An error while resolving one action counts as unresolved, not a failed sync.
+                local ok,keyNames,why,action=pcall(standardKey,actionName,live)
+                if not ok then keyNames,why=nil,'key resolution failed: '..tostring(keyNames) end
                 if not keyNames then
                     resolved[actionName]=false;unresolved[actionName]=tostring(why)
                 else
@@ -426,18 +460,20 @@ function M.new(queue,log,service,environment)
             end
         end
         -- A player key bound on one of the swap's inherited keys takes that key
-        -- over: the swap steps aside on it rather than firing alongside it.
+        -- over: the swap steps aside on it rather than firing alongside it. Key names
+        -- compare without regard to case, as the engine compares them.
         local claimed={}
         for _,binding in ipairs(plan.bindings) do
             if not binding.swap and binding.keyName then
-                claimed[binding.keyName]=binding.id
+                claimed[binding.keyName:lower()]=binding.id
             end
         end
         for _,binding in ipairs(plan.bindings) do
             if binding.swap then
                 local suppressed=nil
                 for _,keyName in ipairs(binding.keyNames or {}) do
-                    if claimed[keyName] then suppressed=suppressed or {};suppressed[keyName]=claimed[keyName] end
+                    local owner=claimed[keyName:lower()]
+                    if owner then suppressed=suppressed or {};suppressed[keyName]=owner end
                 end
                 local previous=binding.suppressed or {}
                 local differs=false
@@ -469,15 +505,14 @@ function M.new(queue,log,service,environment)
     local function invalidate()
         api.generation=api.generation+1
         api.ready=false
-        api.retryStep=0;api.retryToken=(api.retryToken or 0)+1
+        api.retryStep=0
         if type(Quickslots.cancel)=='function' then
             pcall(Quickslots.cancel,api.state,service)
         else api.state={selectedGroup=api.state.selectedGroup} end
         if type(service.invalidate)=='function' then pcall(service.invalidate,service) end
     end
-    local function retire(clearPlan,mandatory,resetNative)
+    local function retire(clearPlan,mandatory)
         local wasCleanupPending=api.phase=='cleanup-pending'
-        local retiredOwner=api.owner
         if not mandatory and api.ready and api.playerInput then
             local ok,why=pcall(overrides.restoreAll,overrides,api.playerInput)
             if not ok then return false,'override restoration failed: ' .. tostring(why),
@@ -494,9 +529,8 @@ function M.new(queue,log,service,environment)
         if not detached then errors[#errors+1]='mapping detach: ' .. tostring(detachWhy)
         elseif detachWhy==false then errors[#errors+1]='mapping detach incomplete' end
         local restored,complete=pcall(indicators.restoreAll,indicators)
-        if not restored or complete==false then
-            errors[#errors+1]='indicator restoration: ' .. tostring(restored and complete or complete)
-        end
+        if not restored then errors[#errors+1]='indicator restoration: ' .. tostring(complete)
+        elseif complete==false then errors[#errors+1]='indicator restoration incomplete' end
         if callbacks then
             local closed,why=callbacks:close()
             if not closed then errors[#errors+1]='callback close: ' .. tostring(why) end
@@ -507,23 +541,21 @@ function M.new(queue,log,service,environment)
             return false,table.concat(errors,'; '),{status='failure',cleanup=errors}
         end
         api.phase='pending'
-        api.owner=nil;api.lastOwner=resetNative and nil or (retiredOwner or api.lastOwner)
-        api.componentPath=nil;api.subsystem=nil
+        api.owner=nil;api.componentPath=nil
         api.playerInput=nil;api.actions=nil;api.overrideTargets=nil;api.overrideWanted=nil
-        api.missingOverride=nil;api.swapKeyName=nil
-        if resetNative or clearPlan then api.nativeSeen=nil end
+        api.missingOverride=nil
         if clearPlan then api.enabled=false;api.plan=nil end
         return true
     end
+    -- An override that names several actions skips only itself; the rest still apply.
     local function resolveTargets(plan)
         local targets,selected,found,seen={},{},{},{}
         for _,action in ipairs(e.all('InputAction')) do
             if e.valid(action) then
                 local name=(e.full(action) or ''):match('([^%.:/%s]+)$')
                 if name and plan.overrides[name] then
-                    assert(not found[name] or found[name]==action,
-                        'ambiguous override action: ' .. name)
-                    found[name]=action
+                    found[name]=found[name] or {}
+                    table.insert(found[name],action)
                 end
                 local actionPath=e.path(action)
                 if actionPath and not seen[actionPath] then
@@ -541,9 +573,9 @@ function M.new(queue,log,service,environment)
         end
         local missing={}
         for name in pairs(plan.overrides) do
-            local action=found[name]
+            local action,why=gameAction(found[name] or {})
             if not action then
-                missing[#missing+1]=name
+                missing[#missing+1]=why and name..' ('..why..')' or name
             else
                 local path=e.path(action)
                 if not seen[path] then targets[#targets+1]=action;seen[path]=true end
@@ -588,17 +620,14 @@ function M.new(queue,log,service,environment)
         local live=stack()
         if not live then
             if api.ready or api.owner then
-                local cleared,why,detail=retire(false,true,true)
+                local cleared,why,detail=retire(false,true)
                 if not cleared then return false,why,detail end
             end
             return false,'gameplay Enhanced Input stack unavailable',{status='pending'}
         end
         if api.owner and not sameOwner(api.owner,live) then
-            local cleared,why,detail=retire(false,true,true)
+            local cleared,why,detail=retire(false,true)
             if not cleared then return false,why,detail end
-        end
-        if not api.owner and api.lastOwner and not sameOwner(api.lastOwner,live) then
-            api.nativeSeen=nil;api.lastOwner=nil
         end
         local desired=wanted(live.playerInput,api.plan.contexts)
         if not next(desired) then
@@ -623,7 +652,18 @@ function M.new(queue,log,service,environment)
                 if desired[logical]==nil then contextChanged=true;break end
             end
         end
-        if api.ready and not (api.missingOverride and contextChanged) then
+        local reuse=api.ready and not (api.missingOverride and contextChanged)
+        if reuse then
+            -- A native action unloaded or replaced since is resolved again; it never
+            -- retires the rest of MCC input.
+            for _,target in ipairs(api.overrideTargets or {}) do
+                if not e.valid(target) then
+                    log.info('override target lost; resolving overrides again')
+                    reuse=false;break
+                end
+            end
+        end
+        if reuse then
             targets,selected=api.overrideTargets,api.overrideWanted
         else
             local ok,a,b,c=pcall(resolveTargets,api.plan)
@@ -631,8 +671,12 @@ function M.new(queue,log,service,environment)
             targets,selected=a,b
             api.overrideTargets,api.overrideWanted=a,b
             api.missingOverride=#c>0
-            if api.missingOverride then
-                log.warn('override actions unavailable; skipping: ',table.concat(c,', '))
+            -- Reported once, and again only when the skipped set changes.
+            local skipped=table.concat(c,', ')
+            if skipped~=reportedMissing then
+                if api.missingOverride then log.warn('override actions unavailable; skipping: ',skipped)
+                elseif reportedMissing then log.info('override actions available') end
+                reportedMissing=skipped~='' and skipped or nil
             end
         end
         if not api.ready then
@@ -645,7 +689,9 @@ function M.new(queue,log,service,environment)
                 local function deliver()
                     if api.phase=='ready' and api.generation==generation then
                         local ok,result=pcall(Quickslots.deliver,api.state,binding,phase,service)
-                        if not ok or result==false then log.warn('input callback failed: ',result) end
+                        if not ok or result==false then
+                            log.warn('input callback failed: ',binding.id,' ',phase,': ',ok and 'not handled' or result)
+                        end
                     end
                 end
                 -- A wheel change applies within the input frame, so a native slot action
@@ -688,9 +734,6 @@ function M.new(queue,log,service,environment)
         -- Changing an applied context's mappings takes effect on the next control
         -- mapping rebuild; a pending game rebuild picks the change up by itself.
         if remapped and not beforeRebuild and type(e.rebuild)=='function' then e.rebuild(live.playerInput) end
-        for _,target in ipairs(targets or {}) do
-            assert(e.valid(target),'override target owner was lost')
-        end
         overrides:apply(selected,live.playerInput,targets)
         if api.phase=='attaching' then
             api.phase='ready';api.ready=true
@@ -701,7 +744,23 @@ function M.new(queue,log,service,environment)
         updateIndicators(force)
         return true
     end
+    local queuedPlan
+    local operation
+    -- An Apply that arrives while another operation runs is kept, and applied on the
+    -- next game-thread turn once that operation has returned.
     local function operate(callback)
+        local results=table.pack(operation(callback))
+        if queuedPlan and not busy and api.phase~='stopped' then
+            local plan=queuedPlan;queuedPlan=nil
+            local ok,why=pcall(queue,function()
+                local active,reason=api:apply(plan)
+                if not active then log.debug('queued Apply pending: ',reason) end
+            end)
+            if not ok or why==false then log.error('queued Apply failed to schedule: ',why) end
+        end
+        return table.unpack(results,1,results.n)
+    end
+    operation=function(callback)
         if busy then pendingWake=true;return false,'lifecycle operation pending',{status='pending'} end
         busy=true
         local ok,active,why,detail=pcall(callback)
@@ -720,12 +779,17 @@ function M.new(queue,log,service,environment)
             pendingWake=false
             if wake then wake() end
         end
-        if active then api.retryStep=0;api.retryToken=(api.retryToken or 0)+1
+        if active then api.retryStep=0
         elseif detail and detail.status=='pending' and scheduleRetry then scheduleRetry() end
         return active,why,detail
     end
     function api:sync() return operate(function() return doSync(false) end) end
     function api:apply(plan)
+        if busy then
+            queuedPlan=plan
+            log.info('Apply queued behind a running input operation')
+            return false,'Apply queued',{status='pending'}
+        end
         return operate(function()
             if api.phase=='stopped' then return false,'controls stopped',{status='failure'} end
             assert(type(plan)=='table' and type(plan.bindings)=='table','validated plan required')
@@ -745,25 +809,32 @@ function M.new(queue,log,service,environment)
             return doSync(true)
         end)
     end
-    function api:deactivate() return operate(function() return retire(true,false) end) end
+    -- Deactivating or stopping supersedes an Apply still queued.
+    function api:deactivate()
+        return operate(function() queuedPlan=nil;return retire(true,false) end)
+    end
     function api:updateIndicators(force)
         if busy or api.phase~='ready' then return false end
         return updateIndicators(force)
     end
 
+    -- While enabled but not attached, a sync is retried after 100 ms, 500 ms and then
+    -- every 3 s, so attaching never depends on a later game hook alone. One retry is
+    -- scheduled at a time.
+    local retryArmed=false
     scheduleRetry=function()
-        if type(e.delay)~='function' or not api.enabled or api.phase=='stopped' then return end
-        local step=api.retryStep or 0
-        if step>=2 then return end
-        step=step+1;api.retryStep=step
-        local token=api.retryToken or 0
-        local ms=step==1 and 100 or 500
+        if type(e.delay)~='function' or not api.enabled or api.phase=='stopped' or retryArmed then return end
+        local step=(api.retryStep or 0)+1
+        api.retryStep=step
+        local ms=step==1 and 100 or step==2 and 500 or 3000
+        retryArmed=true
         local ok,result=pcall(e.delay,ms,function()
-            if api.phase=='stopped' or not api.enabled or api.ready
-                or (api.retryToken or 0)~=token then return end
+            retryArmed=false
+            if api.phase=='stopped' or not api.enabled or api.ready then return end
             wake()
         end)
         if not ok or result==false then
+            retryArmed=false
             log.warn('lifecycle retry registration failed: ',result)
         end
     end
@@ -868,6 +939,7 @@ function M.new(queue,log,service,environment)
     end
     function api:stop()
         return operate(function()
+            queuedPlan=nil
             api.enabled=false
             local cleared,why,detail=retire(true,true)
             if not cleared then return false,why,detail end

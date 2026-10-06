@@ -1,6 +1,15 @@
 -- Controls page generation and storage, run by ModCoreSettings' page hooks.
 local M = {}
-M.page={id='ModCoreControls',name='Controls',author='Jorge Pereira (kell)',version='1.0.1',
+-- The version comes from VERSION in the mod root, the release's single source.
+local function version()
+    local source=debug.getinfo(1,'S').source:gsub('^@','')
+    local root=source:match('^(.*)[/\\]Scripts[/\\][^/\\]+$') or (source:match('^Scripts[/\\]') and '.')
+    local file=root and io.open(root..'/VERSION','rb')
+    if not file then return 'unknown' end
+    local text=file:read(64) or '';file:close()
+    return text:gsub('^\239\187\191',''):match('^%s*(%S+)') or 'unknown'
+end
+M.page={id='ModCoreControls',name='Controls',author='Jorge Pereira (kell)',version=version(),
     description='Choose options, visuals, keyboard and mouse controls, or view controller buttons.'}
 
 local function block(lines,name,fields)
@@ -25,6 +34,9 @@ function M.schema(definition,gamepad)
             Description=item.description}
         if item.kind=='keybind' then
             data.Type='keybind'
+            -- Every key on the page shares one scope, so ModCoreSettings marks the same
+            -- key and trigger on two rows as it is edited, as Apply would reject it.
+            data.mcConflictScope='controls'
         elseif #item.values==1 then return
         else
             data.Type='picker'
@@ -52,17 +64,21 @@ function M.schema(definition,gamepad)
         Default=0,PresetValues=table.concat(pageValues,'|'),PresetLabels=table.concat(pages,'|'),
         mcNavigation=1,mcHeading=true})
     block(lines,'Category.Pages',{mcHeading=0})
+    -- Only sections with maps get a page; a section without any (a placeholder) is
+    -- left out. A single one needs no Section picker and shows under Key & Mouse.
     local keyed,values,labels={},{},{}
     for _,section in ipairs(definition.sections) do
-        if section.id~='module' then
+        if section.id~='module' and #section.maps>0 then
             keyed[section]=#values
             values[#values+1],labels[#labels+1]=#values,section.name
         end
     end
     block(lines,'Category.KeyMouse',{mcHeading=0,VisibleWhen='MCC_Page',VisibleValues=page.keys})
-    block(lines,'Setting.MCC_Section',{Id='MCC_Section',Label='Section',Group='KeyMouse',Type='picker',
-        Default=0,PresetValues=table.concat(values,'|'),PresetLabels=table.concat(labels,'|'),
-        mcNavigation=1})
+    if #values>1 then
+        block(lines,'Setting.MCC_Section',{Id='MCC_Section',Label='Section',Group='KeyMouse',Type='picker',
+            Default=0,PresetValues=table.concat(values,'|'),PresetLabels=table.concat(labels,'|'),
+            mcNavigation=1})
+    end
     -- One read-only row. DMM pickers need two choices; ModCoreSettings collapses
     -- matching read-only labels to the single displayed value.
     local function display(id,group,label,value,extra)
@@ -94,7 +110,8 @@ function M.schema(definition,gamepad)
     display('MCC_Pad_Note','Controller','Note','Work in progress')
     for _,section in ipairs(definition.sections) do
         local pageWhen,pageValue='MCC_Section',keyed[section]
-        if section.id=='module' then pageWhen,pageValue='MCC_Page',page.options end
+        if section.id=='module' then pageWhen,pageValue='MCC_Page',page.options
+        elseif #values==1 then pageWhen,pageValue='MCC_Page',page.keys end
         if section.selector then
             if #section.selector.values>1 then
                 local selector=section.selector

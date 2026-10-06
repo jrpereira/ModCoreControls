@@ -179,7 +179,6 @@ local function text(value)
 end
 function M.encode(content,definition,values)
     content=M.migrate(content)
-    M.decode(content,definition)
     local sections,order=index(definition)
     local output,seen,written,section={},{},{},nil
     for _,item in ipairs(definition.settings) do
@@ -301,7 +300,7 @@ function M.open(path,definition)
             error(tostring(renameWhy) .. (restored and '; original retained' or '; restore failed: ' .. previous))
         end
         original=content; self.values=M.decode(content,definition)
-        if original~=nil and read(previous)~=nil then
+        if read(previous)~=nil then
             local removed,why=os.remove(previous)
             if not removed then return true,'config committed; previous cleanup pending: ' .. tostring(why) end
         end

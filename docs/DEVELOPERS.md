@@ -95,7 +95,8 @@ current declarations. Old `.key` and `.trigger` assignments are ignored.
 4. MCC receives the Apply notification, rereads its config on the game thread,
    and replaces the runtime plan when native resources are ready.
 
-Page, Section and Control Map are navigation only. Visuals declares the
+Page, Section and Control Map are navigation only. Key & Mouse lists only sections
+that have maps; the Section picker appears once two of them do. Visuals declares the
 `controls:visuals` slot for MCT; the placeholder remains if no valid rows arrive.
 MCC installs no DMM extension or `mod_settings.ini`.
 

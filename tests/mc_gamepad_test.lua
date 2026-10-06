@@ -50,3 +50,41 @@ assert(byKey.Gamepad_FaceButton_Right.actions[1]=='Dodge','IA_ prefix dropped wi
 assert(#byKey.Gamepad_DPad_Up.actions==0 and byKey.Gamepad_DPad_Up.label=='D-Pad Up')
 assert(Gamepad.read({first=function() return nil end})==nil,'no player input: nothing to read')
 print('PASS gamepad button assignments')
+
+-- With two local players, the rows come from the player controller's own subsystem
+-- and input, even when another player's subsystem is found first.
+do
+    local function profileWith(name)
+        local own={IsValid=function() return true end,PlayerMappedKeys=map({{'row',{Mappings=list({
+            {CurrentKey=key('Gamepad_DPad_Up'),AssociatedInputAction=action('IA_'..name,name)},
+        })}}})}
+        return {IsValid=function() return true end,GetCurrentKeyProfile=function() return own end}
+    end
+    local function object(name,fields)
+        fields=fields or {}
+        fields.IsValid=function() return true end
+        fields.full='Object /Engine/Transient.'..name
+        return fields
+    end
+    local mine,theirs=object('LocalPlayer_0'),object('LocalPlayer_1')
+    local function subsystem(owner,name)
+        local settingsFor=profileWith(name)
+        return object('Subsystem_'..name,{GetOuter=function() return owner end,
+            GetUserSettings=function() return settingsFor end})
+    end
+    local ownInput=object('PlayerInput_0',{AppliedInputContexts=map({})})
+    local classes={
+        BP_PlayerController_C={object('Default__BP_PlayerController_C'),
+            object('BP_PlayerController_C_0',{PlayerInput=ownInput,Player=mine})},
+        EnhancedInputLocalPlayerSubsystem={subsystem(theirs,'Theirs'),subsystem(mine,'Mine')},
+    }
+    local players={unwrap=e.unwrap,valid=e.valid,each=e.each,
+        all=function(class) return classes[class] or {} end,
+        full=function(value) return value.full end,
+        first=function() error('a matched player needs no first-found lookup') end}
+    local own={}
+    for _,row in ipairs(Gamepad.read(players)) do own[row.key]=row end
+    assert(table.concat(own.Gamepad_DPad_Up.actions,',')=='Mine',
+        'the controller\'s own subsystem is read: '..table.concat(own.Gamepad_DPad_Up.actions,','))
+end
+print('PASS gamepad rows come from the local player\'s own subsystem')

@@ -34,6 +34,8 @@ assert(not pcall(Menu.description,'line\nbreak','x') and not pcall(Menu.descript
 -- With DMM available, the real parser and ModCoreSettings' presentation read them.
 local choicesPath,settings=os.getenv('DMM_CHOICES_PATH'),os.getenv('MCS_SCRIPTS_PATH')
 if choicesPath and settings then
+    -- ModCoreSettings' files require their siblings; MCC's own modules still win.
+    package.path=package.path..';'..settings..'/?.lua'
     local choices=dofile(choicesPath)
     local fieldTypes=dofile(settings .. '/field_types.lua').new()
     fieldTypes:register('keybind',dofile(settings .. '/keybind_editor.lua'))

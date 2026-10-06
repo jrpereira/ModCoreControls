@@ -89,3 +89,23 @@ assert(not config():find('2|Tap',1,true))
 assert(os.remove(directory .. '/config.ini'))
 assert(os.execute('rmdir ' .. string.format('%q',directory)))
 print('PASS DMM Apply validates the combined plan before persistence')
+
+-- Every keybind row shares one collision scope, so ModCoreSettings marks the same key
+-- and trigger on two rows while editing; other rows carry none.
+do
+    local keybinds,scoped=0,0
+    for block in (schema..'\n['):gmatch('%[Setting%.[^%]]+%]\n(.-)\n%[') do
+        local isKeybind=block:find('Type=keybind',1,true)~=nil
+        local scope=block:match('mcConflictScope=([^\n]*)')
+        if isKeybind then
+            keybinds=keybinds+1
+            assert(scope=='controls','keybind row without the controls scope: '..block)
+            assert(scope:match('^[%w_]+$') and #scope<=64,'scope name must be letters, digits and _')
+            scoped=scoped+1
+        else
+            assert(scope==nil,'only keybind rows carry a collision scope: '..block)
+        end
+    end
+    assert(keybinds>0 and scoped==keybinds)
+end
+print('PASS keybind rows share the controls collision scope')

@@ -67,10 +67,10 @@ assert(actions.global.map[1].name == 'Abilities' and #abilities == 4
     and abilities[1].id == 'AbilitySlot1' and abilities[1].params.action.type == 'ability')
 assert(actions.global.map[2].name == 'Consumables' and #consumables == 4
     and consumables[1].id == 'ConsumableSlot1' and consumables[1].params.action.type == 'consumable')
--- Quickslot Groups: Active Group holds the shared slots; Alternate Activation has the
+-- Groups: Active Group holds the shared slots; Alternate Activation has the
 -- swap key, then mirrors Default's Default wheel; Explicit Activation has a key per wheel.
 local grouped = actions.grouped
-assert(grouped.name == 'Quickslot Groups' and #grouped.map == 3)
+assert(grouped.name == 'Groups' and #grouped.map == 3)
 local slots = keys(grouped.map[1])
 assert(grouped.map[1].name == 'Active Group' and #slots == 4 and slots[1].params.action.type == 'selected')
 local activation = grouped.map[2]

@@ -30,3 +30,22 @@ assert(hooks.contract==1 and type(hooks.manifest)=='function'
     and type(hooks.load)=='function' and type(hooks.apply)=='function')
 assert(hooks.manifest({page=page.id,directory=page.configDirectory}):find('[Setting.MCC_Page]',1,true))
 print('PASS main publishes the Controls page before input startup')
+
+-- The page version is the release's VERSION, whether loaded relatively or by full path.
+local released=assert(io.open('VERSION','rb')):read('a'):match('^%s*(%S+)')
+package.loaded.mc_dmm=nil
+assert(require('mc_dmm').page.version==released,'page version must come from VERSION')
+local absolute=assert(io.popen('pwd')):read('l')..'/Scripts/mc_dmm.lua'
+assert(dofile(absolute).page.version==released,'page version must resolve from a full path')
+print('PASS the page version comes from VERSION')
+
+-- With the cache folder present, startup runs no shell command to create it.
+do
+    local execute,ran=os.execute,0
+    os.execute=function(...) ran=ran+1;return execute(...) end
+    assert(os.rename(root..'/cache',root..'/cache'),'the cache folder exists for this check')
+    assert(loadfile(root .. '/Scripts/main.lua'))()
+    os.execute=execute
+    assert(ran==0,'an existing cache folder must not be created again')
+end
+print('PASS startup creates the cache folder only when missing')

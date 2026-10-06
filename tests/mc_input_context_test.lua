@@ -109,3 +109,92 @@ assert(#base.Mappings==0 and #world.Mappings==2 and #combat.Mappings==2,
 context:detachAll()
 assert(#world.Mappings==1 and #combat.Mappings==0 and #base.Mappings==0)
 print('PASS Enhanced Input context configuration and lifecycle')
+
+-- A binding that cannot be configured, or a key that cannot be mapped, skips only
+-- itself; every other key still maps, and each failure is reported once.
+local warnings={}
+local resilient=require('mc_input_context').new(e,{
+    warn=function(...) warnings[#warnings+1]=table.concat({...}) end,
+    info=function()end,debug=function()end,trace=function()end,error=function()end})
+local fragile=game('/Game/IMC_OW.IMC_OW')
+local mapKey=fragile.MapKey
+function fragile:MapKey(action,key)
+    if key.KeyName=='Bad' then error('invalid key name') end
+    return mapKey(self,action,key)
+end
+local mixedPlan={contexts={'exploration'},bindings={
+    {id='good',keyName='One',mode=0},
+    {id='badKey',keyNames={'Bad','Two'},mode=0},
+    {id='badTrigger',keyName='Three',mode=99},
+}}
+actions=resilient:configure(mixedPlan)
+assert(actions.good and actions.badKey and actions.badTrigger==nil,'only the broken binding is left out')
+resilient:attach('exploration',nil,5,fragile)
+local keys={}
+for _,entry in ipairs(fragile.Mappings) do keys[#keys+1]=entry.Key.KeyName end
+table.sort(keys)
+assert(table.concat(keys,',')=='One,Two','a failing key must not stop the others: '..table.concat(keys,','))
+assert(resilient:attached('exploration',{AppliedInputContexts={[fragile]=5},IsValid=function()return true end}),
+    'skipped keys must not count as lost entries')
+assert(#warnings==2,'each failure is reported: '..#warnings)
+resilient:configure(mixedPlan)
+assert(#warnings==2,'an unchanged failure is reported only once')
+resilient:detachAll()
+assert(#fragile.Mappings==0)
+print('PASS a broken binding or key skips only itself')
+
+-- After a mod restart a new Lua state finds the previous state's MCC keys still mapped;
+-- it removes them instead of mapping each key a second time. Native keys stay.
+local shared=game('/Game/IMC_OW.IMC_OW')
+local native={Action=object('/Game/Input/IA_Native.IA_Native'),Key={KeyName='One'}}
+shared.Mappings[1]=native
+local restartPlan={contexts={'exploration'},bindings={{id='tap',keyName='One',mode=0},{id='old',keyName='K',mode=0}}}
+local previous=require('mc_input_context').new(e)
+previous:configure(restartPlan)
+previous:attach('exploration',nil,5,shared)
+assert(#shared.Mappings==3)
+-- The new state no longer binds K, and is never told about the previous state.
+local restarted=require('mc_input_context').new(e)
+restarted:configure({contexts={'exploration'},bindings={{id='tap',keyName='Two',mode=0}}})
+restarted:attach('exploration',nil,5,shared)
+local keys={}
+for _,entry in ipairs(shared.Mappings) do keys[#keys+1]=entry.Key.KeyName end
+assert(#shared.Mappings==2 and shared.Mappings[1]==native and keys[2]=='Two',
+    'stale MCC keys must be removed: '..table.concat(keys,','))
+restarted:detachAll()
+assert(#shared.Mappings==1 and shared.Mappings[1]==native,'detach leaves only native keys')
+print('PASS a new Lua state removes MCC keys left by the previous one')
+
+-- A key removed from a multi-key binding counts as detached, even though its
+-- action still has another key mapped.
+do
+    local checked=game('/Game/IMC_OW.IMC_OW')
+    local pairsContext=require('mc_input_context').new(e)
+    pairsContext:configure({contexts={'exploration'},bindings={{id='swap',keyNames={'LeftAlt','Q'},mode=3}}})
+    pairsContext:attach('exploration',nil,5,checked)
+    local applied={AppliedInputContexts={[checked]=5},IsValid=function()return true end}
+    assert(#checked.Mappings==2 and pairsContext:attached('exploration',applied))
+    table.remove(checked.Mappings,2)
+    assert(not pairsContext:attached('exploration',applied),'a lost key of a kept action is detected')
+    pairsContext:detachAll()
+end
+print('PASS attachment checks each action and key pair')
+
+-- A key name the engine does not know is skipped and reported, not mapped dead.
+do
+    local warned={}
+    local checkedKeys=require('mc_input_context').new(e,{
+        warn=function(...) warned[#warned+1]=table.concat({...}) end,
+        info=function()end,debug=function()end,trace=function()end,error=function()end})
+    e.validKey=function(name) if name=='Bogus' then return false end return true end
+    local target=game('/Game/IMC_OW.IMC_OW')
+    checkedKeys:configure({contexts={'exploration'},bindings={{id='good',keyName='J',mode=0},
+        {id='bad',keyName='Bogus',mode=0}}})
+    checkedKeys:attach('exploration',nil,5,target)
+    e.validKey=nil
+    assert(#target.Mappings==1 and target.Mappings[1].Key.KeyName=='J')
+    assert(#warned==1 and warned[1]:find('bad Bogus',1,true) and warned[1]:find('unknown key name',1,true),
+        tostring(warned[1]))
+    checkedKeys:detachAll()
+end
+print('PASS unknown key names are skipped and reported')

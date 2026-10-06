@@ -7,6 +7,13 @@ local M={}
 -- between open world and combat.
 M.native={exploration='IMC_OW',combat='IMC_RTCombat',base='IMC_Base'}
 local gameplay={'exploration','combat'}
+-- The generated Input Action name for a runtime binding id. mc_menu rejects
+-- declarations whose names would collide.
+function M.actionName(id)
+    return 'IA_MCC_' .. (id:gsub('[^%w]','_'))
+end
+-- Key names compare as the engine compares them: without regard to case.
+local function keyId(name) return string.lower(tostring(name)) end
 
 function M.new(e,log)
     log=require('mc_log').wrap(log)
@@ -14,9 +21,16 @@ function M.new(e,log)
     -- attached[logical]={context=<native IMC>,entries={{action,keyName},...}}
     local attached={}
     local plan,current
+    -- Bindings or keys that failed, keyed by binding id or 'id key'; each is
+    -- reported once, and again only when its reason changes.
+    local failed={}
+    local function report(id,why)
+        if failed[id]~=why then log.warn('skipping input ',id,': ',why) end
+        failed[id]=why
+    end
     local api={}
     local function action(binding)
-        local id='IA_MCC_' .. binding.id:gsub('[^%w]','_')
+        local id=M.actionName(binding.id)
         if not e.valid(actions[binding.id]) then
             actions[binding.id]=e.retain('InputAction',id)
             assert(e.valid(actions[binding.id]),'Input Action unavailable: ' .. id)
@@ -37,11 +51,30 @@ function M.new(e,log)
         elseif mode==0 then result.TapReleaseTimeThreshold=e.threshold or .2 end
         target.Triggers={result}
     end
+    -- MCC keys an earlier Lua state mapped into this context (before a mod restart or
+    -- hot reload) are still there under the same actions; remove them too.
+    local function purge(context)
+        local stale={}
+        e.each(context.Mappings or {},function(entry)
+            entry=e.unwrap(entry)
+            local action=entry and e.unwrap(entry.Action)
+            if e.valid(action) and (e.path(action) or ''):match('[%.:/]IA_MCC_[^%.:/]*$') then
+                local key=entry.Key
+                stale[#stale+1]={action,key and e.unwrap(key.KeyName)}
+            end
+        end)
+        local removed=0
+        for _,entry in ipairs(stale) do
+            if pcall(function() context:UnmapKey(entry[1],{KeyName=entry[2]}) end) then removed=removed+1 end
+        end
+        if removed>0 then log.info('removed ',removed,' stale MCC key mapping(s) from ',e.path(context)) end
+    end
     local function unmap(record)
         if e.valid(record.context) then
             for _,entry in ipairs(record.entries) do
                 record.context:UnmapKey(entry[1],{KeyName=e.name(entry[2])})
             end
+            purge(record.context)
         end
         record.entries={}
     end
@@ -64,14 +97,29 @@ function M.new(e,log)
         unmap(record)
         if not plan then return end
         for _,binding in ipairs(plan.bindings) do
-            if usable(binding,logical) then
-                local target=current[binding.id]
+            local target=current[binding.id]
+            if target and usable(binding,logical) then
                 -- An inherited binding carries every key the player bound to its
-                -- source action; a suppressed key is left to its claimant.
+                -- source action; a suppressed key is left to its claimant. A key
+                -- that cannot be mapped skips only itself.
                 for _,keyName in ipairs(binding.keyNames or {binding.keyName}) do
                     if not (binding.suppressed and binding.suppressed[keyName]) then
-                        record.context:MapKey(target,{KeyName=e.name(keyName)})
-                        record.entries[#record.entries+1]={target,keyName}
+                        local id=binding.id..' '..tostring(keyName)
+                        local ok,why=pcall(function()
+                            -- A name the engine does not know would map a dead key.
+                            if type(e.validKey)=='function' then
+                                local checked,known=pcall(e.validKey,keyName)
+                                if checked and known==false then error('unknown key name',0) end
+                            end
+                            record.context:MapKey(target,{KeyName=e.name(keyName)})
+                        end)
+                        if ok then
+                            record.entries[#record.entries+1]={target,keyName}
+                            if failed[id] then log.info('input key mapped: ',id) end
+                            failed[id]=nil
+                        else
+                            report(id,'key could not be mapped: '..tostring(why))
+                        end
                     end
                 end
             end
@@ -80,11 +128,22 @@ function M.new(e,log)
     function api:configure(nextPlan)
         plan=nextPlan
         current={}
+        -- A binding whose action or trigger cannot be built is left out; the
+        -- others still configure.
         for _,binding in ipairs(plan.bindings) do
-            local target=action(binding)
-            target.ValueType,target.bConsumeInput,target.bTriggerWhenPaused=0,binding.consume==true,false
-            trigger(target,binding.mode)
-            current[binding.id]=target
+            local ok,target=pcall(function()
+                local target=action(binding)
+                target.ValueType,target.bConsumeInput,target.bTriggerWhenPaused=0,binding.consume==true,false
+                trigger(target,binding.mode)
+                return target
+            end)
+            if ok then
+                current[binding.id]=target
+                if failed[binding.id] then log.info('input configured: ',binding.id) end
+                failed[binding.id]=nil
+            else
+                report(binding.id,target)
+            end
         end
         self.plan,self.actions=plan,current
         for logical in pairs(attached) do map(logical) end
@@ -116,14 +175,30 @@ function M.new(e,log)
             if e.valid(candidate) and e.path(candidate)==e.path(record.context) then applied=true end
         end)
         if not applied then return false end
-        local present={}
+        -- Each action and key pair must still be there. Where the engine's key names
+        -- cannot be read, the action alone is checked.
+        local present,pairsPresent,keysRead={},{},false
         e.each(record.context.Mappings or {},function(entry)
             entry=e.unwrap(entry)
             local target=entry and e.unwrap(entry.Action)
-            if e.valid(target) then present[e.path(target)]=true end
+            if e.valid(target) then
+                local path=e.path(target)
+                present[path]=true
+                local read,name=pcall(function()
+                    local value=e.unwrap(e.unwrap(entry.Key).KeyName)
+                    if type(value)=='string' then return value end
+                    return value:ToString()
+                end)
+                if read and name~=nil then
+                    keysRead=true
+                    pairsPresent[path..'\0'..keyId(name)]=true
+                end
+            end
         end)
         for _,entry in ipairs(record.entries) do
-            if not present[e.path(entry[1])] then return false end
+            local path=e.path(entry[1])
+            if not present[path] then return false end
+            if keysRead and not pairsPresent[path..'\0'..keyId(entry[2])] then return false end
         end
         return true
     end

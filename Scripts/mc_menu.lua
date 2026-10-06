@@ -51,6 +51,16 @@ function M.define(registry, mapRegistry)
     -- mirrors repeat a map setting on another page; they are never stored.
     local result = { sections = {}, settings = {}, byId = {}, mirrors = {} }
     local mapSettings = {}
+    -- Each runtime binding gets a generated Input Action named from its id. Ids that
+    -- differ only in punctuation would share one, so they are rejected here. The ids
+    -- follow mc_input_plan: '<map>.<binding>', and '<map>.swap.<edge>' for the swap.
+    local actionNames = { [require('mc_input_context').actionName('OverrideInactive')] = 'the override gate' }
+    local function reserve(id)
+        local name = require('mc_input_context').actionName(id)
+        assert(not actionNames[name], 'binding ' .. id .. ' and ' .. tostring(actionNames[name])
+            .. ' would share the Input Action ' .. name)
+        actionNames[name] = id
+    end
     local function setting(id, name, kind, default, values, labels)
         assert(not result.byId[id], 'duplicate setting: ' .. id)
         local item = { id=id, name=name, kind=kind, default=default, values=values, labels=labels }
@@ -270,6 +280,12 @@ function M.define(registry, mapRegistry)
                     end
                 end
             end
+            for _, group in ipairs(map.groups) do
+                for _, binding in ipairs(group.keys) do reserve(map.id .. '.' .. binding.id) end
+            end
+            if map.holdSwap then
+                for _, edge in ipairs({ 'press', 'release', 'toggle' }) do reserve(map.id .. '.swap.' .. edge) end
+            end
             map.declaration = nil
         end
     end
@@ -298,8 +314,11 @@ function M.keybind(setting, raw)
     local key,trigger=raw:match('^([^|]+)|(.+)$')
     key=(key or raw):match('^%s*(.-)%s*$')
     key=digits[key:lower()] or key
-    if not key:match('^%d$') and (not key:match('^%a[%w_]*$') or key=='None' or key=='Escape'
-        or key:find('^Gamepad_')) then return nil end
+    -- Letter keys are the engine's upper-case names; a hand-edited 'j' reads as 'J'.
+    if key:match('^%a$') then key=key:upper() end
+    local lower=key:lower()
+    if not key:match('^%d$') and (not key:match('^%a[%w_]*$') or lower=='none' or lower=='escape'
+        or lower:find('^gamepad_')) then return nil end
     local names=setting.labels
     if not trigger then return key .. '|' .. names[1] end
     trigger=trigger:match('^%s*(.-)%s*$'):lower()
@@ -333,10 +352,6 @@ function M.new(definition, values)
         assert(M.valid(assert(self.definition.byId[id], 'unknown setting: ' .. tostring(id)),value),
             'invalid setting value: ' .. tostring(id))
         self.values[id] = value
-    end
-    function self:dirty()
-        for id,value in pairs(self.values) do if self.saved[id]~=value then return true end end
-        return false
     end
     function self:apply(store)
         local committed,warning=store:save(self.values)

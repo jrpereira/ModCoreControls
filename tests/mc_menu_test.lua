@@ -43,12 +43,14 @@ local reopened=Menu.new(definition,Config.decode(encoded,definition))
 assert(reopened.values[setting.id]=='J|Hold')
 assert(Config.encode(encoded,definition,reopened.values)==encoded)
 -- Stored text is read leniently: a bare key takes the first declared trigger,
--- 'default' the declared binding, and an unreadable value falls back to it.
+-- 'default' the declared binding, and an unreadable value falls back to it. A letter
+-- key reads as the engine's upper-case name, and excluded keys match in any case.
 local swap=assert(definition.byId.MCC_actions_grouped_GroupFocus2,'Swap to <wheel> setting')
 assert(swap.labels[1]=='Hold' and Menu.keybind(swap,'LeftAlt')=='LeftAlt|Hold',
     'Swap to <wheel> lists Hold first, so a bare key defaults to Hold')
-for raw,expected in pairs({J='J|Tap',['j|hold']='j|Hold',default='none',['0']='none',['0|Hold']='0|Hold',
-    One='1|Tap',['Left Alt']='none',['F|Push']='none'}) do
+for raw,expected in pairs({J='J|Tap',['j|hold']='J|Hold',default='none',['0']='none',['0|Hold']='0|Hold',
+    One='1|Tap',['Left Alt']='none',['F|Push']='none',['escape|Tap']='none',
+    ['gamepad_FaceButton_Bottom']='none'}) do
     local read=Config.decode('[ModCoreControls.actions]\nglobal.AbilitySlot1='..raw..'\n',definition)
     assert(Menu.new(definition,read).values[setting.id]==expected,raw)
 end
@@ -122,3 +124,19 @@ file=assert(io.open(path,'ab')); file:write('; changed externally\n'); file:clos
 assert(not pcall(persisted.save,persisted,reopened.values),'must reject concurrent config changes')
 assert(os.remove(path))
 print('PASS MCC map selection and INI persistence')
+
+-- Bindings whose ids differ only in punctuation would share one generated Input
+-- Action, so the definition rejects them.
+do
+    local function key(id) return {id=id,name=id,type='keybind',params={trigger='Tap',
+        action={type='ability',slot=1},optional=true}} end
+    local function map(id,value,binding) return {id=id,name=id,value=value,contexts={'exploration'},
+        map={{name='Keys',settings={key(binding)}}}} end
+    local registry={order={'actions'},sections={}}
+    local maps={maps={actions={a=map('a',1,'b_c'),a_b=map('a_b',2,'c')}},order={actions={'a','a_b'}}}
+    local ok,why=pcall(Menu.define,registry,maps)
+    assert(not ok and tostring(why):find('would share the Input Action IA_MCC_a_b_c',1,true),tostring(why))
+    maps.maps.actions.a_b=map('a_b',2,'d')
+    assert(Menu.define(registry,maps),'distinct names are accepted')
+end
+print('PASS colliding generated Input Action names are rejected')

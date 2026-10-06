@@ -35,8 +35,12 @@ local published,publishWhy=pcall(function()
     else
         command="mkdir -p -- '" .. cache:gsub("'","'\\''") .. "'"
     end
-    local made=os.execute(command)
-    assert(made==true or made==0,'cannot create cache directory')
+    -- Renaming a folder onto itself succeeds only when it exists, so the shell runs
+    -- only on the first start.
+    if not os.rename(cache,cache) then
+        local made=os.execute(command)
+        assert(made==true or made==0,'cannot create cache directory')
+    end
     local page=require('mc_dmm').page
     local pages=require('menu_contributions').publisher(assert(rawget(_G,'ModRef'),'ModRef unavailable'),
         {id=page.id,directory=root .. '/cache'})

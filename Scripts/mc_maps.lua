@@ -36,7 +36,7 @@ M.addSectionMap('module', {
                 params={values={0,1},labels={'Off','On'}}},
             {id='HoldSwap',name='Hold to Swap, release to return',type='picker',default=1,
                 description='Applies to the Toggle Quickslots key. If you bind Swap to that same key'
-                    ..' in Quickslot Groups, the Swap key\'s own Tap or Hold is used instead.',
+                    ..' in Groups, the Swap key\'s own Tap or Hold is used instead.',
                 params={values={0,1},labels={'Off','On'}}},
             {id='DefaultWheel',name='Default wheel',type='picker',default=2,
                 params={values={1,2},labels={'Abilities','Consumables'}}},
@@ -67,7 +67,7 @@ end
 
 M.addSectionMap('actions', {
         id = 'grouped',
-        name = 'Quickslot Groups',
+        name = 'Groups',
         value = 1,
         contexts= {'exploration', 'combat'},
         -- The grouped slot keys fire the focused wheel. Alternate Activation swaps

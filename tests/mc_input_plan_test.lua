@@ -8,7 +8,7 @@ local defaultMap,groupedMap,globalMap=module.maps[1],actions.maps[1],actions.map
 assert(module.id=='module' and #module.maps==1 and defaultMap.id=='default',
     'Default belongs to the Module section')
 assert(actions.id=='actions' and groupedMap.id=='grouped' and globalMap.id=='global'
-    and #actions.maps==2,'Actions has Quickslot Groups and Global')
+    and #actions.maps==2,'Actions has Groups and Global')
 -- The map picker only navigates: it is not a stored setting or a plan input.
 assert(actions.selector.navigation and not definition.byId[actions.selector.id])
 
@@ -67,7 +67,7 @@ model:set(defaultMap.holdSwap.defaultWheel.id,2)
 
 -- Grouped and Global bindings are active together with Default's swap.
 local activeGroup,activation,explicit=groupedMap.groups[1],groupedMap.groups[2],groupedMap.groups[3]
-assert(groupedMap.name=='Quickslot Groups' and activeGroup.name=='Active Group'
+assert(groupedMap.name=='Groups' and activeGroup.name=='Active Group'
     and activation.name=='Alternate Activation' and explicit.name=='Explicit Activation')
 local sharedOne=activeGroup.keys[1]
 local secondary=activation.keys[1]
@@ -172,3 +172,16 @@ local pressed=find(Plan.build(definition,model.values),'grouped.GroupFocus2')
 assert(pressed.mode==3 and #pressed.phases==1,'the swap key set to Tap uses a Pressed trigger')
 model:set(secondary.setting.id,'J|Hold')
 print('PASS map-driven Enhanced Input plan')
+
+-- Key names compare without regard to case, as the engine compares them, so a
+-- hand-edited 'leftalt' still counts as the same key as 'LeftAlt'.
+do
+    local cased=Menu.new(definition,{})
+    cased:set('MCC_actions_global_AbilitySlot1','LeftAlt|Tap')
+    cased:set('MCC_actions_global_AbilitySlot2','leftalt|Tap')
+    local ok,why=pcall(Plan.build,definition,cased.values)
+    assert(not ok and tostring(why):find('is bound to both',1,true),'a case-only difference is the same key')
+    local kept=Plan.build(definition,cased.values,{lenient=true})
+    assert(find(kept,'global.AbilitySlot1') and not find(kept,'global.AbilitySlot2') and #kept.skipped==1)
+end
+print('PASS key names compare without regard to case')

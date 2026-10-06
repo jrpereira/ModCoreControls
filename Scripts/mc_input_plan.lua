@@ -149,7 +149,8 @@ function M.build(definition,values,options)
                     if name then
                         local label=setting.name:gsub('{wheel}',(wheelLabel(definition,resolved.group or 0):gsub('%%','%%%%')))
                         local key,trigger=value:match('^([^|]+)|(.+)$')
-                        local identity=name .. '|' .. trigger
+                        -- Key names compare without regard to case, as the engine does.
+                        local identity=name:lower() .. '|' .. trigger
                         if used[identity] then
                             duplicate='Key ' .. key .. ' (' .. trigger .. ')'
                                 .. ' is bound to both "' .. used[identity] .. '" and "' .. label

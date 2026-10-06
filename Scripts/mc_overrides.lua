@@ -24,6 +24,10 @@ function M.new(e)
         if inactive then assert(e.valid(inactive),'override chord action unavailable') end
         local changes,snapshots,chords={},{},{}
         local candidates=targets or e.actions()
+        -- An owned action that no longer exists took its chord with it.
+        for path,action in pairs(ownedActions) do
+            if not e.valid(action) then ownedActions[path]=nil end
+        end
         local previousOwned={}
         for path,action in pairs(ownedActions) do previousOwned[path]=action end
         local ok,why=pcall(function()
@@ -31,32 +35,32 @@ function M.new(e)
                 if e.valid(action) then
                     local actionPath=e.path(action)
                     if wanted[actionPath] or ownedActions[actionPath] or targets then
-                    local before,after,gate=triggers(action),{},nil
-                    local changed=false
-                    snapshots[action]=before
-                    for _,trigger in ipairs(before) do
-                        if owned(action,trigger) then
-                            if wanted[actionPath] and not gate then
-                                gate=trigger;after[#after+1]=trigger
-                            else changed=true end
-                        else after[#after+1]=trigger end
-                    end
-                    if wanted[actionPath] then
-                        local retained=e.construct(action,marker)
-                        assert(e.valid(retained),'override chord construction failed: ' .. actionPath)
-                        if gate then
-                            assert(e.same(gate,retained),'override chord identity changed: ' .. actionPath)
-                        else
-                            gate=retained;after[#after+1]=gate;changed=true
+                        local before,after,gate=triggers(action),{},nil
+                        local changed=false
+                        snapshots[action]=before
+                        for _,trigger in ipairs(before) do
+                            if owned(action,trigger) then
+                                if wanted[actionPath] and not gate then
+                                    gate=trigger;after[#after+1]=trigger
+                                else changed=true end
+                            else after[#after+1]=trigger end
                         end
-                        local previous=e.chord(gate)
-                        if not e.same(previous,inactive) then
-                            chords[gate]=previous;e.setChord(gate,inactive);changed=true
+                        if wanted[actionPath] then
+                            local retained=e.construct(action,marker)
+                            assert(e.valid(retained),'override chord construction failed: ' .. actionPath)
+                            if gate then
+                                assert(e.same(gate,retained),'override chord identity changed: ' .. actionPath)
+                            else
+                                gate=retained;after[#after+1]=gate;changed=true
+                            end
+                            local previous=e.chord(gate)
+                            if not e.same(previous,inactive) then
+                                chords[gate]=previous;e.setChord(gate,inactive);changed=true
+                            end
                         end
-                    end
-                    if changed then e.setTriggers(action,after);changes[#changes+1]=action end
-                    if wanted[actionPath] then ownedActions[actionPath]=action
-                    elseif ownedActions[actionPath] then ownedActions[actionPath]=nil end
+                        if changed then e.setTriggers(action,after);changes[#changes+1]=action end
+                        if wanted[actionPath] then ownedActions[actionPath]=action
+                        elseif ownedActions[actionPath] then ownedActions[actionPath]=nil end
                     end
                 end
             end

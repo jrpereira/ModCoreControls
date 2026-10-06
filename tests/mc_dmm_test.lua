@@ -12,6 +12,8 @@ local path,settings=os.getenv('DMM_CHOICES_PATH'),os.getenv('MCS_SCRIPTS_PATH')
 if not path or not settings then
     print('SKIP DMM integration: set DMM_CHOICES_PATH and MCS_SCRIPTS_PATH');return
 end
+-- ModCoreSettings' files require their siblings; MCC's own modules still win.
+package.path=package.path..';'..settings..'/?.lua'
 local choices=dofile(path)
 -- The same wrappers, in the same order, as ModCoreSettings' DMM extension.
 local fieldTypes=dofile(settings .. '/field_types.lua').new()
@@ -53,13 +55,18 @@ assert(page==1,'Page must be the first DMM control')
 assert(items[page].mcNavigation and items[page].mcHeader and items[page].mcFont==nil,
     'Page must be transient navigation presented as a heading')
 same(items[page].labels,{'Options','Visuals','Key & Mouse','Controller'},'page picker labels')
-local nav=assert(indices.MCC_Section)
-assert(items[nav].mcNavigation,'Section is navigation')
+-- Only sections with maps get a page; with a single one there is no Section picker.
 local keyed={}
 for _,section in ipairs(definition.sections) do
-    if section.id~='module' then keyed[#keyed+1]=section.name end
+    if section.id~='module' and #section.maps>0 then keyed[#keyed+1]=section.name end
 end
-same(items[nav].labels,keyed,'section picker labels')
+local nav=indices.MCC_Section
+if #keyed>1 then
+    assert(nav and items[nav].mcNavigation,'Section is navigation')
+    same(items[nav].labels,keyed,'section picker labels')
+else
+    assert(nav==nil,'a single keyed section needs no Section picker')
+end
 local editable=0
 for _,setting in ipairs(definition.settings) do
     if setting.kind=='keybind' or #setting.values>1 then
@@ -83,9 +90,9 @@ for _,setting in ipairs(definition.settings) do
         assert(not indices[setting.id],'fixed trigger should not create a picker: ' .. setting.id)
     end
 end
--- Extra rows: Page, Section, Control Map, the Default Group mirror, Visuals'
--- placeholder, and Controller's unavailable and note rows.
-assert(#items==editable+7,'DMM row count does not match editable MCC settings')
+-- Extra rows: Page, Section (with several keyed sections), Control Map, the Default
+-- Group mirror, Visuals' placeholder, and Controller's unavailable and note rows.
+assert(#items==editable+6+(nav and 1 or 0),'DMM row count does not match editable MCC settings')
 for _,id in ipairs({'MCC_Visuals_Pending','MCC_Pad_Unavailable','MCC_Pad_Note'}) do
     local item=items[assert(indices[id],id)]
     assert(item.mcReadOnly and #item.values==1,'read-only display row: ' .. id)
@@ -105,17 +112,20 @@ local wheel=indices.MCC_module_default_DefaultWheel
 local slot=indices.MCC_actions_global_AbilitySlot1
 local function shown(i) return model:visibility()[i] end
 -- Options shows the Module section only.
-assert(shown(wheel) and not shown(nav) and not shown(map) and not shown(slot))
+assert(shown(wheel) and not shown(map) and not shown(slot))
 model:set(page,1)
-assert(shown(indices.MCC_Visuals_Pending) and not shown(wheel) and not shown(nav))
+assert(shown(indices.MCC_Visuals_Pending) and not shown(wheel) and not shown(map))
 model:set(page,3)
 assert(shown(indices.MCC_Pad_Note) and not shown(indices.MCC_Visuals_Pending))
--- Key & Mouse nests Section, then Control Map, then the map's keys.
+-- Key & Mouse shows the Control Map, then the map's keys; empty placeholder
+-- sections such as Movement and System add no page.
 model:set(page,2)
-assert(shown(nav) and shown(map) and not shown(wheel) and not model:dirty())
-model:set(nav,1)
-assert(not shown(map) and not shown(slot),'Movement hides Actions')
-model:set(nav,0); model:set(map,2)
+assert(shown(map) and not shown(wheel) and not model:dirty())
+for _,item in ipairs(items) do
+    assert(not tostring(item.label):find('Movement',1,true) and not tostring(item.label):find('System',1,true),
+        'placeholder sections must not appear: '..tostring(item.label))
+end
+model:set(map,2)
 assert(shown(slot))
 model:set(slot,'J|Hold')
 local ok,why,event=model:apply(); assert(ok,why)
@@ -144,5 +154,61 @@ assert(schema:find('[Setting.MCC_Pad_Gamepad_DPad_Left]',1,true)
     and schema:find('PresetLabels=Quickslot Left, Map Zoom|Quickslot Left, Map Zoom',1,true)
     and schema:find('PresetLabels=Unassigned|Unassigned',1,true)
     and not schema:find('MCC_Pad_Unavailable',1,true))
+-- Through ModCoreSettings' conflict scope, the same key and trigger on two rows is
+-- marked while editing; on different Control Map pages the map picker is marked too.
+if type(fieldTypes.conflicts)=='function' then
+    local quickslot=assert(indices.MCC_actions_grouped_QuickSlot1)
+    local otherSlot=assert(indices.MCC_actions_global_AbilitySlot2)
+    assert(items[slot].conflictScope=='controls','the real parser reads the controls scope')
+    local rows,pickers=fieldTypes.conflicts(model)
+    assert(next(rows)==nil and next(pickers)==nil,'saved controls start without collisions')
+    -- Different maps: both rows and the Control Map picker.
+    model:set(quickslot,'J|Hold')
+    rows,pickers=fieldTypes.conflicts(model)
+    assert(rows[quickslot] and rows[slot] and pickers[map],'a cross-map pair marks both rows and the map picker')
+    assert(not pickers[page],'the Page picker does not separate the pair')
+    -- Another trigger is a different binding.
+    model:set(quickslot,'J|Tap')
+    rows,pickers=fieldTypes.conflicts(model)
+    assert(next(rows)==nil and next(pickers)==nil,'Tap and Hold on one key do not collide')
+    -- Same map: the rows only.
+    model:set(quickslot,'none');model:set(otherSlot,'J|Hold')
+    rows,pickers=fieldTypes.conflicts(model)
+    assert(rows[otherSlot] and rows[slot] and not pickers[map],'a same-map pair marks only the rows')
+    model:set(otherSlot,'none')
+    rows=fieldTypes.conflicts(model)
+    assert(next(rows)==nil,'clearing the key clears the collision')
+    print('PASS ModCoreSettings marks colliding Controls keys and their map picker')
+else
+    print('SKIP collision marking: this ModCoreSettings has no conflict scopes')
+end
 assert(os.remove(temp .. '/config.ini')); assert(os.execute('rmdir ' .. string.format('%q',temp)))
 print('PASS DMM matches MCC definitions, storage, and page navigation')
+
+-- Once a second section has maps, the Section picker returns and gates each section.
+do
+    local extended={}
+    for key,value in pairs(definition) do extended[key]=value end
+    extended.sections={}
+    local actions
+    for _,section in ipairs(definition.sections) do
+        if section.id=='actions' then actions=section end
+    end
+    for _,section in ipairs(definition.sections) do
+        if section.id=='movement' then
+            local copy={}
+            for key,value in pairs(actions) do copy[key]=value end
+            copy.id,copy.name='movement','Movement'
+            copy.selector={id='MCC_movement_Map',name='Control Map',values=actions.selector.values,
+                labels=actions.selector.labels,default=actions.selector.default}
+            section=copy
+        end
+        extended.sections[#extended.sections+1]=section
+    end
+    local text=DMM.schema(extended)
+    local picker=assert(text:match('%[Setting%.MCC_Section%][^%[]*'),'Section picker returns')
+    assert(picker:find('PresetLabels=Actions|Movement',1,true),picker)
+    assert(text:match('%[Setting%.MCC_movement_Map%][^%[]*VisibleWhen=MCC_Section'),
+        'each section is gated by the Section picker')
+end
+print('PASS the Section picker lists only sections with maps')

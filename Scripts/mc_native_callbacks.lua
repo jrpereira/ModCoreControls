@@ -23,9 +23,11 @@ function M.new(bridge,fullName)
         if not opened then return false,target end
         if not target then return false,why end
         active=target
+        -- A binding left unconfigured (already reported by the context) has no
+        -- action to subscribe; the others still bind.
         for _,binding in ipairs(plan.bindings) do
-            local action=assert(actions[binding.id],'input action missing: ' .. tostring(binding.id))
-            for _,phase in ipairs(binding.phases) do
+            local action=actions[binding.id]
+            for _,phase in ipairs(action and binding.phases or {}) do
                 local bound,handle,bindWhy=pcall(bridge.BindAction,target,actionPath(action),phase,function(event)
                     callback(binding,phase,event)
                 end)
