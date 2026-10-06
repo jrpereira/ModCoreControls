@@ -92,7 +92,8 @@ for _,id in ipairs({'MCC_Visuals_Pending','MCC_Pad_Unavailable','MCC_Pad_Note'})
 end
 local slotRow=DMM.schema(definition):match('%[Setting%.MCC_Visuals_Pending%][^%[]*')
 assert(slotRow and slotRow:find('mcSlot=visuals',1,true) and slotRow:find('mcSlotLabel=1',1,true)
-    and slotRow:find('Label=Quickslots Visuals',1,true) and slotRow:find('mcLevel=2',1,true),
+    and slotRow:find('Label=Quickslots Visuals',1,true) and slotRow:find('mcCategory=1',1,true)
+    and not slotRow:find('mcLevel',1,true),
     'the Visuals placeholder is the labelled ModCoreSettings row slot')
 assert(DMM.schema(definition):match('%[Category%.Visuals%][^%[]*mcHeading=0'),
     'the template picker row replaces the Visuals heading')
@@ -126,7 +127,7 @@ assert(saved:find('[ModCoreControls.module]',1,true))
 local conflict=indices.MCC_actions_global_AbilitySlot2
 model:set(conflict,'J|Hold')
 local accepted,reason,failedEvent=model:apply()
-assert(not accepted and reason:find('MCC_actions_global_AbilitySlot2',1,true))
+assert(not accepted and reason:find('Key J (Hold) is bound to both "Ability Slot 1" and "Ability Slot 2"',1,true),reason)
 assert(failedEvent==nil and model.pending[conflict]=='J|Hold' and model.committed[conflict]=='none')
 file=assert(io.open(temp .. '/config.ini','rb'))
 assert(file:read('*a')==saved,'invalid Apply changed persisted config')

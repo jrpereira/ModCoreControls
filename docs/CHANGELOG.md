@@ -2,6 +2,14 @@
 
 ## v1.0.1
 
+- The Visuals page's "Quickslots Visuals" template picker shows at Category
+  heading size, with the quickslot settings indented beneath it (`mcCategory=1`
+  on the slot row; requires the matching ModCoreSettings).
+- A key and trigger bind one setting. Apply rejects the same key with the same
+  trigger on two rows, with a message naming the key, its trigger and both rows, so
+  it is fixed before saving; the same key with another trigger is a separate
+  binding. A saved config that already has such a pair keeps the first binding at
+  startup and logs a warning for the skipped one.
 - A UTF-8 byte order mark at the start of `config.ini` no longer hides the first
   section's saved controls; saving drops it.
 - A native Input Action is looked up once and reused while it stays valid, instead

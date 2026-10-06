@@ -89,8 +89,25 @@ function M.validateOverride(declaration)
     return true
 end
 
-function M.build(definition,values)
-    local plan={maps={},contexts={},bindings={},displays={},overrides={},
+-- The name a player sees for a wheel group (1 or 2), from the Default wheel setting.
+local function wheelLabel(definition,group)
+    for _,map in ipairs(runtimeMaps(definition)) do
+        local wheel=map.holdSwap and map.holdSwap.defaultWheel
+        if wheel then
+            for index,value in ipairs(wheel.values) do
+                if value==group then return wheel.labels[index] end
+            end
+        end
+    end
+    return 'wheel ' .. tostring(group)
+end
+
+-- options.lenient: a key and trigger bound twice keep their first binding and the
+-- later one is skipped and listed in plan.skipped, so saved controls still start.
+-- Without it, as at Apply, the pair bound twice is an error naming both rows.
+function M.build(definition,values,options)
+    local lenient=options and options.lenient
+    local plan={maps={},contexts={},bindings={},displays={},overrides={},skipped={},
         defaultGroup=defaultWheel(definition,values)}
     local contexts,used={},{}
     for _,map in ipairs(runtimeMaps(definition)) do
@@ -124,13 +141,24 @@ function M.build(definition,values)
                     action({id=binding.id,action=resolved,sustained=binding.sustained})
                     -- An override=true key on its default control leaves that
                     -- key to the native action and adds no binding of its own.
-                    if name or (binding.defaultControl and binding.override~=true) then
-                        -- The same key and trigger in two maps is rejected at Apply.
-                        if name then
-                            local identity=name .. ':' .. mode
-                            assert(not used[identity],'duplicate binding: ' .. tostring(used[identity]) .. ' and ' .. setting.id)
-                            used[identity]=setting.id
-                        end
+                    -- One key and trigger bind one setting: the same pair on two rows is
+                    -- rejected at Apply, naming both, and skipped at startup. The same key
+                    -- with another trigger is a different binding. Triggers compare as the
+                    -- player chose them: a sustained Hold is still Hold.
+                    local duplicate
+                    if name then
+                        local label=setting.name:gsub('{wheel}',(wheelLabel(definition,resolved.group or 0):gsub('%%','%%%%')))
+                        local key,trigger=value:match('^([^|]+)|(.+)$')
+                        local identity=name .. '|' .. trigger
+                        if used[identity] then
+                            duplicate='Key ' .. key .. ' (' .. trigger .. ')'
+                                .. ' is bound to both "' .. used[identity] .. '" and "' .. label
+                                .. '". Choose another key or trigger for one of them.'
+                            if not lenient then error(duplicate,0) end
+                            plan.skipped[#plan.skipped+1]=duplicate
+                        else used[identity]=label end
+                    end
+                    if not duplicate and (name or (binding.defaultControl and binding.override~=true)) then
                         local override=binding.override
                         if override==true then override=name and binding.defaultControl or nil end
                         -- The swap key set to Tap acts on press (Pressed trigger), so its focus

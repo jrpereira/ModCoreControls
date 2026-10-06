@@ -39,7 +39,8 @@ assert(committed.MCC_actions_Map==nil,'the map picker is navigation, not a store
 local first,second='MCC_actions_grouped_QuickSlot1','MCC_actions_global_AbilitySlot2'
 assert(committed[first]=='none' and committed[second]=='none','keybinds load as text')
 local ok,why=apply({[first]='1|Tap',[second]='1|Tap'})
-assert(not ok and tostring(why):find(second,1,true))
+assert(not ok and tostring(why):find('Key 1 (Tap) is bound to both "Quickslot 1" and "Ability Slot 2"',1,true),
+    'the same key and trigger on two rows is rejected, naming both rows')
 assert(config()==nil,'rejected Apply published a config')
 ok,why=apply({[second]=3})
 assert(not ok and tostring(why):find(second,1,true),'a key code is rejected by id')

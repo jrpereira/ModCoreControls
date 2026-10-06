@@ -75,11 +75,12 @@ function M.schema(definition,gamepad)
     -- Visuals hosts ModCore Templates' quickslot Template picker. The placeholder
     -- is ModCoreSettings' row slot controls:visuals: contributed rows take its
     -- place and gating, and it shows only while nothing is contributed. With
-    -- mcSlotLabel the first contributed row takes this label and level, so the
-    -- template picker is the page's "Quickslots Visuals" heading row.
+    -- mcSlotLabel the first contributed row takes this label and mcCategory, so the
+    -- template picker is the page's "Quickslots Visuals" heading row, with the
+    -- other contributed rows indented beneath it.
     block(lines,'Category.Visuals',{mcHeading=0,VisibleWhen='MCC_Page',VisibleValues=page.visuals})
     display('MCC_Visuals_Pending','Visuals','Quickslots Visuals','Coming from ModCore Templates',
-        {mcSlot='visuals',mcSlotLabel=1,mcLevel=2})
+        {mcSlot='visuals',mcSlotLabel=1,mcCategory=1})
     block(lines,'Category.Controller',{VisibleWhen='MCC_Page',VisibleValues=page.controller})
     if gamepad then
         for _,button in ipairs(gamepad) do

@@ -58,7 +58,10 @@ local ok,err=pcall(function()
                 local store=require('mc_config').open(root .. '/config.ini',definition)
                 if store.recoveryError then log.warn('config unavailable; using defaults: ',store.recoveryError) end
                 local model=require('mc_menu').new(definition,store.values)
-                return require('mc_input_plan').build(definition,model.values)
+                -- A key saved twice keeps its first binding until the player fixes it.
+                local plan=require('mc_input_plan').build(definition,model.values,{lenient=true})
+                for _,why in ipairs(plan.skipped) do log.warn('binding skipped: ',why) end
+                return plan
             end)
             if built then return result end
             log.warn('saved controls unusable; using defaults: ',result)

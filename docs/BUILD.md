@@ -1,45 +1,34 @@
 # Build guide
 
-ModCore Controls uses Lua 5.4 and has no native compilation step or generated
-files. `main.lua` publishes the Controls page to ModCoreSettings at startup, and
-ModCoreSettings builds its settings from `Scripts/mcs_page.lua` each time the
-menu opens. `Scripts/menu_contributions.lua` is vendored unchanged from
-ModCoreSettings (client version 3).
+## Requirements
+
+Use Lua 5.4. MCC is Lua-only; no compilation is needed. Run commands from this
+repository's root. Live integration requires the dependencies in the [README](README.md).
 
 ## Offline tests
 
-Run the focused suites from the repository root:
+Run every Lua suite from Bash:
 
 ```sh
-lua5.4 tests/mc_structures_test.lua
-lua5.4 tests/mc_menu_test.lua
-lua5.4 tests/main_test.lua
-lua5.4 tests/mc_page_publish_test.lua
-lua5.4 tests/mc_dmm_validation_test.lua
-lua5.4 tests/mc_input_plan_test.lua
-lua5.4 tests/mc_native_callbacks_test.lua
-lua5.4 tests/mc_overrides_test.lua
-lua5.4 tests/mc_override_default_test.lua
-lua5.4 tests/mc_input_context_test.lua
-lua5.4 tests/mc_events_test.lua
-lua5.4 tests/mc_quickslots_test.lua
-lua5.4 tests/mc_input_host_test.lua
-lua5.4 tests/mc_key_indicators_test.lua
-lua5.4 tests/startup_failure_test.lua
+for test in tests/*_test.lua; do
+    lua5.4 "$test" || exit 1
+done
 ```
 
-The DMM integration test uses the current DMM parser and ModCoreSettings'
-navigation, presentation, configuration and page hooks wrappers:
+The DMM integration suite skips unless both paths are supplied. To include it,
+set these variables before running the same loop:
 
 ```sh
-DMM_CHOICES_PATH=/path/to/DawnwalkerModMenu/Scripts/choices.lua \
-MCS_SCRIPTS_PATH=/path/to/ModCoreSettings/Scripts \
-lua5.4 tests/mc_dmm_test.lua
+export DMM_CHOICES_PATH="/path/to/DawnwalkerModMenu/Scripts/choices.lua"
+export MCS_SCRIPTS_PATH="/path/to/ModCoreSettings/Scripts"
 ```
 
-Native timing, object lifetimes, and frame-time impact require a game session.
+A focused declaration check is `lua5.4 tests/mc_menu_test.lua`; input validation
+is covered by `lua5.4 tests/mc_input_plan_test.lua`.
 
-Validate section navigation, map visibility, key capture, Apply, and Restore in
-the menu after installing. In game, also validate startup attachment, Apply
-replacement, controller/map transitions, Tap and Hold delivery, cancellation,
-and explicit deactivation.
+## In-game checks
+
+Restart after changing Lua. Check section/map navigation, key capture, Apply and
+Restore. Then check exploration/combat transitions, Tap/Hold, cancellation,
+HUD indicators and native controls after clearing custom bindings.
+Offline fixtures do not establish native timing, object lifetime or frame cost.

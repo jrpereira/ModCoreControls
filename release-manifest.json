@@ -28,6 +28,7 @@
     "README.md": "docs/README.md",
     "CHANGELOG.md": "docs/CHANGELOG.md",
     "BUILD.md": "docs/BUILD.md",
-    "DEVELOPERS.md": "docs/DEVELOPERS.md"
+    "DEVELOPERS.md": "docs/DEVELOPERS.md",
+    "RUNTIME.md": "docs/RUNTIME.md"
   }
 }

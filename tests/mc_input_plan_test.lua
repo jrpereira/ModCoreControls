@@ -106,14 +106,33 @@ model:set(secondary.setting.id,'none')
 assert(not find(Plan.build(definition,model.values),'grouped.GroupFocus2'),
     'Group 2 back on its default control adds no binding')
 
--- The same key and trigger in two maps is rejected and names both rows.
+-- One key and trigger bind one setting: the same pair on two rows is rejected, naming
+-- the key, its trigger and both rows as the player sees them.
 model:set(fixedOne.setting.id,'1|Tap')
 local duplicateOk,duplicateError=pcall(Plan.build,definition,model.values)
-assert(not duplicateOk and duplicateError:find(fixedOne.setting.id,1,true)
-    and duplicateError:find(sharedOne.setting.id,1,true),
-    'duplicate error must identify both conflicting rows')
+assert(not duplicateOk and duplicateError=='Key 1 (Tap) is bound to both "Quickslot 1" and "Ability Slot 1".'
+    ..' Choose another key or trigger for one of them.',duplicateError)
+-- At startup the first binding is kept and the later one is skipped and reported.
+local lenient=Plan.build(definition,model.values,{lenient=true})
+assert(find(lenient,'grouped.QuickSlot1') and not find(lenient,'global.AbilitySlot1')
+    and #lenient.skipped==1 and lenient.skipped[1]:find('Key 1 (Tap) is bound to both',1,true))
+-- The same key with another trigger is a different binding; both attach.
 model:set(fixedOne.setting.id,'1|Hold')
-assert(Plan.build(definition,model.values),'the same key with another trigger is a different binding')
+local both=Plan.build(definition,model.values)
+assert(find(both,'grouped.QuickSlot1') and find(both,'global.AbilitySlot1') and #both.skipped==0,
+    'the same key with another trigger is a different binding')
+-- The swap key is named after the wheel it shows. Its Tap acts on press, but it
+-- still clashes with another Tap on the same key.
+model:set(secondary.setting.id,'J|Hold')
+model:set(fixedOne.setting.id,'J|Hold')
+local swapClash,swapWhy=pcall(Plan.build,definition,model.values)
+assert(not swapClash and swapWhy:find('"Swap to Abilities" and "Ability Slot 1"',1,true),swapWhy)
+model:set(secondary.setting.id,'J|Tap')
+model:set(fixedOne.setting.id,'J|Tap')
+assert(not pcall(Plan.build,definition,model.values),'swap Tap and slot Tap on one key clash')
+model:set(fixedOne.setting.id,'J|Hold')
+assert(Plan.build(definition,model.values),'swap Tap and slot Hold on one key coexist')
+model:set(secondary.setting.id,'none')
 model:set(fixedOne.setting.id,'2|Tap')
 local second=globalMap.groups[1].keys[2]
 model:set(second.setting.id,'2|Tap')
