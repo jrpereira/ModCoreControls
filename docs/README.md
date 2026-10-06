@@ -77,7 +77,7 @@ Logs appear in `UE4SS.log`. The default level is WARN. For more detail, put
 
 ## Documentation
 
-- [Nexus description](https://github.com/jrpereira/ModCoreControls/blob/main/docs/NEXUS.md): condensed, paste-ready module description in BBCode.
+- [Nexus description](https://github.com/jrpereira/ModCoreControls/blob/main/docs/NEXUS.bb): condensed, paste-ready module description in BBCode.
 - [Developer guide](DEVELOPERS.md): add a map and understand its settings.
 - [Runtime reference](RUNTIME.md): native input, overrides and events.
 - [Build guide](BUILD.md): offline tests and in-game checks.
