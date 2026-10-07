@@ -1,4 +1,4 @@
-package.path='Scripts/?.lua;'..package.path
+package.path='Scripts/?.lua;Scripts/vendor/?.lua;'..package.path
 local Gamepad=require('mc_gamepad')
 
 local function text(value) return {ToString=function() return value end} end

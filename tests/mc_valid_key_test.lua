@@ -1,6 +1,6 @@
 -- The default environment's key check, against a stubbed engine library: it answers
 -- only once it accepts a key that always exists, so a misbehaving check skips nothing.
-package.path='Scripts/?.lua;'..package.path
+package.path='Scripts/?.lua;Scripts/vendor/?.lua;'..package.path
 local answers
 local library={IsValid=function() return true end,
     Key_IsValid=function(_,key) return answers[key.KeyName] end}

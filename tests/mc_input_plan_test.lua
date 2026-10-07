@@ -1,4 +1,4 @@
-package.path='Scripts/?.lua;'..package.path
+package.path='Scripts/?.lua;Scripts/vendor/?.lua;'..package.path
 local Menu=require('mc_menu')
 local definition=Menu.define(require('mc_sections'),require('mc_maps'))
 local model=Menu.new(definition,{})

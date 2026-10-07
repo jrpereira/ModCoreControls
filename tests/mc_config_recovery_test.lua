@@ -1,4 +1,4 @@
-package.path='Scripts/?.lua;' .. package.path
+package.path='Scripts/?.lua;Scripts/vendor/?.lua;' .. package.path
 -- os.tmpname always uses /tmp; honour TMPDIR so the suite runs in sandboxes too.
 local function tmpname()
     local dir=os.getenv('TMPDIR')

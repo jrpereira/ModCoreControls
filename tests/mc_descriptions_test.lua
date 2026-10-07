@@ -1,4 +1,4 @@
-package.path='Scripts/?.lua;'..package.path
+package.path='Scripts/?.lua;Scripts/vendor/?.lua;'..package.path
 -- Declared descriptions pass through to DMM: settings and keys as the row's
 -- Description, groups and sections as help text under a heading.
 for _,name in ipairs({'mc_maps','mc_sections','mc_menu'}) do package.loaded[name]=nil end
@@ -25,6 +25,13 @@ assert(not section('Category.actions.global.2'):find('mcHelp',1,true))
 assert(section('Setting.MCC_actions_grouped_DefaultGroup')
     :find('Description=The wheel shown at rest; Abilities | Consumables.\n',1,true))
 assert(section('Setting.MCC_actions_grouped_GroupFocus2'):find('Description=Tap swaps',1,true))
+-- Group activation keys show Tap as Toggle; the stored trigger names stay Hold and Tap.
+for _,id in ipairs({'GroupFocus2','ActivateAbilities','ActivateConsumables'}) do
+    local row=section('Setting.MCC_actions_grouped_'..id)
+    assert(row:find('\nTriggers=Hold|Tap\n',1,true) and row:find('\nTriggerLabels=Hold|Toggle\n',1,true),id)
+end
+assert(not section('Setting.MCC_actions_global_AbilitySlot1'):find('TriggerLabels',1,true),
+    'slot keys keep Tap')
 -- Empty descriptions add nothing; line breaks, control characters and over-long text,
 -- which DMM cannot read, are rejected.
 assert(not section('Category.module.default.settings'):find('mcHelp',1,true))

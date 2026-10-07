@@ -1,4 +1,4 @@
-package.path='Scripts/?.lua;'..package.path
+package.path='Scripts/?.lua;Scripts/vendor/?.lua;'..package.path
 dofile('tests/support/lifetimes.lua').install()
 local function object(class,path)
     local value={class=class,path=path,full=class..' '..path,valid=true}

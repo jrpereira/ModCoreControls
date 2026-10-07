@@ -1,5 +1,6 @@
--- Public client for contributing menu pages through ModCoreSettings.
--- Consumers may vendor this file unchanged. It only writes data files and one shared
+-- Vendored from ModCoreSettings (owner). Do not edit copies; change the source and re-vendor.
+-- Public client for contributing menu pages through ModCoreSettings. Consumers copy this
+-- file unchanged into their Scripts/vendor folder. It only writes data files and one shared
 -- variable per contributor; ModCoreSettings reads them while building the menu.
 -- Descriptors use contract 1, contract 2 when they carry slot rows or slot links, or
 -- contract 3 when a page names a hooks file.

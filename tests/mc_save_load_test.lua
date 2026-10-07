@@ -4,7 +4,7 @@
 -- object raises on every access and counts it; the native lifetime is read
 -- without touching the object. MCC's own actions and chords are root-captured
 -- and survive.
-package.path='Scripts/?.lua;'..package.path
+package.path='Scripts/?.lua;Scripts/vendor/?.lua;'..package.path
 local states=setmetatable({},{__mode='k'})
 local Lifetimes=dofile('tests/support/lifetimes.lua')
 Lifetimes.install(function(value) return states[value]~=nil and states[value].alive==true end)

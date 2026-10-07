@@ -2,7 +2,9 @@ local source = debug.getinfo(1, 'S').source:gsub('^@', '')
 local scripts = assert(source:match('^(.*)[/\\][^/\\]+$'), 'cannot locate MCC Scripts')
 local root = assert(scripts:match('^(.*)[/\\]Scripts$') or (scripts=='Scripts' and '.'),
     'cannot locate MCC root')
-package.path = scripts .. '/?.lua;' .. package.path
+-- Files shared with other modules, unchanged, keep their own module names. Searched first,
+-- so a copy left in Scripts by an earlier release is never loaded instead.
+package.path = scripts .. '/vendor/?.lua;' .. scripts .. '/?.lua;' .. package.path
 
 local queue=rawget(_G,'ExecuteInGameThread')
 local host,unsubscribe
@@ -105,8 +107,6 @@ local ok,err=pcall(function()
             end
             return true
         end
-        local mods=assert(root:match('^(.*)[/\\][^/\\]+$'),'Mods folder unavailable')
-        package.path=mods .. '/1_ModCore_Settings/Scripts/?.lua;' .. package.path
         local available,settings=pcall(require,'settings_api')
         if available and ModRef and type(RegisterConsoleCommandHandler)=='function' then
             local subscribed,result=pcall(settings.subscribe,'ModCoreControls',function()

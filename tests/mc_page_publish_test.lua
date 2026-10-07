@@ -1,7 +1,7 @@
-package.path='Scripts/?.lua;'..package.path
+package.path='Scripts/?.lua;Scripts/vendor/?.lua;'..package.path
 -- main.lua publishes the Controls page to ModCoreSettings before input startup,
 -- so the menu stays available even when input cannot start.
-local Contributions=dofile('Scripts/menu_contributions.lua')
+local Contributions=dofile('Scripts/vendor/menu_contributions.lua')
 local published,options={}
 package.loaded['menu_contributions']={publisher=function(shared,given)
     assert(shared==ModRef,'the page publishes through this mod\'s shared variables')
