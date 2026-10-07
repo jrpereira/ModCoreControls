@@ -165,6 +165,13 @@ function M.schema(definition,gamepad)
                             -- One ModCoreSettings keybind row: key, trigger and value together.
                             local setting=binding.setting
                             local keyMetadata={Triggers=table.concat(setting.labels,'|')}
+                            -- A tapped group activation key stays on its wheel until pressed
+                            -- again, so its Tap reads Toggle. Display only: values keep Tap.
+                            if binding.action.type=='focus' then
+                                local shown={}
+                                for n,name in ipairs(setting.labels) do shown[n]=name=='Tap' and 'Toggle' or name end
+                                keyMetadata.TriggerLabels=table.concat(shown,'|')
+                            end
                             if binding.optional then keyMetadata.Optional=1 end
                             if binding.defaultControl then keyMetadata.DefaultControl=binding.defaultControl end
                             if binding.action.type=='focus' and binding.action.wheel then

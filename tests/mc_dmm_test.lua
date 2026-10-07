@@ -104,6 +104,12 @@ assert(slotRow and slotRow:find('mcSlot=visuals',1,true) and slotRow:find('mcSlo
     'the Visuals placeholder is the labelled ModCoreSettings row slot')
 assert(DMM.schema(definition):match('%[Category%.Visuals%][^%[]*mcHeading=0'),
     'the template picker row replaces the Visuals heading')
+-- A group activation key's Tap stays on its wheel, so it reads Toggle; values keep Tap.
+local focusRow=DMM.schema(definition):match('%[Setting%.MCC_actions_grouped_ActivateAbilities%][^%[]*')
+assert(focusRow and focusRow:find('Triggers=Hold|Tap',1,true)
+    and focusRow:find('TriggerLabels=Hold|Toggle',1,true),'activation keys label Tap as Toggle')
+local slotKey=DMM.schema(definition):match('%[Setting%.MCC_actions_grouped_QuickSlot1%][^%[]*')
+assert(slotKey and not slotKey:find('TriggerLabels',1,true),'other keys keep the trigger names')
 assert(items[indices.MCC_Visuals_Pending].label=='Quickslots Visuals')
 local map=indices.MCC_actions_Map
 assert(items[map].mcFont==nil and not items[map].mcTabs,
