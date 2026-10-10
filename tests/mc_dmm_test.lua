@@ -160,6 +160,8 @@ assert(schema:find('[Setting.MCC_Pad_Gamepad_DPad_Left]',1,true)
     and schema:find('PresetLabels=Quickslot Left, Map Zoom|Quickslot Left, Map Zoom',1,true)
     and schema:find('PresetLabels=Unassigned|Unassigned',1,true)
     and not schema:find('MCC_Pad_Unavailable',1,true))
+-- The work-in-progress note heads the Controller page, above the button rows.
+assert(schema:find('[Setting.MCC_Pad_Note]',1,true)<schema:find('[Setting.MCC_Pad_Gamepad_DPad_Left]',1,true))
 -- Through ModCoreSettings' conflict scope, the same key and trigger on two rows is
 -- marked while editing; on different Control Map pages the map picker is marked too.
 if type(fieldTypes.conflicts)=='function' then

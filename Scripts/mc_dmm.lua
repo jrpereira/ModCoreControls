@@ -98,6 +98,7 @@ function M.schema(definition,gamepad)
     display('MCC_Visuals_Pending','Visuals','Quickslots Visuals','Coming from ModCore Templates',
         {mcSlot='visuals',mcSlotLabel=1,mcCategory=1})
     block(lines,'Category.Controller',{VisibleWhen='MCC_Page',VisibleValues=page.controller})
+    display('MCC_Pad_Note','Controller','Note','Work in progress')
     if gamepad then
         for _,button in ipairs(gamepad) do
             -- Long action lists wrap at commas in a wider value column.
@@ -107,7 +108,6 @@ function M.schema(definition,gamepad)
     else
         display('MCC_Pad_Unavailable','Controller','Gamepad buttons','Available in game')
     end
-    display('MCC_Pad_Note','Controller','Note','Work in progress')
     for _,section in ipairs(definition.sections) do
         local pageWhen,pageValue='MCC_Section',keyed[section]
         if section.id=='module' then pageWhen,pageValue='MCC_Page',page.options
