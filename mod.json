@@ -2,7 +2,12 @@
   "manifest_version": 1,
   "id": "ModCoreControls",
   "name": "ModCore Controls",
+  "preferred": "ModCore",
+  "categories": [
+    "frameworks"
+  ],
   "description": "Define, save, and apply extensible input sections and control maps through DMM.",
+  "icon": {},
   "version_source": "VERSION",
   "dependencies": [
     {
