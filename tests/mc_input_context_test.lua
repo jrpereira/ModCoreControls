@@ -69,6 +69,24 @@ local tapKey
 for _,entry in ipairs(world.Mappings) do if entry.Action==actions.tap then tapKey=entry.Key.KeyName end end
 assert(#world.Mappings==3 and tapKey=='Two',
     'reconfiguring must replace MCC keys in attached contexts')
+do
+    -- Configuring the same bindings again, as before every control mapping rebuild,
+    -- builds no trigger and touches no mapping.
+    local trigger,triggers=e.trigger,0
+    e.trigger=function(...) triggers=triggers+1;return trigger(...) end
+    local tapTrigger=actions.tap.Triggers[1]
+    local mapped={}
+    for index,entry in ipairs(world.Mappings) do mapped[index]=entry end
+    context:configure(plan)
+    assert(triggers==0 and actions.tap.Triggers[1]==tapTrigger,'an unchanged plan builds no trigger')
+    for index,entry in ipairs(world.Mappings) do assert(mapped[index]==entry,'an unchanged plan keeps its mappings') end
+    plan.bindings[1].mode=1
+    context:configure(plan)
+    assert(triggers==1 and actions.tap.Triggers[1].path=='InputTriggerHold','a changed trigger is rebuilt')
+    plan.bindings[1].mode=0
+    context:configure(plan)
+    e.trigger=trigger
+end
 context:detachAll()
 assert(#world.Mappings==1 and world.Mappings[1]==nativeEntry,'detach must remove only MCC keys')
 for name in pairs(created) do
@@ -178,6 +196,31 @@ do
     table.remove(checked.Mappings,2)
     assert(not pairsContext:attached('exploration',applied),'a lost key of a kept action is detected')
     pairsContext:detachAll()
+end
+do
+    -- Only MCC's own entries have their key names read; identity uses addresses.
+    local addressed=setmetatable({address=function(value) return value.address end},{__index=e})
+    local checker=require('mc_input_context').new(addressed)
+    local target=game('/Game/IMC_OW.IMC_OW')
+    local foreignReads=0
+    for index=1,20 do
+        local native=object('/Game/Input/IA_Native'..index..'.IA_Native'..index);native.address=1000+index
+        target.Mappings[index]={Action=native,Key=setmetatable({},{__index=function(_,key)
+            if key=='KeyName' then foreignReads=foreignReads+1 end
+            return 'One'
+        end})}
+    end
+    local applied={AppliedInputContexts={[target]=5}}
+    function applied:IsValid() return true end
+    local built=checker:configure({contexts={'exploration'},bindings={{id='mine',keyName='J',mode=0}}})
+    built.mine.address=1
+    checker:attach('exploration',nil,5,target)
+    foreignReads=0
+    assert(checker:attached('exploration',applied) and foreignReads==0,'foreign key names are never read')
+    for index=#target.Mappings,1,-1 do
+        if target.Mappings[index].Action==built.mine then table.remove(target.Mappings,index) end
+    end
+    assert(not checker:attached('exploration',applied),'a lost MCC entry is still found by address')
 end
 print('PASS attachment checks each action and key pair')
 

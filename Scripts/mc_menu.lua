@@ -226,9 +226,9 @@ function M.define(registry, mapRegistry)
                                 'invalid action wheel: ' .. key.id)
                         else
                             -- Group 3 is configuration-only until the game exposes a
-                            -- third quickslot target; inactive bindings never enter
-                            -- the runtime plan.
-                            local limit=action.type=='focus' and 3 or 4
+                            -- third quickslot target: only an inactive binding, which
+                            -- never enters the runtime plan, may name it.
+                            local limit=action.type=='focus' and (key.inactive and 3 or 2) or 4
                             local value=action[field]
                             assert(type(value)=='number' and value%1==0 and value>=1 and value<=limit,
                                 'invalid action ' .. field .. ': ' .. key.id)

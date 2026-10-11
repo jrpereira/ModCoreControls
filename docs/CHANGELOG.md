@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased
+
+- A control mapping rebuild no longer rebuilds MCC's triggers and key mappings when
+  nothing changed. Lost mappings are still restored by the attachment check.
+- Each key name is checked with the engine once per session, not on every mapping.
+- Entering or leaving combat no longer reads the Settings key profile: inherited keys
+  are read again only on attach, Apply, the game applying new keyboard mappings, or
+  while one is unresolved. The attachment check reads key names only of MCC's own
+  entries and matches actions by address.
+- An inherited action that no InputAction carries is looked up again only every
+  five seconds, not on every sync. An Apply scans the InputActions once instead of twice.
+- Removed the config migrations from before the first release (Flat map, map
+  choice, Advanced map, Default's move to Module). Retired lines are ignored and
+  `config.ini` is no longer rewritten at startup.
+- Removed the `ModCoreControls` global: it lived only in MCC's own Lua state.
+- The cache folder is found with a probe file; a shell starts only to create it.
+- UE4SSLuaEventBridge API 6 is required by input attachment too, as already documented.
+- Re-vendored `menu_contributions.lua` version 6.
+- A key that focuses group 3, which has no game target yet, is accepted only when
+  declared inactive; before, it passed the declaration and failed at startup and Apply.
+- While controls are not attached, the retry backs off to every 12 s (100 ms, 500 ms,
+  3 s, 6 s, then 12 s) instead of scanning for the player every 3 s. Game hooks still
+  start a sync as soon as gameplay input appears.
+- Inherited keys come from ModCoreSettings' vendored `standard_keys.lua`, the rule the
+  key editor shows them with, so the menu and the bindings agree.
+
 ## v1.0.2
 
 - Compare game objects by path. UE4SS returns a new wrapper for every lookup, so

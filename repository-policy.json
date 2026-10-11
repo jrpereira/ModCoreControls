@@ -5,6 +5,7 @@
     "Scripts/vendor/mc_log.lua": "ModCoreSettings",
     "Scripts/vendor/menu_contributions.lua": "ModCoreSettings",
     "Scripts/vendor/settings_api.lua": "ModCoreSettings",
+    "Scripts/vendor/standard_keys.lua": "ModCoreSettings",
     "tests/support/lifetimes.lua": "UE4SSLuaEventBridge"
   }
 }

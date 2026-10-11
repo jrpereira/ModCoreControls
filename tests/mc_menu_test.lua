@@ -62,27 +62,12 @@ assert(Config.decode('[ModCoreControls.actions]\nglobal.AbilitySlot1=J\nglobal.A
 assert(Config.decode('[ModCoreControls.module]\ndefault.DefaultWheel=7\n',definition)
     .MCC_module_default_DefaultWheel==nil)
 
--- Maps were alternatives chosen by map=<ID>. Migration drops the choice and the
--- entries of every map it did not select; Default is the base map and stays.
--- Advanced and Global's Show Controls key were removed.
-local legacy=table.concat({'[Other]','keep=1','[ModCoreControls.actions]','map=flat',
-    'default.DefaultWheel=1','grouped.QuickSlot1.key=49','flat.AbilitySlot1.key=50 ; mine',
-    'global.FixedGroupFocus2.key=0','advanced.AdvancedSlot1.key=51',''},'\n')
-local migrated=Config.migrate(legacy)
-assert(migrated==table.concat({'[Other]','keep=1','[ModCoreControls.actions]',
-    'global.AbilitySlot1.key=50 ; mine','[ModCoreControls.module]','default.DefaultWheel=1',''},'\n'),migrated)
-assert(Config.migrate(migrated)==migrated,'migration is applied once')
-local values=Config.decode(legacy,definition)
-assert(values[setting.id]==nil and values[actions.maps[1].groups[1].keys[1].setting.id]==nil,
-    'migrated key-code lines are not keybind values')
-assert(Config.migrate('[ModCoreControls.actions]\nmap=grouped\nglobal.AbilitySlot1.key=50\ngrouped.QuickSlot1.key=49\n')
-    =='[ModCoreControls.actions]\ngrouped.QuickSlot1.key=49\n')
-assert(Config.migrate('[ModCoreControls.actions]\nadvanced.AdvancedSlot1.key=49\ndefault.HoldSwap=1\n')
-    =='[ModCoreControls.actions]\n[ModCoreControls.module]\ndefault.HoldSwap=1\n',
-    'removed maps go even without a map choice; Default moves to Module')
--- Default's lines join an existing Module section; a line already there wins.
-assert(Config.migrate('[ModCoreControls.module]\ndefault.HoldSwap=0\n[ModCoreControls.actions]\ndefault.HoldSwap=1\ndefault.DefaultWheel=1\n')
-    =='[ModCoreControls.module]\ndefault.HoldSwap=0\ndefault.DefaultWheel=1\n[ModCoreControls.actions]\n')
+-- Retired maps and keys are not migrated: unknown lines are ignored and kept.
+local retired='[Other]\nkeep=1\n[ModCoreControls.actions]\nmap=flat\nflat.AbilitySlot1=J\nadvanced.AdvancedSlot1=K\n'
+local values=Config.decode(retired,definition)
+assert(next(values)==nil,'retired lines decode to nothing')
+local kept=Config.encode(retired,definition,Menu.new(definition,{}).values)
+assert(kept:find('flat.AbilitySlot1=J',1,true) and kept:find('[Other]\nkeep=1',1,true),'saving keeps unknown lines')
 
 local function declaration(changes)
     local key={id='One',name='One',type='keybind',default='One',
@@ -97,6 +82,11 @@ assert(declaration())
 assert(not pcall(declaration,function(map) map.contexts={'unknown'} end))
 assert(not pcall(declaration,function(_,key) key.default=3 end))
 assert(not pcall(declaration,function(_,key) key.params.action={type='selected',slot=5} end))
+-- Focus group 3 has no runtime target yet: only an inactive key may name it.
+assert(not pcall(declaration,function(_,key) key.params.action={type='focus',group=3} end),
+    'an active key cannot focus group 3')
+assert(declaration(function(_,key) key.params.action={type='focus',group=3};key.params.inactive=true end),
+    'an inactive key may declare group 3')
 assert(not pcall(declaration,function(map,key) map.map[1].settings[2]=key end))
 -- Every setting has a type; a type's own arguments sit in params, nowhere else.
 assert(not pcall(declaration,function(_,key) key.type=nil end),'type is required')

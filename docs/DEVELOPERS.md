@@ -35,8 +35,9 @@ Restart, open **Controls → Key & Mouse → Actions → Demo**, bind an unused 
 and Apply. The saved key is `demo.Ability1` in `[ModCoreControls.actions]`.
 Keep map IDs, setting IDs and map values stable after users save settings.
 
-The registry is sealed when that Lua state builds its definition. Gameplay and
-the menu use separate Lua states, so a late `addSectionMap()` cannot update both.
+Declare maps only in `mc_maps.lua`. Gameplay and the menu each load it in their
+own Lua state and seal the registry when they build their definition; a later
+`addSectionMap()` raises. MCC exports no global API.
 
 ## Declaration reference
 

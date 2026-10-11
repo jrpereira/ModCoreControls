@@ -17,137 +17,9 @@ local function index(definition)
     end
     return sections,order
 end
--- Renamed map IDs per section. Old keys move to the new ID unless the new key
--- already exists, in which case the stale old line is dropped.
-local renamedMaps={['ModCoreControls.actions']={flat='global'}}
--- Maps once were alternatives chosen by map=<ID>. They now coexist: the choice
--- is dropped with the entries of every map it did not select, so no saved key
--- activates silently. Default is the base map and keeps its entries. Removed
--- maps and keys are dropped whenever they appear.
-local coexisting={['ModCoreControls.actions']={base='default',removedMaps={advanced=true},
-    removedKeys={['global.FixedGroupFocus2.key']=true,['global.FixedGroupFocus2.trigger']=true}}}
-local function coexist(content)
-    local selected,section={},nil
-    for _,line in ipairs(lines(content)) do
-        local heading=line:match('^%s*%[([^%]]+)%]%s*$')
-        if heading then section=heading
-        else
-            local key,raw=line:match('^%s*([^=;#]-)%s*=%s*([^;#]*)')
-            if key=='map' and coexisting[section] then selected[section]=raw:match('^%s*(.-)%s*$') end
-        end
-    end
-    local output,changed={},false
-    section=nil
-    for _,line in ipairs(lines(content)) do
-        local heading=line:match('^%s*%[([^%]]+)%]%s*$')
-        if heading then section=heading
-        elseif coexisting[section] then
-            local rule,key=coexisting[section],line:match('^%s*([^=;#]-)%s*=')
-            local prefix=key and key:match('^([^.]+)%.')
-            if key=='map' or (key and rule.removedKeys[key]) or (prefix and rule.removedMaps[prefix])
-                or (prefix and selected[section] and prefix~=rule.base and prefix~=selected[section]) then
-                line=nil
-            end
-        end
-        if line then output[#output+1]=line else changed=true end
-    end
-    if not changed then return content end
-    return table.concat(output,'\n') .. '\n'
-end
-local function rename(content)
-    local function renamed(section,key,raw)
-        local maps=renamedMaps[section]
-        if not maps then return nil end
-        if key=='map' then
-            local value=maps[raw:match('^%s*(.-)%s*$')]
-            if value then return 'map',value end
-            return nil
-        end
-        local prefix,rest=key:match('^([^.]+)(%..+)$')
-        return prefix and maps[prefix] and maps[prefix] .. rest or nil
-    end
-    local present,section={},nil
-    for _,line in ipairs(lines(content)) do
-        local heading=line:match('^%s*%[([^%]]+)%]%s*$')
-        if heading then section=heading
-        else
-            local key=line:match('^%s*([^=;#]-)%s*=')
-            if key then present[(section or '') .. '\0' .. key]=true end
-        end
-    end
-    local output,changed={},false
-    section=nil
-    for _,line in ipairs(lines(content)) do
-        local heading=line:match('^%s*%[([^%]]+)%]%s*$')
-        if heading then section=heading
-        else
-            local key,raw=line:match('^%s*([^=;#]-)%s*=%s*([^;#]*)')
-            local newKey,newValue
-            if key then newKey,newValue=renamed(section,key,raw) end
-            if newKey=='map' then
-                local comment=line:match('([;#].*)$')
-                line='map=' .. newValue .. (comment and ' ' .. comment or '')
-                changed=true
-            elseif newKey then
-                changed=true
-                if present[section .. '\0' .. newKey] then line=nil
-                else line=line:gsub('^(%s*)' .. key:gsub('%p','%%%0'),'%1' .. newKey,1) end
-            end
-        end
-        if line then output[#output+1]=line end
-    end
-    if not changed then return content end
-    return table.concat(output,'\n') .. '\n'
-end
--- Maps that moved to another section carry their saved lines along; a line
--- already present at the destination wins over the moved one.
-local moved={{from='ModCoreControls.actions',to='ModCoreControls.module',prefix='default'}}
-local function relocate(content)
-    for _,move in ipairs(moved) do
-        local carried,present,output,section={}, {}, {}, nil
-        for _,line in ipairs(lines(content)) do
-            local heading=line:match('^%s*%[([^%]]+)%]%s*$')
-            if heading then section=heading
-            else
-                local key=line:match('^%s*([^=;#]-)%s*=')
-                if section==move.to and key then present[key]=true end
-            end
-        end
-        section=nil
-        local target
-        for _,line in ipairs(lines(content)) do
-            local heading=line:match('^%s*%[([^%]]+)%]%s*$')
-            if heading then section=heading;output[#output+1]=line
-                if section==move.to then target=#output end
-            else
-                local key=line:match('^%s*([^=;#]-)%s*=')
-                if section==move.from and key and key:match('^([^.]+)%.')==move.prefix then
-                    if not present[key] then carried[#carried+1]=line end
-                else output[#output+1]=line end
-            end
-        end
-        if #carried>0 or #output~=#lines(content) then
-            if target then
-                -- Append to the end of the destination section.
-                local finish=#output
-                for i=target+1,#output do
-                    if output[i]:match('^%s*%[([^%]]+)%]%s*$') then finish=i-1;break end
-                end
-                for offset,line in ipairs(carried) do table.insert(output,finish+offset,line) end
-            elseif #carried>0 then
-                output[#output+1]='[' .. move.to .. ']'
-                for _,line in ipairs(carried) do output[#output+1]=line end
-            end
-            content=table.concat(output,'\n') .. '\n'
-        end
-    end
-    return content
-end
-function M.migrate(content) return relocate(coexist(rename(content))) end
 -- Configuration never prevents startup: an unreadable or invalid value is left out,
 -- so its default applies, and a repeated key keeps its first value.
 function M.decode(content,definition)
-    content=M.migrate(content)
     local sections=index(definition)
     local values,section={},nil
     for _,line in ipairs(lines(content)) do
@@ -178,7 +50,6 @@ local function text(value)
     return type(value)=='number' and tostring(math.tointeger(value) or value) or value
 end
 function M.encode(content,definition,values)
-    content=M.migrate(content)
     local sections,order=index(definition)
     local output,seen,written,section={},{},{},nil
     for _,item in ipairs(definition.settings) do
@@ -263,13 +134,7 @@ function M.open(path,definition)
         return self
     end
     local self={values=initial}
-    -- Persist renamed map keys once so the settings menu, which reads config.ini
-    -- directly, finds them under their current names.
     local publish
-    local migration
-    if original~=nil and M.migrate(original)~=original then
-        migration=function() return publish(function() return M.migrate(original) end) end
-    end
     function self:save(values)
         return publish(function() return M.encode(original or '',definition,values) end)
     end
@@ -305,10 +170,6 @@ function M.open(path,definition)
             if not removed then return true,'config committed; previous cleanup pending: ' .. tostring(why) end
         end
         return true
-    end
-    if migration then
-        local ok,why=pcall(migration)
-        self.migrationError=not ok and tostring(why) or nil
     end
     return self
 end

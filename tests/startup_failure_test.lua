@@ -16,12 +16,12 @@ package.loaded['settings_api']={subscribe=function()
 end}
 local source=assert(os.getenv('PWD'))..'/Scripts/main.lua'
 assert(loadfile(source))()
-assert(ModCoreControls==nil and queued==2 and stopped==1 and unsubscribed==1)
+assert(queued==2 and stopped==1 and unsubscribed==1)
 queued,stopped,unsubscribed=0,0,0
 ExecuteInGameThread=function()
     queued=queued+1
     return false
 end
 assert(loadfile(source))()
-assert(ModCoreControls==nil and queued==2 and stopped==1 and unsubscribed==1)
-print('PASS failed MCC startup revokes the facade and cleans constructed host and subscription')
+assert(queued==2 and stopped==1 and unsubscribed==1)
+print('PASS failed MCC startup cleans constructed host and subscription')

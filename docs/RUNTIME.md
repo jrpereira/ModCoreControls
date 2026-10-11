@@ -20,6 +20,10 @@ retain the wheel selected at press start through their terminal phase.
 `defaultControl='IA_Name'` resolves the player's keyboard keys for a native action
 from the Settings key profile while the setting is unbound. Without it, unbound
 means no input. MCC refreshes inherited keys after `ApplyPendingKeyboardMappings`.
+The keys come from ModCoreSettings' vendored `standard_keys.lua`, the rule its key
+editor uses to show them, so a row shows the keys MCC binds. Of several actions with
+the name, the one in the game's input folder is used; if that does not single one
+out, the key stays unbound.
 
 | Declaration | Behavior |
 | --- | --- |

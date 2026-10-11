@@ -48,7 +48,7 @@ local function retain(kind,name)
 end
 local callbacks,closeCount={},0
 local bridge={API_VERSION=5}
-function bridge.GetCapabilities()return {api=5,enhanced_input=true,explicit_target=true}end
+function bridge.GetCapabilities()return {api=6,enhanced_input=true,explicit_target=true}end
 function bridge.OpenInputComponent(path)return path end
 function bridge.BindAction(_,_,phase,callback)callbacks[#callbacks+1]={phase=phase,callback=callback};return #callbacks end
 function bridge.CloseInputComponent()closeCount=closeCount+1;return true end
@@ -198,14 +198,21 @@ local toggle=object('InputAction',togglePath)
 toggle.Triggers={};toggle.bConsumeInput=false
 resolved[togglePath]=toggle
 native.Mappings={{Action=toggle,Key={KeyName='None'}}}
+-- A Settings key profile whose one row maps the toggle to keyNames.
+local function keyProfile(keyNames)
+    local mappings={}
+    for _,keyName in ipairs(keyNames) do
+        mappings[#mappings+1]={AssociatedInputAction=toggle,CurrentKey={KeyName=keyName}}
+    end
+    return {valid=true,PlayerMappedKeys={{Mappings=mappings}}}
+end
 local runtimeKey='LeftAlt'
 local queries=0
-environment.profileKeys=function(live,action)
+environment.profile=function(live)
     assert(live.subsystem==subsystem and live.component==component,
         'key query must use the player whose input component receives the bindings')
-    assert(action==toggle,'query must receive the exact action used by the mappings')
     queries=queries+1
-    return {{KeyName=runtimeKey},{KeyName='Gamepad_FaceButton_Bottom'}}
+    return keyProfile({runtimeKey,'Gamepad_FaceButton_Bottom'})
 end
 local queryHost=require('mc_input_host').new(function(callback)callback();return true end,
     function()end,service,environment)
@@ -223,10 +230,10 @@ print('PASS Default maps its own toggle on the inherited key')
 -- Inherited keys come from the Settings key profile, also when no applied
 -- context maps the action, as for the combat toggle in open world.
 local profileQueries=0
-environment.profileKeys=function(live,action)
-    assert(live.subsystem==subsystem and action==toggle,'profile query must use the owning player and action')
+environment.profile=function(live)
+    assert(live.subsystem==subsystem,'profile query must use the owning player')
     profileQueries=profileQueries+1
-    return {{KeyName='LeftAlt'},{KeyName='Gamepad_FaceButton_Bottom'}}
+    return keyProfile({'LeftAlt','Gamepad_FaceButton_Bottom'})
 end
 local profileHost=require('mc_input_host').new(function(callback)callback();return true end,
     function()end,service,environment)
@@ -237,12 +244,12 @@ assert(profileHost:apply({contexts={'exploration'},bindings={inherited},override
     'an inherited key must attach from the key profile')
 assert(profileQueries>=1 and #inherited.keyNames==1 and inherited.keyNames[1]=='LeftAlt','inherited key must come from the key profile')
 assert(profileHost:stop())
-environment.profileKeys=nil
+environment.profile=nil
 print('PASS inherited keys come from the Settings key profile')
 
 -- A player key bound on the swap's inherited key takes it over: the swap steps
 -- aside, and returns once that key moves elsewhere.
-environment.profileKeys=function() return {{KeyName='LeftAlt'}} end
+environment.profile=function() return keyProfile({'LeftAlt'}) end
 local stepHost=require('mc_input_host').new(function(callback)callback();return true end,
     function()end,service,environment)
 local swap={id='default.swap.toggle',key=0,swap=true,mode=3,phases={'Triggered'},consume=true,
@@ -263,7 +270,7 @@ assert(stepHost:sync())
 assert(swap.suppressed==nil and #mccKeys()==2,'the swap returns once its key is free')
 assert(stepHost:stop() and #mccKeys()==0)
 -- Every keyboard key in the profile is attached; a claimed one is left to its claimant.
-environment.profileKeys=function() return {{KeyName='LeftAlt'},{KeyName='Gamepad_FaceButton_Bottom'},{KeyName='Q'}} end
+environment.profile=function() return keyProfile({'LeftAlt','Gamepad_FaceButton_Bottom','Q'}) end
 claimant.key,claimant.keyName=164,'LeftAlt'
 swap.keyNames,swap.suppressed=nil,nil
 local multiHost=require('mc_input_host').new(function(callback)callback();return true end,
@@ -279,13 +286,13 @@ for _,entry in ipairs(native.Mappings) do
 end
 assert(keysBySource.swap=='Q;' and keysBySource.claimant=='LeftAlt;','the swap keeps Q and steps aside on LeftAlt')
 assert(multiHost:stop() and #mccKeys()==0)
-environment.profileKeys=nil
+environment.profile=nil
 print('PASS swap steps aside for a player key on its inherited key')
 
 -- An inherited key that cannot be resolved skips only its own bindings: the rest
 -- attach, a warning is written once, and the key attaches once the player binds it.
-local profile={}
-environment.profileKeys=function() return profile end
+local profileNames={}
+environment.profile=function() return keyProfile(profileNames) end
 local warnings={}
 local partialHost=require('mc_input_host').new(function(callback)callback();return true end,
     function(message) warnings[#warnings+1]=message end,service,environment)
@@ -303,7 +310,7 @@ local function count(text)
 end
 assert(count('inherited key unavailable')==1,'the skipped key is reported')
 assert(partialHost:sync() and count('inherited key unavailable')==1,'and reported only once')
-profile={{KeyName='LeftAlt'}}
+profileNames={'LeftAlt'}
 assert(partialHost:sync())
 assert(#mccKeys()==2 and unboundSwap.keyNames[1]=='LeftAlt' and not unboundSwap.unresolved,
     'the skipped binding attaches once its key resolves')
@@ -314,13 +321,86 @@ environment.full=function(value)
     if value==toggle then error('action lookup exploded') end
     return full(value)
 end
+-- The game applying new keyboard mappings is when the keys are read again.
+hooks['/Script/RebelInput.RebelInputMappingSubsystem:ApplyPendingKeyboardMappings']()
 assert(partialHost:sync(),'a resolution error must not fail the sync')
 assert(#mccKeys()==1 and mccKeys()[1]=='J' and unboundSwap.unresolved)
 assert(count('key resolution failed')==1)
 environment.full=full
 assert(partialHost:stop() and #mccKeys()==0)
-environment.profileKeys=nil
+environment.profile=nil
 print('PASS an unresolved inherited key skips only its own bindings')
+
+-- Keys are read when they can have changed, not on every context change.
+do
+    local reads=0
+    environment.profile=function() reads=reads+1;return keyProfile({'LeftAlt'}) end
+    local readHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function() end,service,environment)
+    local swap={id='default.swap.toggle',key=0,swap=true,mode=3,phases={'Triggered'},consume=true,
+        contexts={'exploration','combat'},standardAction='IA_Combat_ToggleQuickslots',action={type='flip'}}
+    assert(readHost:apply({contexts={'exploration','combat'},bindings={swap},overrides={}}))
+    local attached=reads
+    assert(attached>=1,'attaching reads the keys')
+    hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:AddMappingContext']()
+    hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:RemoveMappingContext']()
+    assert(readHost:sync() and reads==attached,'context changes and plain syncs read no keys')
+    environment.profile=function() reads=reads+1;return keyProfile({'Q'}) end
+    hooks['/Script/RebelInput.RebelInputMappingSubsystem:ApplyPendingKeyboardMappings']()
+    assert(reads==attached+1 and swap.keyNames[1]=='Q','new keyboard mappings are read once')
+    assert(readHost:apply({contexts={'exploration','combat'},bindings={swap},overrides={}}) and reads==attached+2,
+        'an Apply reads them again')
+    assert(readHost:stop())
+    environment.profile=nil
+end
+print('PASS inherited keys are read only when they can have changed')
+
+-- An inherited action no InputAction carries is scanned for again only after a while:
+-- each scan reads every InputAction, and a sync follows every context change.
+do
+    local all,scans,now=environment.all,0,0
+    environment.all=function(class)
+        if class=='InputAction' then scans=scans+1 end
+        return all(class)
+    end
+    environment.clock=function() return now end
+    local missing={id='default.missing',key=0,mode=0,phases={'Triggered'},
+        standardAction='IA_Nowhere',action={type='ability',slot=2}}
+    local slot={id='global.AbilitySlot1',key=74,keyName='J',mode=0,phases={'Triggered'},
+        action={type='ability',slot=1}}
+    local scanning=require('mc_input_host').new(function(callback)callback();return true end,
+        function() end,service,environment)
+    assert(scanning:apply({contexts={'exploration','combat'},bindings={missing,slot},overrides={}}))
+    local first=scans
+    assert(first>0 and missing.unresolved)
+    assert(scanning:sync() and scanning:sync() and scans==first,'a missing action is not scanned for on every sync')
+    now=6
+    assert(scanning:sync() and scans>first,'it is looked up again after the retry interval')
+    assert(scanning:stop())
+    environment.all,environment.clock=all,nil
+end
+print('PASS a missing inherited action is not rescanned on every sync')
+
+-- An Apply on attached controls resolves its override targets once, not again in its sync.
+do
+    local all,scans=environment.all,0
+    environment.all=function(class)
+        if class=='InputAction' then scans=scans+1 end
+        return all(class)
+    end
+    local slot={id='global.AbilitySlot1',key=74,keyName='J',mode=0,phases={'Triggered'},
+        action={type='ability',slot=1}}
+    local applying=require('mc_input_host').new(function(callback)callback();return true end,
+        function() end,service,environment)
+    local function applyPlan() return {contexts={'exploration','combat'},bindings={slot},overrides={IA_Test=true}} end
+    assert(applying:apply(applyPlan()) and applying.ready)
+    scans=0
+    assert(applying:apply(applyPlan()))
+    assert(scans==1,'one InputAction scan per Apply, got '..scans)
+    assert(applying:stop())
+    environment.all=all
+end
+print('PASS an Apply scans InputActions once')
 
 -- An override name shared by several actions picks the game's own input action; when
 -- that does not settle it, only that override is skipped and every key still attaches.
@@ -441,8 +521,8 @@ do
 end
 print('PASS an Apply during a running operation is queued, not dropped')
 
--- While enabled but not attached, retries continue at a steady interval rather than
--- stopping after two, one at a time, and end once input attaches.
+-- While enabled but not attached, retries back off to a steady interval rather than
+-- stopping, one at a time, and end once input attaches.
 do
     local scheduled={}
     environment.delay=function(ms,callback) scheduled[#scheduled+1]={ms=ms,callback=callback};return true end
@@ -456,12 +536,12 @@ do
     retryHost:sync()
     assert(#scheduled==1,'only one retry is scheduled at a time')
     local intervals={}
-    for _=1,4 do
+    for _=1,6 do
         local next=table.remove(scheduled,1)
         intervals[#intervals+1]=next.ms
         next.callback()
     end
-    assert(table.concat(intervals,',')=='100,500,3000,3000','retries continue: '..table.concat(intervals,','))
+    assert(table.concat(intervals,',')=='100,500,3000,6000,12000,12000','retries continue: '..table.concat(intervals,','))
     assert(#scheduled==1 and not retryHost.ready)
     input.AppliedInputContexts[native]=5
     table.remove(scheduled,1).callback()

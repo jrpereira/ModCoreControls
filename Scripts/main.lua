@@ -26,20 +26,20 @@ end
 -- ModCoreSettings builds the Controls page from mcs_page.lua. Publish it first so
 -- the menu stays available even when input startup fails.
 local published,publishWhy=pcall(function()
-    -- The cache directory is not shipped; create it for the page descriptors.
+    -- The cache directory is not shipped; create it for the page descriptors. A probe
+    -- file shows an existing one without starting a shell (cmd.exe on Windows).
     local cache=root .. '/cache'
-    local command
-    if package.config:sub(1,1)=='\\' then
-        -- Quoting alone does not prevent cmd.exe environment expansion.
-        assert(not cache:find('["%%!\r\n]'),'unsupported cache path')
-        cache=cache:gsub('/','\\')
-        command='if not exist "' .. cache .. '" mkdir "' .. cache .. '"'
+    local probe=io.open(cache .. '/.mcc-probe','wb')
+    if probe then probe:close();os.remove(cache .. '/.mcc-probe')
     else
-        command="mkdir -p -- '" .. cache:gsub("'","'\\''") .. "'"
-    end
-    -- Renaming a folder onto itself succeeds only when it exists, so the shell runs
-    -- only on the first start.
-    if not os.rename(cache,cache) then
+        local command
+        if package.config:sub(1,1)=='\\' then
+            -- Quoting alone does not prevent cmd.exe environment expansion.
+            assert(not cache:find('["%%!\r\n]'),'unsupported cache path')
+            command='if not exist "' .. cache:gsub('/','\\') .. '" mkdir "' .. cache:gsub('/','\\') .. '"'
+        else
+            command="mkdir -p -- '" .. cache:gsub("'","'\\''") .. "'"
+        end
         local made=os.execute(command)
         assert(made==true or made==0,'cannot create cache directory')
     end
@@ -52,10 +52,7 @@ local published,publishWhy=pcall(function()
 end)
 if not published then log.error('Controls page unavailable: ',publishWhy) end
 local ok,err=pcall(function()
-    local sections=require('mc_sections')
-    local maps=require('mc_maps')
-    local definition=require('mc_menu').define(sections,maps)
-    local facade={addSection=sections.addSection,addSectionMap=maps.addSectionMap}
+    local definition=require('mc_menu').define(require('mc_sections'),require('mc_maps'))
     if type(queue)=='function' then
         host=require('mc_input_host').new(queue,log)
         -- Saved controls never stop input: an unusable config runs on the defaults.
@@ -86,27 +83,6 @@ local ok,err=pcall(function()
             end
             return true
         end
-        facade.inputHost=host
-        facade.refresh=function() return refresh('manual input refresh') end
-        facade.deactivate=function()
-            local queued,why=pcall(queue,function()
-                local removed,reason=host:deactivate()
-                if not removed then log.error('input deactivation failed: ',reason) end
-            end)
-            if not queued or why==false then
-                log.error('input deactivation scheduling failed: ',why)
-                return false
-            end
-            return true
-        end
-        facade.stop=function()
-            local queued,why=pcall(queue,stopResources)
-            if not queued or why==false then
-                log.error('input stop scheduling failed: ',why)
-                return false
-            end
-            return true
-        end
         local available,settings=pcall(require,'settings_api')
         if available and ModRef and type(RegisterConsoleCommandHandler)=='function' then
             local subscribed,result=pcall(settings.subscribe,'ModCoreControls',function()
@@ -119,7 +95,6 @@ local ok,err=pcall(function()
         end
         assert(refresh('startup input'),'startup input scheduling failed')
     end
-    ModCoreControls=facade
 end)
 
 if not ok then
@@ -130,7 +105,6 @@ if not ok then
             stopResources()
         end
     else stopResources() end
-    ModCoreControls=nil
     log.critical('startup failed: ',err)
 else
     log.info(require('mc_dmm').page.version,' loaded; input attaches when gameplay is ready')

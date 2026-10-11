@@ -115,25 +115,14 @@ assert(read(path)==first and read(temporary)==nil and read(previous)==nil)
 clear()
 print('PASS MCC config transaction recovery')
 
--- The Flat map was renamed Global: saved flat.* keys and map=flat migrate once on open.
+-- Opening never rewrites the file: a config with retired lines stays as it is.
 local legacy=tmpname()
-write(legacy,'[Other]\nflat.keep=1\n[ModCoreControls.actions]\nmap=flat\nflat.AbilitySlot1.key=74\nflat.AbilitySlot1.trigger=0\n')
-local migrated=Config.open(legacy,definition)
-assert(migrated.migrationError==nil,migrated.migrationError)
-local slot
-for _,item in ipairs(definition.settings) do
-    if item.configKey=='global.AbilitySlot1' then slot=item.id end
-end
--- Key-code lines predate keybind text; the binding keeps its default.
-assert(slot and migrated.values[slot]==nil and Menu.new(definition,migrated.values).values[slot]=='none',
-    'old key-code values are ignored')
-local persisted=read(legacy)
-assert(not persisted:find('map=',1,true) and persisted:find('global.AbilitySlot1.key=74',1,true)
-    and not persisted:find('\nflat.AbilitySlot',1,true) and persisted:find('[Other]\nflat.keep=1',1,true),
-    'migration must persist renamed keys and leave other sections untouched')
-assert(Config.migrate(persisted)==persisted,'migration must be idempotent')
+local retiredText='[Other]\nflat.keep=1\n[ModCoreControls.actions]\nmap=flat\nflat.AbilitySlot1.key=74\n'
+write(legacy,retiredText)
+local opened=Config.open(legacy,definition)
+assert(opened.recoveryError==nil and read(legacy)==retiredText,'open leaves the file untouched')
 assert(os.remove(legacy))
-print('PASS legacy Flat config migrates to Global')
+print('PASS opening a config never rewrites it')
 
 -- A UTF-8 byte order mark must not hide the first section's saved values.
 local bomSlot

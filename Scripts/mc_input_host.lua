@@ -7,6 +7,8 @@ local Overrides=require('mc_overrides')
 local Events=require('mc_events')
 local Log=require('mc_log')
 local Lifetimes=require('mc_lifetimes')
+-- The key rule ModCoreSettings' key editor shows inherited keys with.
+local Keys=require('standard_keys')
 local M={}
 
 local function defaultEnvironment()
@@ -25,6 +27,10 @@ local function defaultEnvironment()
     end
     local function path(value)
         local name=full(value);return name and (name:match('^%S+%s+(.+)$') or name) or nil
+    end
+    local function address(value)
+        local ok,result=pcall(function() return value:GetAddress() end)
+        return ok and result or nil
     end
     local function each(values,callback)
         if type(values)=='table' then
@@ -63,7 +69,7 @@ local function defaultEnvironment()
         return object
     end
     return {
-        valid=valid,unwrap=unwrap,full=full,path=path,each=each,find=find,
+        valid=valid,unwrap=unwrap,full=full,path=path,address=address,each=each,find=find,
         keep=Lifetimes.keep,live=Lifetimes.live,
         all=function(class)
             local ok,items=pcall(FindAllOf,class)
@@ -71,32 +77,9 @@ local function defaultEnvironment()
         end,
         -- The Settings key profile holds the player's binding even when no
         -- applied context maps the action, e.g. the combat toggle in open world.
-        profileKeys=function(live,action)
+        profile=function(live)
             local settings=unwrap(live.subsystem:GetUserSettings())
-            local profile=valid(settings) and unwrap(settings:GetCurrentKeyProfile())
-            if not valid(profile) then return nil end
-            local actionPath=path(action)
-            local mappable=unwrap(action.PlayerMappableKeySettings)
-            local mappingName
-            if mappable~=nil then
-                local ok,name=pcall(function() return unwrap(mappable.Name):ToString() end)
-                mappingName=ok and name or nil
-            end
-            local keys={}
-            each(profile.PlayerMappedKeys,function(_,row)
-                each(unwrap(row).Mappings,function(entry)
-                    local associated=unwrap(entry.AssociatedInputAction)
-                    local named
-                    if mappingName then
-                        local ok,name=pcall(function() return unwrap(entry.MappingName):ToString() end)
-                        named=ok and name==mappingName
-                    end
-                    if (valid(associated) and path(associated)==actionPath) or named then
-                        keys[#keys+1]=entry.CurrentKey
-                    end
-                end)
-            end)
-            return keys
+            return valid(settings) and unwrap(settings:GetCurrentKeyProfile()) or nil
         end,
         retain=retain,name=FName,
         -- false for a key name the engine does not know; nil when it cannot tell. The
@@ -285,9 +268,9 @@ function M.new(queue,log,service,environment)
             return nil,'UE4SSLuaEventBridge input API unavailable'
         end
         local ok,caps=pcall(candidate.GetCapabilities)
-        if not ok or type(caps)~='table' or tonumber(caps.api or 0)<4
+        if not ok or type(caps)~='table' or tonumber(caps.api or 0)<6
             or caps.enhanced_input~=true or caps.explicit_target~=true then
-            return nil,'UE4SSLuaEventBridge Enhanced Input API 4 or newer required'
+            return nil,'UE4SSLuaEventBridge API 6 or newer required (Enhanced Input and weak handles)'
         end
         if callbacks and api.ready then return nil,'input bridge changed; retiring previous owner' end
         if callbacks and callbacks:hasActive() then
@@ -385,30 +368,17 @@ function M.new(queue,log,service,environment)
         if walked==false then return {} end
         return result
     end
-    -- The one action among same-named candidates: the only one, or else the only one in
-    -- the game's own input folder. Otherwise nil and why.
-    local gameInput='/Game/_Dawnwalker/Player/Input/'
-    local function gameAction(candidates)
-        local distinct,seen={},{}
-        for _,action in ipairs(candidates) do
-            local key=e.path(action) or action
-            if not seen[key] then seen[key]=true;distinct[#distinct+1]=action end
-        end
-        if #distinct==1 then return distinct[1] end
-        if #distinct==0 then return nil end
-        local preferred
-        for _,action in ipairs(distinct) do
-            if (e.path(action) or ''):sub(1,#gameInput)==gameInput then
-                if preferred then return nil,'ambiguous: '..#distinct..' actions' end
-                preferred=action
-            end
-        end
-        if preferred then return preferred end
-        return nil,'ambiguous: '..#distinct..' actions'
-    end
+    -- Lookups follow the shared key rule (vendor/standard_keys.lua).
+    local keysEnvironment={valid=e.valid,full=e.full,path=e.path,each=e.each,property=property,
+        name=nameString,actions=function() return e.all('InputAction') end}
     -- Native actions found once are reused while still live and named the same, so a
     -- sync does not scan every InputAction again. They are kept as weak handles.
     local standardActions={}
+    -- A name that found no single action is looked up again only after MISSING_RETRY
+    -- seconds: every lookup scans every InputAction, and syncs follow each context change.
+    local MISSING_RETRY=5
+    local clock=e.clock or os.clock
+    local missingActions={}
     local function standardAction(actionName)
         if type(actionName)~='string' or actionName=='' then return nil end
         local cached=e.live(standardActions[actionName])
@@ -416,24 +386,25 @@ function M.new(queue,log,service,environment)
             return cached
         end
         standardActions[actionName]=nil
+        local missing=missingActions[actionName]
+        if missing and clock()-missing.at<MISSING_RETRY then return nil,missing.why end
+        missingActions[actionName]=nil
+        local function absent(why)
+            missingActions[actionName]={at=clock(),why=why}
+            return nil,why
+        end
         local nativeAction
         if actionName=='IA_Combat_ToggleQuickslots' and type(e.resolve)=='function' then
             nativeAction=e.resolve('/Game/_Dawnwalker/Player/Input/Actions/Combat/'
                 ..'IA_Combat_ToggleQuickslots.IA_Combat_ToggleQuickslots')
         end
         if not e.valid(nativeAction) then
-            local candidates={}
-            for _,candidate in ipairs(e.all('InputAction')) do
-                local name=(e.full(candidate) or ''):match('([^%.:/%s]+)$')
-                if e.valid(candidate) and name==actionName then candidates[#candidates+1]=candidate end
-            end
             local why
-            nativeAction,why=gameAction(candidates)
-            if why then return nil,'standard input action '..why..': '..actionName end
-        end
-        if not e.valid(nativeAction) then
-            log.debug('Failed to resolve IA: ',actionName)
-            return nil,'standard input action unavailable: '..actionName
+            nativeAction,why=Keys.action(keysEnvironment,actionName)
+            if not nativeAction then
+                log.debug('Failed to resolve IA: ',actionName)
+                return absent(why)
+            end
         end
         log.trace('Resolved IA: ',actionName)
         standardActions[actionName]=e.keep(nativeAction)
@@ -442,43 +413,45 @@ function M.new(queue,log,service,environment)
     local function standardKey(actionName,live)
         local nativeAction,why=standardAction(actionName)
         if not nativeAction then return nil,why end
-        -- The player's key comes from the Settings key profile, which holds it
+        -- The player's keys come from the Settings key profile, which holds them
         -- whether or not an applied context maps the action.
-        if type(e.profileKeys)~='function' then return nil,'key profile query unavailable: '..actionName end
-        local ok,keys=pcall(e.profileKeys,live,nativeAction)
-        if not ok then return nil,'key profile query failed: '..tostring(keys) end
-        if keys==nil then return nil,'key profile unavailable: '..actionName end
-        local found,listed={},{}
-        local walked,walkWhy=e.each(keys,function(key)
-            local keyName=nameString(property(key,'KeyName'))
-            listed[#listed+1]=keyName or '<unreadable>'
-            if keyName and keyName~='' and keyName~='None'
-                and not keyName:find('^Gamepad_') then found[keyName]=true end
-        end)
-        if walked==false then return nil,'key profile array could not be read: '..tostring(walkWhy) end
-        log.trace('Profile keys: ',actionName,' -> ',#listed>0 and table.concat(listed,', ') or '<none>')
+        if type(e.profile)~='function' then return nil,'key profile query unavailable: '..actionName end
+        local ok,profile=pcall(e.profile,live)
+        if not ok then return nil,'key profile query failed: '..tostring(profile) end
+        if not e.valid(profile) then return nil,'key profile unavailable: '..actionName end
+        local keys,keysWhy=Keys.keys(keysEnvironment,profile,nativeAction)
+        if not keys then return nil,keysWhy..': '..actionName end
+        log.trace('Profile keys: ',actionName,' -> ',#keys>0 and table.concat(keys,', ') or '<none>')
         -- Every keyboard key the player bound to the action is attached.
-        local result={}
-        for keyName in pairs(found) do result[#result+1]=keyName end
-        if #result==0 then return nil,'standard control binding unavailable: ' .. actionName end
-        table.sort(result)
-        return result,nil,nativeAction
+        if #keys==0 then return nil,'standard control unavailable: '..actionName end
+        return keys,nil,nativeAction
     end
+    -- The player's keys are read again only when they can have changed: before attaching,
+    -- after an Apply, after the game applies new keyboard mappings, and while one is still
+    -- unresolved. A context change, as on entering or leaving combat, reads none.
+    local keysStale,knownKeys=true,{}
     -- Returns whether any inherited key changed, and the actions whose keys could not
     -- be resolved (action name -> reason). An unresolved action leaves only its own
     -- bindings without keys; every other binding still attaches.
     local function assignStandardKeys(plan,playerInput,live)
         local resolved,resolvedActions,changed,unresolved={},{},{false},{}
         local function resolve(actionName)
+            -- Keys read before are reused until they can have changed; an unresolved
+            -- action is asked again on every sync.
+            if resolved[actionName]==nil and not keysStale and knownKeys[actionName] then
+                resolved[actionName]=knownKeys[actionName]
+            end
             if resolved[actionName]==nil then
                 -- An error while resolving one action counts as unresolved, not a failed sync.
                 local ok,keyNames,why,action=pcall(standardKey,actionName,live)
                 if not ok then keyNames,why=nil,'key resolution failed: '..tostring(keyNames) end
                 if not keyNames then
                     resolved[actionName]=false;unresolved[actionName]=tostring(why)
+                    knownKeys[actionName]=nil
                 else
                     resolved[actionName]=keyNames
                     resolvedActions[actionName]=action
+                    knownKeys[actionName]=keyNames
                 end
             end
             return resolved[actionName] or nil
@@ -531,6 +504,7 @@ function M.new(queue,log,service,environment)
                 end
             end
         end
+        keysStale=false
         return changed[1],unresolved
     end
     -- Report each unresolved inherited key once, and again only when its reason changes.
@@ -547,6 +521,7 @@ function M.new(queue,log,service,environment)
         api.unresolved=next(unresolved) and unresolved or nil
     end
     local function invalidate()
+        keysStale=true
         api.generation=api.generation+1
         api.ready=false
         api.retryStep=0
@@ -617,7 +592,7 @@ function M.new(queue,log,service,environment)
         end
         local missing={}
         for name in pairs(plan.overrides) do
-            local action,why=gameAction(found[name] or {})
+            local action,why=Keys.choose(keysEnvironment,found[name] or {})
             if not action then
                 missing[#missing+1]=why and name..' ('..why..')' or name
             else
@@ -646,6 +621,7 @@ function M.new(queue,log,service,environment)
         log.debug('key indicators updated partially: ',count,'/',expected)
         return false
     end
+    local resolvedForApply
     local function doSync(force,beforeRebuild)
         if api.phase=='stopped' then return false,'controls stopped',{status='failure'} end
         if api.phase=='cleanup-pending' then
@@ -714,7 +690,12 @@ function M.new(queue,log,service,environment)
         if reuse then
             selected=api.overrideWanted
         else
-            local ok,a,b,c=pcall(resolveTargets,api.plan)
+            -- An Apply resolved its plan's targets already, before retiring.
+            local ok,a,b,c
+            if resolvedForApply and resolvedForApply.plan==api.plan then
+                ok,a,b,c=true,resolvedForApply[1],resolvedForApply[2],resolvedForApply[3]
+            else ok,a,b,c=pcall(resolveTargets,api.plan) end
+            resolvedForApply=nil
             if not ok then return false,a,{status='pending',original=a} end
             targets,selected=a,b
             -- Kept as weak handles; one that cannot be kept is resolved again next time.
@@ -854,8 +835,9 @@ function M.new(queue,log,service,environment)
             if api.phase=='stopped' then return false,'controls stopped',{status='failure'} end
             assert(type(plan)=='table' and type(plan.bindings)=='table','validated plan required')
             if api.ready then
-                local ok,why=pcall(resolveTargets,plan)
-                if not ok then return false,why,{status='failure',original=why} end
+                local ok,a,b,c=pcall(resolveTargets,plan)
+                if not ok then return false,a,{status='failure',original=a} end
+                resolvedForApply={plan=plan,a,b,c}
             end
             -- Activating Default is an action: retire resets to the new Default,
             -- and the next presentation publishes it if it was not yet shown.
@@ -863,10 +845,17 @@ function M.new(queue,log,service,environment)
             local previousDefault=api.state.defaultGroup
             api.state.defaultGroup=defaultGroup
             local cleared,why,detail=retire(false,false)
-            if not cleared then api.state.defaultGroup=previousDefault;return false,why,detail end
+            if not cleared then
+                api.state.defaultGroup,resolvedForApply=previousDefault,nil
+                return false,why,detail
+            end
             api.plan,api.enabled,api.state=plan,true,{selectedGroup=api.state.selectedGroup,
                 pendingGroup=defaultGroup,defaultGroup=defaultGroup}
-            return doSync(true)
+            -- The resolved actions are this call's wrappers: never kept past it.
+            local results=table.pack(pcall(doSync,true))
+            resolvedForApply=nil
+            if not results[1] then error(results[2],0) end
+            return table.unpack(results,2,results.n)
         end)
     end
     -- Deactivating or stopping supersedes an Apply still queued.
@@ -878,15 +867,17 @@ function M.new(queue,log,service,environment)
         return updateIndicators(force)
     end
 
-    -- While enabled but not attached, a sync is retried after 100 ms, 500 ms and then
-    -- every 3 s, so attaching never depends on a later game hook alone. One retry is
-    -- scheduled at a time.
+    -- While enabled but not attached, a sync is retried after 100 ms, 500 ms, 3 s, 6 s
+    -- and then every 12 s, so attaching never depends on a later game hook alone. Each
+    -- retry scans for the player's objects, and the game hooks wake a sync as soon as
+    -- gameplay input appears, so the steady interval stays long. One retry is scheduled
+    -- at a time.
     local retryArmed=false
     scheduleRetry=function()
         if type(e.delay)~='function' or not api.enabled or api.phase=='stopped' or retryArmed then return end
         local step=(api.retryStep or 0)+1
         api.retryStep=step
-        local ms=step==1 and 100 or step==2 and 500 or 3000
+        local ms=step==1 and 100 or step==2 and 500 or 3000*(1<<math.min(step-3,2))
         retryArmed=true
         local ok,result=pcall(e.delay,ms,function()
             retryArmed=false
@@ -978,7 +969,11 @@ function M.new(queue,log,service,environment)
         }) do
             local source=name:find('EnhancedInputSubsystemInterface',1,true)
                 and 'mapping' or 'external'
-            register('hook',name,function() wake(source) end)
+            local keysChanged=name:find('ApplyPendingKeyboardMappings',1,true)~=nil
+            register('hook',name,function()
+                if keysChanged then keysStale=true end
+                wake(source)
+            end)
         end
     end
     if e.notify then

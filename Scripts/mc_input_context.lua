@@ -27,6 +27,10 @@ function M.new(e,log)
     -- Bindings or keys that failed, keyed by binding id or 'id key'; each is
     -- reported once, and again only when its reason changes.
     local failed={}
+    -- Whether the engine knows a key name, once asked.
+    local knownKeys={}
+    -- What the last configure built, so a repeat with the same bindings does no work.
+    local configured
     local function report(id,why)
         if failed[id]~=why then log.warn('skipping input ',id,': ',why) end
         failed[id]=why
@@ -112,11 +116,13 @@ function M.new(e,log)
                     if not (binding.suppressed and binding.suppressed[keyName]) then
                         local id=binding.id..' '..tostring(keyName)
                         local ok,why=pcall(function()
-                            -- A name the engine does not know would map a dead key.
-                            if type(e.validKey)=='function' then
+                            -- A name the engine does not know would map a dead key. Key
+                            -- names are fixed for the session, so each is asked once.
+                            if knownKeys[keyName]==nil and type(e.validKey)=='function' then
                                 local checked,known=pcall(e.validKey,keyName)
-                                if checked and known==false then error('unknown key name',0) end
+                                if checked and type(known)=='boolean' then knownKeys[keyName]=known end
                             end
+                            if knownKeys[keyName]==false then error('unknown key name',0) end
                             context:MapKey(target,{KeyName=e.name(keyName)})
                         end)
                         if ok then
@@ -131,7 +137,35 @@ function M.new(e,log)
             end
         end
     end
+    -- Everything configure and map read from a plan, as text.
+    local function signature(value)
+        local parts={table.concat(value.contexts or {},',')}
+        for _,binding in ipairs(value.bindings) do
+            local suppressed={}
+            for keyName in pairs(binding.suppressed or {}) do suppressed[#suppressed+1]=keyName end
+            table.sort(suppressed)
+            parts[#parts+1]=table.concat({tostring(binding.id),tostring(binding.mode),tostring(binding.consume==true),
+                table.concat(binding.keyNames or {tostring(binding.keyName)},','),table.concat(suppressed,','),
+                table.concat(binding.contexts or {},',')},'\1')
+        end
+        return table.concat(parts,'\2')
+    end
+    -- Bindings already built and mapped need nothing again, as before every control
+    -- mapping rebuild; a binding or key that failed is tried again.
+    local function unchanged(nextPlan,nextSignature)
+        if configured~=nextSignature or next(failed)~=nil then return false end
+        for _,binding in ipairs(nextPlan.bindings) do
+            if not e.valid(current[binding.id]) then return false end
+        end
+        return true
+    end
     function api:configure(nextPlan)
+        local nextSignature=signature(nextPlan)
+        if unchanged(nextPlan,nextSignature) then
+            plan=nextPlan;self.plan=plan
+            return current
+        end
+        configured=nil
         plan=nextPlan
         current={}
         -- A binding whose action or trigger cannot be built is left out; the
@@ -153,6 +187,7 @@ function M.new(e,log)
         end
         self.plan,self.actions=plan,current
         for logical in pairs(attached) do map(logical) end
+        configured=nextSignature
         return current
     end
     -- Map the plan's keys into an applied native context. Global bindings, such
@@ -178,6 +213,15 @@ function M.new(e,log)
         end
         return true
     end
+    -- An object's identity for one check: its address where the environment reads one,
+    -- which builds no string, else its path.
+    local function identity(object)
+        if e.address then
+            local address=e.address(object)
+            if address~=nil then return address end
+        end
+        return e.path(object)
+    end
     -- True while the native context is applied and still holds every MCC entry.
     function api:attached(logical,playerInput)
         local record=attached[logical]
@@ -185,35 +229,40 @@ function M.new(e,log)
         if not context or not e.valid(playerInput)
             or not playerInput.AppliedInputContexts then return false end
         local applied=false
+        local contextPath=e.path(context)
         e.each(playerInput.AppliedInputContexts,function(candidate)
             candidate=e.unwrap(candidate)
-            if e.valid(candidate) and e.path(candidate)==e.path(context) then applied=true end
+            if not applied and e.valid(candidate) and e.path(candidate)==contextPath then applied=true end
         end)
         if not applied then return false end
-        -- Each action and key pair must still be there. Where the engine's key names
-        -- cannot be read, the action alone is checked.
+        -- Each action and key pair must still be there. Only MCC's own entries have their
+        -- key names read; where those cannot be read, the action alone is checked.
+        local ours={}
+        for _,entry in ipairs(record.entries) do ours[identity(entry[1])]=true end
         local present,pairsPresent,keysRead={},{},false
         e.each(context.Mappings or {},function(entry)
             entry=e.unwrap(entry)
             local target=entry and e.unwrap(entry.Action)
             if e.valid(target) then
-                local path=e.path(target)
-                present[path]=true
-                local read,name=pcall(function()
-                    local value=e.unwrap(e.unwrap(entry.Key).KeyName)
-                    if type(value)=='string' then return value end
-                    return value:ToString()
-                end)
-                if read and name~=nil then
-                    keysRead=true
-                    pairsPresent[path..'\0'..keyId(name)]=true
+                local id=identity(target)
+                if id~=nil and ours[id] then
+                    present[id]=true
+                    local read,name=pcall(function()
+                        local value=e.unwrap(e.unwrap(entry.Key).KeyName)
+                        if type(value)=='string' then return value end
+                        return value:ToString()
+                    end)
+                    if read and name~=nil then
+                        keysRead=true
+                        pairsPresent[tostring(id)..'\0'..keyId(name)]=true
+                    end
                 end
             end
         end)
         for _,entry in ipairs(record.entries) do
-            local path=e.path(entry[1])
-            if not present[path] then return false end
-            if keysRead and not pairsPresent[path..'\0'..keyId(entry[2])] then return false end
+            local id=identity(entry[1])
+            if not present[id] then return false end
+            if keysRead and not pairsPresent[tostring(id)..'\0'..keyId(entry[2])] then return false end
         end
         return true
     end
