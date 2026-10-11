@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## v1.0.3
 
+- Requires ModCore Settings 1.1.0 or later.
 - A control mapping rebuild no longer rebuilds MCC's triggers and key mappings when
   nothing changed. Lost mappings are still restored by the attachment check.
 - Each key name is checked with the engine once per session, not on every mapping.
