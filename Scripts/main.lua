@@ -26,23 +26,8 @@ end
 -- ModCoreSettings builds the Controls page from mcs_page.lua. Publish it first so
 -- the menu stays available even when input startup fails.
 local published,publishWhy=pcall(function()
-    -- The cache directory is not shipped; create it for the page descriptors. A probe
-    -- file shows an existing one without starting a shell (cmd.exe on Windows).
-    local cache=root .. '/cache'
-    local probe=io.open(cache .. '/.mcc-probe','wb')
-    if probe then probe:close();os.remove(cache .. '/.mcc-probe')
-    else
-        local command
-        if package.config:sub(1,1)=='\\' then
-            -- Quoting alone does not prevent cmd.exe environment expansion.
-            assert(not cache:find('["%%!\r\n]'),'unsupported cache path')
-            command='if not exist "' .. cache:gsub('/','\\') .. '" mkdir "' .. cache:gsub('/','\\') .. '"'
-        else
-            command="mkdir -p -- '" .. cache:gsub("'","'\\''") .. "'"
-        end
-        local made=os.execute(command)
-        assert(made==true or made==0,'cannot create cache directory')
-    end
+    -- The cache directory is not shipped; create it for the page descriptors.
+    require('safe_file').mkdir(root .. '/cache')
     local page=require('mc_dmm').page
     local pages=require('menu_contributions').publisher(assert(rawget(_G,'ModRef'),'ModRef unavailable'),
         {id=page.id,directory=root .. '/cache'})
