@@ -75,7 +75,7 @@ function M.define(registry, mapRegistry)
         known[id] = true
         -- A section's description is shown under the first heading on its page.
         local declaredSection = registry.sections and registry.sections[id] or {}
-        local section = { id=id, name=id:sub(1,1):upper() .. id:sub(2), maps={}, settings={},
+        local section = { id=id, name=id:sub(1,1):upper() .. id:sub(2), maps={},
             description=description(declaredSection.description,id) }
         result.sections[#result.sections + 1] = section
         local maps = mapRegistry.maps[id] or {}

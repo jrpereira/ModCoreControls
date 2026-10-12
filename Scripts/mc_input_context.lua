@@ -192,7 +192,7 @@ function M.new(e,log)
     end
     -- Map the plan's keys into an applied native context. Global bindings, such
     -- as Hold Swap's edges, apply in every context MCC is attached to.
-    function api:attach(logical,_,_,native)
+    function api:attach(logical,native)
         assert(M.native[logical],'unsupported input context: '..tostring(logical))
         assert(e.valid(native),'native mapping context unavailable: '..M.native[logical])
         -- A handle's get returns a new wrapper, so the same context is matched by path.

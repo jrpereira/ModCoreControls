@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.0.4
+
+- Control focus events start with no group until the first group transition.
+- Lookups for actions that are missing are throttled on wall-clock time, and empty icon
+  metadata is no longer stored.
+- Uses the shared ModCore Settings tooling, `safe_file` and `mc_ini`; the cache directory
+  is created through `safe_file`. The package now ships those two vendored scripts.
+- Removes the unused key indicator setter, the empty Movement and System placeholder
+  sections, unread section and group fields, and two unused arguments of the input
+  context attach call.
+
 ## v1.0.3
 
 - Requires ModCore Settings 1.1.0 or later.

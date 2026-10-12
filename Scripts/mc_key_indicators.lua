@@ -38,32 +38,6 @@ function M.new(e)
         return ok and result~=false
     end
     local api={}
-    function api:set(widget,action,force)
-        if not e.valid(widget) or not e.valid(action) then return false end
-        local widgetPath,actionPath=e.path(widget),e.path(action)
-        if not widgetPath or not actionPath then return false end
-        local record=records[widgetPath]
-        local current=currentPath(widget)
-        if record and current~=record.assigned and current~=record.pending then
-            records[widgetPath]=nil;record=nil
-        end
-        if current==actionPath and not force then
-            if record and record.pending then
-                record.assigned=actionPath;record.pending=nil
-                return save()
-            end
-            return true
-        end
-        if not record then
-            record={original=current,assigned=current}
-            records[widgetPath]=record
-        end
-        record.pending=actionPath
-        if not save() then return false end
-        if not setAction(widget,action) then return false end
-        record.assigned=actionPath;record.pending=nil
-        return save()
-    end
     function api:refresh(actions,plan,opts)
         if type(actions)~='table' or type(plan)~='table' then return false,0,0 end
         opts=opts or {}

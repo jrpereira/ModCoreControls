@@ -13,7 +13,7 @@ local model=Menu.new(definition,{})
 local module,actions=definition.sections[1],definition.sections[2]
 assert(module.id=='module' and module.maps[1].id=='default' and #module.maps==1)
 assert(actions.id=='actions' and actions.maps[1].id=='grouped')
-assert(definition.sections[3].id=='movement' and not definition.sections[3].selector)
+assert(#definition.sections==2)
 local selector=actions.selector
 -- The map picker only navigates between coexisting maps; it is never stored.
 assert(selector.navigation and not definition.byId[selector.id] and model.values[selector.id]==nil)

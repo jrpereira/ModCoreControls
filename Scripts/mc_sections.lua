@@ -5,7 +5,7 @@ function M.addSection(section, description)
     assert(type(section) == 'string' and section:match('%S'), 'section must be a non-empty string')
     assert(type(description) == 'string', 'description must be a string')
     assert(M.sections[section] == nil, 'section already exists: ' .. section)
-    local entry = { description = description, sets = {} }
+    local entry = { description = description }
     M.sections[section] = entry
     M.order[#M.order + 1] = section
     return entry
@@ -14,7 +14,7 @@ end
 function M.seal() M.sealed=true end
 
 -- Module holds settings that apply across sections, such as the wheel swap.
-for _, section in ipairs({ 'module', 'actions', 'movement', 'system' }) do
+for _, section in ipairs({ 'module', 'actions' }) do
     M.addSection(section, '')
 end
 

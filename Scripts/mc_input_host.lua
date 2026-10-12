@@ -768,7 +768,7 @@ function M.new(queue,log,service,environment)
         for logical,priority in pairs(desired) do
             if api.active[logical]==nil then
                 local native=api.nativeContexts and api.nativeContexts[logical]
-                internal(function() context:attach(logical,live.subsystem,priority,native) end)
+                internal(function() context:attach(logical,native) end)
                 api.active[logical]=priority;remapped=true
             end
         end

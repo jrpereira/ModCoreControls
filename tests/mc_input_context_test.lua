@@ -56,12 +56,12 @@ local actions=context:configure(plan)
 assert(actions.tap.Triggers[1].path=='InputTriggerTap')
 assert(#actions.hold.Triggers==0)
 assert(#world.Mappings==1,'configure alone must not map keys')
-context:attach('exploration',nil,5,world)
+context:attach('exploration',world)
 assert(#world.Mappings==3 and world.Mappings[2].Action==actions.tap and world.Mappings[3].Action==actions.hold)
 assert(context:attached('exploration',input),'mapped and applied context must count as attached')
 world.Mappings[3]=nil
 assert(not context:attached('exploration',input),'a lost MCC entry must count as detached')
-context:attach('exploration',nil,5,world)
+context:attach('exploration',world)
 assert(#world.Mappings==3,'reattaching must restore MCC entries without duplicates')
 plan.bindings[1].keyName='Two'
 context:configure(plan)
@@ -102,8 +102,8 @@ actions=context:configure(holdPlan)
 assert(actions.press.bConsumeInput and actions.release.bConsumeInput)
 assert(actions.press.Triggers[1].path=='InputTriggerPressed')
 assert(actions.release.Triggers[1].path=='InputTriggerReleased')
-context:attach('exploration',nil,5,world)
-context:attach('combat',nil,1,combat)
+context:attach('exploration',world)
+context:attach('combat',combat)
 assert(#world.Mappings==3 and #combat.Mappings==2,'global edges must map into each attached context')
 context:detachAll()
 assert(#world.Mappings==1 and #combat.Mappings==0)
@@ -115,10 +115,10 @@ local basePlan={contexts={'exploration','combat'},bindings={
     {id='swap',keyName='LeftAlt',mode=3,contexts={'combat'}},
 }}
 actions=context:configure(basePlan)
-context:attach('exploration',nil,5,world)
-context:attach('combat',nil,1,combat)
+context:attach('exploration',world)
+context:attach('combat',combat)
 assert(#world.Mappings==2 and #combat.Mappings==2,'without IMC_Base each context carries its keys')
-context:attach('base',nil,0,base)
+context:attach('base',base)
 assert(#base.Mappings==1 and base.Mappings[1].Action==actions.slot,'IMC_Base must take the everywhere key')
 assert(#world.Mappings==1 and world.Mappings[1]==nativeEntry,'open world must drop keys IMC_Base carries')
 assert(#combat.Mappings==1 and combat.Mappings[1].Action==actions.swap,'combat keeps its combat-only key')
@@ -148,7 +148,7 @@ local mixedPlan={contexts={'exploration'},bindings={
 }}
 actions=resilient:configure(mixedPlan)
 assert(actions.good and actions.badKey and actions.badTrigger==nil,'only the broken binding is left out')
-resilient:attach('exploration',nil,5,fragile)
+resilient:attach('exploration',fragile)
 local keys={}
 for _,entry in ipairs(fragile.Mappings) do keys[#keys+1]=entry.Key.KeyName end
 table.sort(keys)
@@ -170,12 +170,12 @@ shared.Mappings[1]=native
 local restartPlan={contexts={'exploration'},bindings={{id='tap',keyName='One',mode=0},{id='old',keyName='K',mode=0}}}
 local previous=require('mc_input_context').new(e)
 previous:configure(restartPlan)
-previous:attach('exploration',nil,5,shared)
+previous:attach('exploration',shared)
 assert(#shared.Mappings==3)
 -- The new state no longer binds K, and is never told about the previous state.
 local restarted=require('mc_input_context').new(e)
 restarted:configure({contexts={'exploration'},bindings={{id='tap',keyName='Two',mode=0}}})
-restarted:attach('exploration',nil,5,shared)
+restarted:attach('exploration',shared)
 local keys={}
 for _,entry in ipairs(shared.Mappings) do keys[#keys+1]=entry.Key.KeyName end
 assert(#shared.Mappings==2 and shared.Mappings[1]==native and keys[2]=='Two',
@@ -190,7 +190,7 @@ do
     local checked=game('/Game/IMC_OW.IMC_OW')
     local pairsContext=require('mc_input_context').new(e)
     pairsContext:configure({contexts={'exploration'},bindings={{id='swap',keyNames={'LeftAlt','Q'},mode=3}}})
-    pairsContext:attach('exploration',nil,5,checked)
+    pairsContext:attach('exploration',checked)
     local applied={AppliedInputContexts={[checked]=5},IsValid=function()return true end}
     assert(#checked.Mappings==2 and pairsContext:attached('exploration',applied))
     table.remove(checked.Mappings,2)
@@ -214,7 +214,7 @@ do
     function applied:IsValid() return true end
     local built=checker:configure({contexts={'exploration'},bindings={{id='mine',keyName='J',mode=0}}})
     built.mine.address=1
-    checker:attach('exploration',nil,5,target)
+    checker:attach('exploration',target)
     foreignReads=0
     assert(checker:attached('exploration',applied) and foreignReads==0,'foreign key names are never read')
     for index=#target.Mappings,1,-1 do
@@ -234,7 +234,7 @@ do
     local target=game('/Game/IMC_OW.IMC_OW')
     checkedKeys:configure({contexts={'exploration'},bindings={{id='good',keyName='J',mode=0},
         {id='bad',keyName='Bogus',mode=0}}})
-    checkedKeys:attach('exploration',nil,5,target)
+    checkedKeys:attach('exploration',target)
     e.validKey=nil
     assert(#target.Mappings==1 and target.Mappings[1].Key.KeyName=='J')
     assert(#warned==1 and warned[1]:find('bad Bogus',1,true) and warned[1]:find('unknown key name',1,true),

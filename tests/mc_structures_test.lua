@@ -3,17 +3,15 @@ package.path = 'Scripts/?.lua;Scripts/vendor/?.lua;' .. package.path
 local registry = require('mc_sections')
 local count = 0
 for name, section in pairs(registry.sections) do
-    assert(section.description == '' and next(section.sets) == nil, name)
+    assert(section.description == '' and section.sets == nil, name)
     count = count + 1
 end
-assert(count == 4)
-for index, name in ipairs({ 'module', 'actions', 'movement', 'system' }) do
+assert(count == 2)
+for index, name in ipairs({ 'module', 'actions' }) do
     assert(registry.sections[name] and registry.order[index] == name)
 end
 local added = registry.addSection('flight', 'Flying controls')
 assert(added == registry.sections.flight and added.description == 'Flying controls')
-added.sets.example = {}
-assert(next(registry.sections.movement.sets) == nil)
 assert(not pcall(registry.addSection, 'flight', 'Duplicate'))
 assert(registry.sections.flight == added)
 assert(not pcall(registry.addSection, '', 'Invalid'))

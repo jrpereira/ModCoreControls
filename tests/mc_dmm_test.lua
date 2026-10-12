@@ -203,16 +203,14 @@ do
         if section.id=='actions' then actions=section end
     end
     for _,section in ipairs(definition.sections) do
-        if section.id=='movement' then
-            local copy={}
-            for key,value in pairs(actions) do copy[key]=value end
-            copy.id,copy.name='movement','Movement'
-            copy.selector={id='MCC_movement_Map',name='Control Map',values=actions.selector.values,
-                labels=actions.selector.labels,default=actions.selector.default}
-            section=copy
-        end
         extended.sections[#extended.sections+1]=section
     end
+    local copy={}
+    for key,value in pairs(actions) do copy[key]=value end
+    copy.id,copy.name='movement','Movement'
+    copy.selector={id='MCC_movement_Map',name='Control Map',values=actions.selector.values,
+        labels=actions.selector.labels,default=actions.selector.default}
+    extended.sections[#extended.sections+1]=copy
     local text=DMM.schema(extended)
     local picker=assert(text:match('%[Setting%.MCC_Section%][^%[]*'),'Section picker returns')
     assert(picker:find('PresetLabels=Actions|Movement',1,true),picker)
