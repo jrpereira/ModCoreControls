@@ -7,7 +7,7 @@
     "frameworks"
   ],
   "description": "Define, save, and apply extensible input sections and control maps through DMM.",
-  "icon": {},
+  "title_link": "controls",
   "version_source": "VERSION",
   "dependencies": [
     {

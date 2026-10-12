@@ -377,7 +377,7 @@ function M.new(queue,log,service,environment)
     -- A name that found no single action is looked up again only after MISSING_RETRY
     -- seconds: every lookup scans every InputAction, and syncs follow each context change.
     local MISSING_RETRY=5
-    local clock=e.clock or os.clock
+    local clock=e.clock or os.time
     local missingActions={}
     local function standardAction(actionName)
         if type(actionName)~='string' or actionName=='' then return nil end
