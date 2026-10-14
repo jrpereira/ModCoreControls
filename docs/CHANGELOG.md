@@ -1,8 +1,11 @@
 # Changelog
 
-## v1.0.4
+## v1.0.5
 
 - The vendored ModCore Settings menu client is version 7.
+
+## v1.0.4
+
 - Control focus events start with no group until the first group transition.
 - Lookups for actions that are missing are throttled on wall-clock time, and empty icon
   metadata is no longer stored.
