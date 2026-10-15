@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.6
+
+- Requires UE4SSLuaEventBridge 1.1.0 or later and ModCore Settings 1.3.0 or later.
+  No change to controls or settings.
+
 ## v1.0.5
 
 - The vendored ModCore Settings menu client is version 7.
