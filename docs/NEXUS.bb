@@ -16,7 +16,7 @@ ModCore Controls (MCC) lets you configure Dawnwalker's keyboard and mouse quicks
 
 [b]Requirements and installation[/b]
 
-Requires The Blood of Dawnwalker, UE4SS with Lua 5.4, UE4SSLuaEventBridge 1.2.0 or newer (API 7), and ModCore Settings 1.3.0 or newer with Dawnwalker Mod Menu. Install and enable under Mods/2_ModCore_Controls. Preserve config.ini when updating and fully restart after changing Lua files.
+Requires The Blood of Dawnwalker, UE4SS with Lua 5.4, UE4SSLuaEventBridge 1.2.0 or newer (API 7), and ModCore Settings 1.4.0 or newer with Dawnwalker Mod Menu. Install and enable under Mods/2_ModCore_Controls. Preserve config.ini when updating and fully restart after changing Lua files.
 
 Controller mappings are read-only. Movement and System pages are placeholders. Developers can add static maps to MCC's source; there is no cross-mod runtime map-registration API.
 

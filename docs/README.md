@@ -37,7 +37,7 @@ source. Maps are static declarations; MCC has no cross-mod runtime registration 
 ## Requirements and installation
 
 Use Dawnwalker, UE4SS with Lua 5.4, UE4SSLuaEventBridge 1.2.0 or newer (API 7,
-with Enhanced Input and weak handles), and ModCoreSettings 1.3.0 or newer with Dawnwalker Mod
+with Enhanced Input and weak handles), and ModCoreSettings 1.4.0 or newer with Dawnwalker Mod
 Menu (DMM). MCC keeps game objects only as the bridge's weak handles; if the
 bridge's object lifetimes are unavailable, controls do not attach and the log
 says why. Install and enable
