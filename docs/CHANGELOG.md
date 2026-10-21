@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.0.10
+
+- Requires ModCore Settings 1.5.0 or later. No change to controls or settings.
+
 ## v1.0.9
 
 - Requires ModCore Settings 1.4.0 or later. No change to controls or settings.
