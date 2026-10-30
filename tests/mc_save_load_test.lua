@@ -10,6 +10,7 @@ local Lifetimes=dofile('tests/support/lifetimes.lua')
 Lifetimes.install(function(value) return states[value]~=nil and states[value].alive==true end)
 
 local reads,everything,permanent={}, {}, {}
+local doorbells={}
 local methods={
     IsValid=function(self) return states[self].alive end,
     GetFullName=function(self) return states[self].full end,
@@ -32,7 +33,7 @@ local methods={
             end
         end
     end,
-    ProcessConsoleExec=function() end,
+    ProcessConsoleExec=function(self,command) doorbells[#doorbells+1]={viewport=self,command=command} end,
 }
 local function object(class,path,fields)
     local data={full=class..' '..path,alive=true,Mappings={},Triggers={}}
@@ -218,6 +219,12 @@ assert(#reads==0,'freed objects read: '..table.concat(reads,', '))
 assert(host.ready and #states[second.native].Mappings==1,'MCC attaches to the new player')
 assert(states[second.action].Triggers[1]==gate,'the new native action is overridden')
 assert(states[second.ability].enabled==true and states[second.consumable].enabled==false)
+-- Default was already the focus before the load, yet the new player is told again.
+local last=doorbells[#doorbells]
+assert(last and last.viewport==states[second.controller].Player.ViewportClient
+    and last.command=='MCC_Controls_GroupFocus_v1','the new player receives the Default focus event')
+assert(shared['MCC.Controls.GroupFocus.v1.data']:match(' %- 1$'),
+    'the attach publishes Default as a first activation: '..tostring(shared['MCC.Controls.GroupFocus.v1.data']))
 assert(host:stop())
 assert(#reads==0,'freed objects read: '..table.concat(reads,', '))
 print('PASS: a save load reads no collected object')

@@ -552,6 +552,28 @@ do
 end
 print('PASS sync retries continue while not attached')
 
+-- A failed attach, as when a save load's last hook finds the new player half built,
+-- is retried like a pending one: no later hook is guaranteed to wake input.
+do
+    local scheduled={}
+    environment.delay=function(ms,callback) scheduled[#scheduled+1]={ms=ms,callback=callback};return true end
+    local open=bridge.OpenInputComponent
+    bridge.OpenInputComponent=function() return nil,'component not ready' end
+    local failHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,service,environment)
+    local active,why,detail=failHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=74,
+        keyName='J',mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={}})
+    assert(not active and detail.status=='failure','the attach fails: '..tostring(why))
+    assert(#scheduled==1 and scheduled[1].ms==100,'a failed attach schedules a retry')
+    bridge.OpenInputComponent=open
+    table.remove(scheduled,1).callback()
+    assert(failHost.ready and #mccKeys()==1,'the retry attaches once the player is ready')
+    assert(#scheduled==0,'no retry once attached')
+    assert(failHost:stop() and #mccKeys()==0)
+    environment.delay=nil
+end
+print('PASS a failed attach is retried')
+
 -- On the game thread a wheel change applies inside the input callback, so a native slot
 -- action on the same key sees the new focus; other callbacks still wait for the queue.
 do

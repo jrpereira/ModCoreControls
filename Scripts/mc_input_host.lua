@@ -529,6 +529,12 @@ function M.new(queue,log,service,environment)
             pcall(Quickslots.cancel,api.state,service)
         else api.state={selectedGroup=api.state.selectedGroup} end
         if type(service.invalidate)=='function' then pcall(service.invalidate,service) end
+        -- The next attach activates Default as a first activation, so its focus
+        -- event is published to the new player even when Default was already the
+        -- focus. A reset published while retiring can miss its doorbell: the old
+        -- player may already be gone.
+        api.state.selectedGroup=nil
+        api.state.pendingGroup=api.state.defaultGroup
     end
     local function retire(clearPlan,mandatory)
         local wasCleanupPending=api.phase=='cleanup-pending'
@@ -809,19 +815,24 @@ function M.new(queue,log,service,environment)
         if not ok then
             pendingWake=false
             local original=active
+            local reason,failure=tostring(original),{status='failure',original=original}
             if api.phase=='attaching' or api.phase=='ready' then
                 local cleared,cleanupWhy=retire(false,true)
-                return false,tostring(original) .. (cleared and '' or '; cleanup: ' .. tostring(cleanupWhy)),
-                    {status='failure',original=original,cleanup=cleanupWhy}
+                reason=reason .. (cleared and '' or '; cleanup: ' .. tostring(cleanupWhy))
+                failure.cleanup=cleanupWhy
             end
-            return false,tostring(original),{status='failure',original=original}
+            if scheduleRetry then scheduleRetry() end
+            return false,reason,failure
         end
         if pendingWake and api.phase~='stopped' then
             pendingWake=false
             if wake then wake() end
         end
+        -- A failed attach is retried as a pending one is: during a save load the
+        -- last hook can fire while the new player is half built, and no later hook
+        -- is guaranteed to wake input again.
         if active then api.retryStep=0
-        elseif detail and detail.status=='pending' and scheduleRetry then scheduleRetry() end
+        elseif detail and scheduleRetry then scheduleRetry() end
         return active,why,detail
     end
     function api:sync() return operate(function() return doSync(false) end) end

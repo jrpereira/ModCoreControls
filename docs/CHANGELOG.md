@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.0.11
+
+- Controls reattach on their own after a save load. An attach that failed while the
+  new player was still loading was never retried, which left the game's own
+  quickslot keys active and the wheels stuck until the game was restarted.
+- Reattaching selects the Default wheel and announces it again, so wheel focus
+  and its dimming are correct after a save load.
+
 ## v1.0.10
 
 - Requires ModCore Settings 1.5.0 or later. No change to controls or settings.
