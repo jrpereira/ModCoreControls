@@ -1,5 +1,36 @@
 # Changelog
 
+## v1.0.12
+
+- A wheel key set to Hold shows its wheel while held and returns to Default on
+  release, even if another wheel key is still held.
+- Hold to Swap works exactly like Swap to set to Hold on the Toggle Quickslots key:
+  releasing it always returns to the Default wheel.
+- Controls attach as soon as the game sets up its own gameplay input, after starting
+  or loading a game and after a death, seconds before the loading screen fades out.
+  Loading a save no longer sometimes leaves your keys unbound until the game is
+  restarted.
+- A key copied from the game's controls, or a native action MCC overrides, that is
+  not available yet when controls attach is tried again shortly after.
+- Using a skill no longer stutters the game. Each control-mapping rebuild, which
+  skills request, searched every game object for the player and HUD; MCC now reuses
+  the ones it found. When a skill lifts the game's controls for a moment, MCC keeps
+  its input instead of removing and restoring it.
+- Controls attach faster after a load or a death: MCC keeps the local player it found
+  on the first attach and reads the new player controller from it, instead of
+  searching every game object again.
+- MCC no longer watches object creation. Of the game's mapping-context changes, it
+  acts only on a gameplay context added for a new player.
+- After a load, the Default wheel is shown, and the other one dimmed, as soon as
+  the game's HUD exists, before MCC attaches its keys, which can take a moment.
+  Loading from the main menu no longer leaves both wheels bright, or the key
+  labels showing the game's keys, until the loading screen has faded out.
+- Swapping wheels changes the game's own active wheel, as its toggle does, so the
+  quickslot keys fire the wheel shown. Before, with a ModCore Templates quickslot
+  template, the keys fired consumables out of combat and abilities in combat,
+  whatever the focus. MCC no longer enables or disables wheels that Templates has
+  moved, and no longer needs them to leave anything in the native switcher.
+
 ## v1.0.11
 
 - Controls reattach on their own after a save load. An attach that failed while the

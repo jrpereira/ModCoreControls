@@ -5,7 +5,7 @@ ModCore Controls (MCC) lets you configure Dawnwalker's keyboard and mouse quicks
 [b]Features and benefits[/b]
 [list]
 [*]Bind individual abilities and consumables, use slots on the focused wheel, or select a wheel directly.
-[*]Choose the default wheel and Toggle Quickslots behavior, including hold-to-swap.
+[*]Choose the default wheel and Toggle Quickslots behavior, including hold-to-swap. A wheel key set to Hold shows its wheel while held and returns to Default on release.
 [*]Configure Tap/Hold bindings for supported actions in exploration and combat.
 [*]Use all control maps together; selecting a map only changes the rows displayed in the menu.
 [*]Apply checks duplicate custom keys across maps and saves successful changes between sessions.

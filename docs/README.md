@@ -9,7 +9,8 @@ updates the HUD key indicators.
 - **Choose how to access quickslots:** bind individual ability or consumable
   slots, act on the focused wheel, or select a wheel directly.
 - **Configure wheel switching:** choose the default wheel and Toggle Quickslots
-  behavior, including hold-to-swap.
+  behavior, including hold-to-swap. A wheel key set to Hold shows its wheel
+  while held and returns to Default on release.
 - **Use keyboard and mouse bindings with Tap/Hold:** configure supported actions
   in the menu and activate them in exploration and combat.
 - **Keep all control maps available:** every map's bindings work together; the
