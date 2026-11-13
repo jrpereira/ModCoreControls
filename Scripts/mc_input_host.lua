@@ -184,6 +184,22 @@ function M.new(queue,log,service,environment)
                 owner and '' or ' (no player to notify)')
         end
     end})
+    -- The quickslots whose Global key (actions section, Global map) is in the plan,
+    -- bound and not skipped as a duplicate. Published on every attach, so a new
+    -- player hears it, and on deactivate, when no key is left.
+    local function publishGlobal(plan,owner)
+        local global={{false,false,false,false},{false,false,false,false}}
+        for _,binding in ipairs(plan and plan.bindings or {}) do
+            local action=binding.action
+            local wheel=action and (action.type=='ability' and 1 or action.type=='consumable' and 2)
+            if wheel and binding.keyName and binding.id:match('^global%.') and global[wheel][action.slot]~=nil then
+                global[wheel][action.slot]=true
+            end
+        end
+        local ok,why=pcall(publishControl,Events.global,{global=global},owner)
+        if not ok or why==false then log.warn('control event publication failed: ',why)
+        else log.debug('published ',Events.format(Events.global,{global=global})) end
+    end
     local context=Context.new(e,log)
     local function property(object,name)
         if object==nil then return nil end
@@ -886,6 +902,7 @@ function M.new(queue,log,service,environment)
         if api.phase=='attaching' then
             api.phase='ready';api.ready=true
             log.info('controls attached to player input')
+            publishGlobal(api.plan,live)
         end
         -- Attached with an inherited key or an override action still missing: retried
         -- until it resolves, as an attach is.
@@ -978,7 +995,13 @@ function M.new(queue,log,service,environment)
     end
     -- Deactivating or stopping supersedes an Apply still queued.
     function api:deactivate()
-        return operate(function() queuedPlan=nil;return retire(true,false) end)
+        return operate(function()
+            queuedPlan=nil
+            local owner=api.ready and liveOwner() or nil
+            local results=table.pack(retire(true,false))
+            if results[1] then publishGlobal(nil,owner) end
+            return table.unpack(results,1,results.n)
+        end)
     end
     function api:updateIndicators(force)
         if busy or api.phase~='ready' then return false end

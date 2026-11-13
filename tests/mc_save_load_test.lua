@@ -207,11 +207,29 @@ assert(states[second.action].Triggers[1]==gate,'the new native action is overrid
 assert(states[second.hud].showsAbilities==true,
     'the new HUD shows the default group')
 -- Default was already the focus before the load, yet the new player is told again.
-local last=doorbells[#doorbells]
-assert(last and last.viewport==states[second.controller].Player.ViewportClient
-    and last.command=='MCC_Controls_GroupFocus_v1','the new player receives the Default focus event')
+local function rang(command)
+    for index=#doorbells,1,-1 do
+        local bell=doorbells[index]
+        if bell.command==command then return bell end
+    end
+end
+local last=rang('MCC_Controls_GroupFocus_v1')
+assert(last and last.viewport==states[second.controller].Player.ViewportClient,
+    'the new player receives the Default focus event')
+-- The new player also hears which slots have a Global key.
+last=rang('MCC_Controls_SlotsGlobal_v1')
+assert(last and last.viewport==states[second.controller].Player.ViewportClient,
+    'the new player receives the global slots event')
+assert(shared['MCC.Controls.SlotsGlobal.v1.data']:match(' 10000000$'),
+    'ability slot 1 has a Global key: '..tostring(shared['MCC.Controls.SlotsGlobal.v1.data']))
 assert(shared['MCC.Controls.GroupFocus.v1.data']:match(' %- 1$'),
     'the attach publishes Default as a first activation: '..tostring(shared['MCC.Controls.GroupFocus.v1.data']))
+-- Disabling controls leaves no Global key, and the player is told.
+local bells=#doorbells
+assert(host:deactivate())
+assert(shared['MCC.Controls.SlotsGlobal.v1.data']:match(' 00000000$'),
+    'no slot has a Global key once controls are off')
+assert(#doorbells>bells and doorbells[#doorbells].command=='MCC_Controls_SlotsGlobal_v1')
 assert(host:stop())
 assert(#reads==0,'freed objects read: '..table.concat(reads,', '))
 print('PASS: a save load reads no collected object')

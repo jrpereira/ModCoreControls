@@ -64,3 +64,36 @@ do
     assert(late.revision==4 and late.payload.group.to==2)
 end
 print('PASS event delivery failures use the leveled logger')
+
+-- Global slots: one flag per quickslot, wheel 1 abilities, wheel 2 consumables.
+do
+    local global=Events.subscribe(api,Events.global)
+    local slots={{true,false,false,true},{false,false,true,false}}
+    assert(publish(Events.global,{global=slots},owner))
+    assert(values['MCC.Controls.SlotsGlobal.v1.data']=='1 10010010')
+    assert(global.revision==1 and global.payload.global[1][4]==true and global.payload.global[2][3]==true
+        and global.payload.global[2][1]==false)
+    assert(Events.format(Events.global,{global=slots})
+        =='controls.slots.global {"global":[[true,false,false,true],[false,false,true,false]]}')
+    assert(not pcall(publish,Events.global,{global={{1,0,0,0},{}}},owner),'flags are booleans')
+    assert(not pcall(publish,Events.global,{global={{}}},owner),'both wheels are required')
+    -- The hub keeps the current set in state.controls.global, empty before any event.
+    local state,received={},{}
+    local hub=Events.hub(api,state,function(event) received[#received+1]=event end)
+    assert(state.controls.global[1][1]==false and state.controls.global[2][4]==false)
+    -- A template that attaches later reads the stored set at once.
+    hub:register({events={[Events.global]=function() end}})
+    assert(state.controls.global[1][1]==true and state.controls.global[1][2]==false)
+    assert(received[1].name==Events.global and received[1].revision==1 and received[1].global[2][3]==true)
+    assert(publish(Events.global,{global={{false,false,false,false},{true,true,true,true}}},owner))
+    assert(#received==2 and state.controls.global[1][1]==false and state.controls.global[2][2]==true)
+    assert(state.events[Events.global].revision==2)
+    -- Focus state is untouched by the slots event.
+    assert(state.revision==nil)
+    hub:stop()
+    values['MCC.Controls.SlotsGlobal.v1.data']='3 1001001'
+    local late=Events.subscribe({ModRef=shared,RegisterConsoleCommandHandler=function() return true end,
+        log=function() end},Events.global)
+    assert(late.revision==0 and late.payload.global[1][1]==false,'a short bit string is skipped, not fatal')
+end
+print('PASS global slots event')

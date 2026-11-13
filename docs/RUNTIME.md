@@ -99,6 +99,23 @@ wheels sit, and selects the matching page of the HUD's `QuickslotsSwitcher` when
 the wheels are in it. MCC never reads or changes the wheels; their display is
 ModCore Templates' job.
 
+## Global slot events
+
+`controls.slots.global` reports which quickslots have a working Global key: a key
+on the actions section's Global map (`AbilitySlot1-4`, `ConsumableSlot1-4`) that is
+in the active plan, so bound and not skipped as a duplicate. Those keys fire
+whichever wheel has focus.
+
+```lua
+{global = {[1] = {true, false, false, false},  -- wheel 1, abilities
+           [2] = {false, false, false, false}}} -- wheel 2, consumables
+```
+
+Slots run Left, Top, Right, Bottom, as in `mc_maps.lua`. The shared value is
+`'<revision> <8 bits>'`, wheel 1 first. MCC publishes it on every attach (startup,
+Apply, save load), so each new player hears it even when the set is unchanged, and
+publishes all `false` when controls are disabled.
+
 A sync presents the wheel as soon as it has found the player and its HUD, before
 it attaches input, so Default shows without waiting for the attach. After a load
 the player is often found before the game creates its HUD; while the wheel cannot
