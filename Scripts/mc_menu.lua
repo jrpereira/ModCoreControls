@@ -15,8 +15,9 @@ local paramFields={
     -- tab=true shows the choices as tabs instead of a left/right picker; cycle=true
     -- shows only the current choice, in the keybind key column, advancing on click.
     picker={values=true,labels=true,tab=true,cycle=true},
-    -- A whole number from min to max in steps of step (from min); suffix follows it.
-    integer={min=true,max=true,step=true,suffix=true},
+    -- Two whole numbers, low and high, from min to max in steps of step (from min), at
+    -- least gap apart; stored as 'low|high'. suffix follows each.
+    range={min=true,max=true,step=true,gap=true,suffix=true},
     mirror={section=true,map=true,setting=true,tab=true,cycle=true},
     keybind={trigger=true,action=true,optional=true,defaultControl=true,override=true,
         sustained=true,inactive=true,groupedBy=true,displayAlias=true},
@@ -122,20 +123,21 @@ function M.define(registry, mapRegistry)
             local declaredSettings=map.declaration.settings or {}
             local settingsById={}
             for _,source in ipairs(declaredSettings) do
-                local params=declared(source,{picker=true,integer=true},map.id)
+                local params=declared(source,{picker=true,range=true},map.id)
                 assert(not settingsById[source.id],'duplicate map setting in '..map.id..': '..source.id)
                 assert(type(source.name)=='string' and source.name:match('%S'),
                     'map setting needs a name: '..source.id)
                 local item
-                if source.type=='integer' then
-                    local min,max,step=params.min,params.max,params.step or 1
+                if source.type=='range' then
+                    local min,max,step,gap=params.min,params.max,params.step or 1,params.gap or 0
                     assert(math.type(min)=='integer' and math.type(max)=='integer' and min<max
-                        and math.type(step)=='integer' and step>=1 and (max-min)%step==0,
-                        'invalid integer range: '..source.id)
+                        and math.type(step)=='integer' and step>=1 and (max-min)%step==0
+                        and math.type(gap)=='integer' and gap>=0 and gap%step==0 and gap<=max-min,
+                        'invalid range: '..source.id)
                     assert(params.suffix==nil or type(params.suffix)=='string','suffix must be text: '..source.id)
                     item=setting('MCC_'..token(id)..'_'..token(map.id)..'_'..token(source.id),
-                        source.name,'integer',source.default)
-                    item.minimum,item.maximum,item.step,item.suffix=min,max,step,params.suffix
+                        source.name,'range',source.default)
+                    item.minimum,item.maximum,item.step,item.gap,item.suffix=min,max,step,gap,params.suffix
                 else
                     local values,labels=params.values or {},params.labels or {}
                     assert(#values>0 and #values==#labels,'invalid map setting choices: '..source.id)
@@ -161,7 +163,7 @@ function M.define(registry, mapRegistry)
             end
             if map.holdThreshold then
                 local threshold=settingsById[map.holdThreshold]
-                assert(threshold and threshold.kind=='integer','Hold threshold setting unavailable: '..map.id)
+                assert(threshold and threshold.kind=='range','Hold threshold setting unavailable: '..map.id)
                 map.holdThreshold=threshold
             end
             if map.holdSwap then
@@ -358,12 +360,23 @@ function M.binding(setting, value)
     return key, setting.modes[trigger]
 end
 
+-- A range value's low and high, or nil when value is not 'low|high' within its limits.
+function M.range(setting, value)
+    if type(value)~='string' then return nil end
+    local low,high=value:match('^(%d+)|(%d+)$')
+    low,high=tonumber(low),tonumber(high)
+    if not low then return nil end
+    for _,n in ipairs({low,high}) do
+        if n<setting.minimum or n>setting.maximum or (n-setting.minimum)%setting.step~=0 then return nil end
+    end
+    if high-low<setting.gap or high<=low then return nil end
+    return low,high
+end
+
 function M.valid(setting, value)
     if setting.kind=='keybind' then return type(value)=='string' and M.keybind(setting,value)==value end
+    if setting.kind=='range' then return M.range(setting,value)~=nil end
     if type(value)~='number' or value%1~=0 then return false end
-    if setting.kind=='integer' then
-        return value>=setting.minimum and value<=setting.maximum and (value-setting.minimum)%setting.step==0
-    end
     for _, allowed in ipairs(setting.values) do if value==allowed then return true end end
     return false
 end

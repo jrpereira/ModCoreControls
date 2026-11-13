@@ -43,7 +43,7 @@ for section, sectionMaps in pairs(maps.maps) do
         assert(definition.id == mapId)
         for _, setting in ipairs(definition.settings or {}) do
             assert(setting.type == 'picker' and #setting.params.values == #setting.params.labels
-                or setting.type == 'integer' and setting.params.min < setting.params.max)
+                or setting.type == 'range' and setting.params.min < setting.params.max)
         end
         local ids = {}
         for _, group in ipairs(definition.map) do

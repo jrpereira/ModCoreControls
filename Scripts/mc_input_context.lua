@@ -14,9 +14,9 @@ function M.actionName(id)
 end
 -- Key names compare as the engine compares them: without regard to case.
 local function keyId(name) return string.lower(tostring(name)) end
--- Seconds a Hold key must be held, and the longest press that is a Tap, when the
--- plan does not carry the player's Hold threshold.
-M.DEFAULT_THRESHOLD=.25
+-- The Hold window in seconds when the plan does not carry the player's: a Hold key
+-- acts at high, and a Tap sharing its key acts on a release before high.
+M.DEFAULT_LOW,M.DEFAULT_HIGH=.1,.35
 
 function M.new(e,log)
     log=require('mc_log').wrap(log)
@@ -56,7 +56,7 @@ function M.new(e,log)
         assert(className,'unsupported input trigger mode: '..tostring(mode))
         local result=e.trigger(target,className)
         assert(e.valid(result),'input trigger unavailable')
-        local threshold=plan and plan.holdThreshold or e.threshold or M.DEFAULT_THRESHOLD
+        local threshold=plan and plan.holdHigh or e.threshold or M.DEFAULT_HIGH
         if mode==1 then result.HoldTimeThreshold=threshold;result.bIsOneShot=true
         elseif mode==0 then result.TapReleaseTimeThreshold=threshold end
         target.Triggers={result}
@@ -143,7 +143,7 @@ function M.new(e,log)
     -- Everything configure and map read from a plan, as text.
     local function signature(value)
         -- A new Hold threshold rebuilds every trigger.
-        local parts={table.concat(value.contexts or {},','),tostring(value.holdThreshold)}
+        local parts={table.concat(value.contexts or {},','),tostring(value.holdHigh)}
         for _,binding in ipairs(value.bindings) do
             local suppressed={}
             for keyName in pairs(binding.suppressed or {}) do suppressed[#suppressed+1]=keyName end

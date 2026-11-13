@@ -40,10 +40,10 @@ M.addSectionMap('module', {
                 params={values={0,1},labels={'Off','On'}}},
             {id='DefaultWheel',name='Default wheel',type='picker',default=2,
                 params={values={1,2},labels={'Abilities','Consumables'}}},
-            {id='HoldThreshold',name='Hold threshold',type='integer',default=250,
-                description='How long a key set to Hold must be held before it acts. A shorter press'
-                    ..' is a Tap.',
-                params={min=100,max=2000,step=10,suffix=' ms'}},
+            {id='HoldThreshold',name='Hold threshold',type='range',default='100|350',
+                description='A Hold key\'s rim fills from the low mark and the key acts at the high mark.'
+                    ..' A Tap on the same key acts on any release before the high mark.',
+                params={min=100,max=500,step=10,gap=50,suffix=' ms'}},
             {id='KeyOutline',name='Show key outline',type='picker',default=2,
                 description='The rim on HUD key hints: a Hold key\'s fills while held, a Tap key\'s is'
                     ..' full while pressed. Hold keys always keep their rim; with None it does not fill.',

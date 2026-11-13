@@ -88,20 +88,20 @@ do
     e.trigger=trigger
 end
 do
-    -- Tap and Hold use the plan's Hold threshold, 250 ms when it carries none, and a
+    -- Tap and Hold use the plan's high mark, 350 ms when it carries none, and a
     -- new threshold rebuilds the triggers.
-    assert(actions.tap.Triggers[1].TapReleaseTimeThreshold==.25,'default Tap threshold')
-    plan.holdThreshold=.4
+    assert(actions.tap.Triggers[1].TapReleaseTimeThreshold==.35,'default Tap threshold: the high mark')
+    plan.holdHigh=.4
     plan.bindings[1].mode=1
     context:configure(plan)
     assert(actions.tap.Triggers[1].HoldTimeThreshold==.4,'Hold uses the plan threshold')
-    plan.holdThreshold=.15
+    plan.holdHigh=.15
     context:configure(plan)
     assert(actions.tap.Triggers[1].HoldTimeThreshold==.15,'a new threshold rebuilds the trigger')
     plan.bindings[1].mode=0
     context:configure(plan)
     assert(actions.tap.Triggers[1].TapReleaseTimeThreshold==.15,'Tap uses the plan threshold')
-    plan.holdThreshold=nil
+    plan.holdHigh=nil
     context:configure(plan)
 end
 context:detachAll()

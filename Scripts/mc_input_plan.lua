@@ -216,11 +216,12 @@ function M.build(definition,values,options)
                 end
             end
         end
-        -- Every Tap and Hold trigger uses the Hold threshold, in seconds.
+        -- The Hold window, in seconds: a Hold key's rim fills from low and the key acts
+        -- at high; a Tap sharing its key acts on a release before high.
         if map.holdThreshold then
-            local ms=assert(values[map.holdThreshold.id],'Hold threshold setting missing')
-            assert(require('mc_menu').valid(map.holdThreshold,ms),'invalid Hold threshold setting')
-            plan.holdThreshold=ms/1000
+            local low,high=require('mc_menu').range(map.holdThreshold,values[map.holdThreshold.id])
+            assert(low,'invalid Hold threshold setting')
+            plan.holdLow,plan.holdHigh=low/1000,high/1000
         end
         if map.holdSwap then
             local enabled=assert(values[map.holdSwap.enabled.id],'Hold Swap setting missing')

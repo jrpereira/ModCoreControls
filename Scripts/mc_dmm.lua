@@ -37,9 +37,10 @@ function M.schema(definition,gamepad)
             -- Every key on the page shares one scope, so ModCoreSettings marks the same
             -- key and trigger on two rows as it is edited, as Apply would reject it.
             data.mcConflictScope='controls'
-        elseif item.kind=='integer' then
-            data.Type='integer'
-            data.Minimum,data.Maximum,data.Step,data.Suffix=item.minimum,item.maximum,item.step,item.suffix
+        elseif item.kind=='range' then
+            data.Type='range'
+            data.Min,data.Max,data.Step,data.DeltaMin,data.Suffix=item.minimum,item.maximum,item.step,
+                math.max(item.gap,item.step),item.suffix
         elseif #item.values==1 then return
         else
             data.Type='picker'

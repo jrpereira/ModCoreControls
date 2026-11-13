@@ -35,6 +35,8 @@ function M.decode(content,definition)
                 if item.kind=='keybind' then
                     -- 'default' reads as the declared binding.
                     value=raw:lower()=='default' and item.default or require('mc_menu').keybind(item,raw)
+                elseif item.kind=='range' then
+                    value=require('mc_menu').valid(item,raw) and raw or nil
                 else
                     value=tonumber(raw)
                     if not require('mc_menu').valid(item,value) then value=nil end

@@ -18,6 +18,7 @@ local choices=dofile(path)
 -- The same wrappers, in the same order, as ModCoreSettings' DMM extension.
 local fieldTypes=dofile(settings .. '/field_types.lua').new()
 fieldTypes:register('keybind',dofile(settings .. '/keybind_editor.lua'))
+fieldTypes:register('range',dofile(settings .. '/range_editor.lua'))
 fieldTypes:install({choices=choices,controls={build=function() end}})
 dofile(settings .. '/navigation.lua').install(choices)
 dofile(settings .. '/presentation.lua').install(choices,{},nil)
@@ -69,7 +70,7 @@ else
 end
 local editable=0
 for _,setting in ipairs(definition.settings) do
-    if setting.kind=='keybind' or setting.kind=='integer' or #setting.values>1 then
+    if setting.kind=='keybind' or setting.kind=='range' or #setting.values>1 then
         editable=editable+1
         local index=assert(indices[setting.id],'missing DMM row: ' .. setting.id)
         local item=items[index]
@@ -77,9 +78,8 @@ for _,setting in ipairs(definition.settings) do
         assert(item.file=='config.ini','config file mismatch: ' .. setting.id)
         assert(item.section==setting.configSection,'config section mismatch: ' .. setting.id)
         assert(item.key==setting.configKey,'config key mismatch: ' .. setting.id)
-        if setting.kind=='integer' then
-            assert(item.kind=='slider' and item.minimum==setting.minimum and item.maximum==setting.maximum
-                and item.step==setting.step and item.suffix==setting.suffix,'integer row: '..setting.id)
+        if setting.kind=='range' then
+            assert(item.kind=='extension' and item.editor=='range','range row: '..setting.id)
         elseif setting.kind=='choice' then
             same(item.values,setting.values,setting.id .. ' values')
             assert(not item.mcTabs,'no mode pickers render as tabs: ' .. setting.id)
@@ -160,11 +160,11 @@ assert(model.pending[slot]=='J|Hold')
 do
     local threshold=indices.MCC_module_default_HoldThreshold
     model:set(page,0)
-    assert(model.pending[threshold]==250,'the threshold starts at its default')
-    model:set(threshold,400)
+    assert(model.pending[threshold]=='100|350','the window starts at its default')
+    model:set(threshold,'150|400')
     assert(model:apply())
     file=assert(io.open(temp .. '/config.ini','rb'));local text=file:read('*a');file:close()
-    assert(text:find('default.HoldThreshold=400',1,true),'the threshold is saved')
+    assert(text:find('default.HoldThreshold=150|400',1,true),'the window is saved')
 end
 -- Live gamepad assignments become one read-only row per button.
 local schema=DMM.schema(definition,{{key='Gamepad_DPad_Left',label='D-Pad Left',actions={'Quickslot Left','Map|Zoom'}},

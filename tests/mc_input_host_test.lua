@@ -963,7 +963,7 @@ do
     local first=#callbacks
     local holdKey={id='global.AbilitySlot1',keyName='One',mode=1,phases={'Triggered'},
         progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
-    assert(rimHost:apply({contexts={'exploration','combat'},bindings={holdKey},overrides={},holdThreshold=.4}))
+    assert(rimHost:apply({contexts={'exploration','combat'},bindings={holdKey},overrides={},holdLow=.1,holdHigh=.4}))
     local function fire(phase,elapsed)
         for index=first+1,#callbacks do
             if callbacks[index].phase==phase then return callbacks[index].callback({elapsed_processed=elapsed}) end
@@ -971,11 +971,13 @@ do
         error('no callback for '..phase)
     end
     fire('Started',0)
-    fire('Ongoing',.1)
-    fire('Ongoing',.2)
+    fire('Ongoing',.05)
+    fire('Ongoing',.175)
+    fire('Ongoing',.25)
     assert(#activated==0,'rim phases are not input')
-    assert(rims[1].widget==indicator and rims[1].value==0 and rims[2].value==.25 and rims[3].value==.5,
-        'the rim fills toward the threshold')
+    local function near(a,b) return math.abs(a-b)<1e-9 end
+    assert(rims[1].widget==indicator and rims[1].value==0 and near(rims[2].value,.25) and near(rims[3].value,.5),
+        'the rim stays empty until low, then fills toward high')
     fire('Ongoing',.9)
     assert(rims[4].value==1,'the rim never overfills')
     fire('Triggered',.4)
@@ -1001,7 +1003,7 @@ do
     local first=#callbacks
     local tapKey={id='global.AbilitySlot1',keyName='One',mode=0,phases={'Triggered'},
         progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
-    assert(tapHost:apply({contexts={'exploration','combat'},bindings={tapKey},overrides={},holdThreshold=.4}))
+    assert(tapHost:apply({contexts={'exploration','combat'},bindings={tapKey},overrides={},holdLow=.1,holdHigh=.4}))
     assert(displays[#displays]==true,'a Tap key shows its rim')
     local function fire(phase,elapsed)
         for index=first+1,#callbacks do
@@ -1010,19 +1012,19 @@ do
         error('no callback for '..phase)
     end
     fire('Started',0)
-    fire('Ongoing',.1)
-    fire('Ongoing',.2)
-    assert(#rims==1 and rims[1]==1,'full on press, set once while held')
-    fire('Triggered',.2)
+    fire('Ongoing',.05)
+    fire('Ongoing',.08)
+    assert(#rims==1 and rims[1]==1,'full on press, set once while held before low')
+    fire('Triggered',.08)
     assert(rims[2]==0 and activated[1]=='ability:1','it empties when the tap fires')
     fire('Started',0)
-    fire('Ongoing',.5)
-    assert(rims[3]==1 and rims[4]==0 and #activated==1,'held past the threshold, it empties')
+    fire('Ongoing',.15)
+    assert(rims[3]==1 and rims[4]==0 and #activated==1,'past the low mark the Hold takes over: it empties')
     fire('Canceled',.6)
     assert(#rims==4)
     -- With Show key outline set to Hold, a Tap key no longer shows a rim.
     assert(tapHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',keyName='One',
-        mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={},holdThreshold=.4,keyOutline=1}))
+        mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={},holdLow=.1,holdHigh=.4,keyOutline=1}))
     assert(displays[#displays]==false,'the Tap rim is turned off')
     assert(tapHost:deactivate())
     assert(tapHost:stop())
@@ -1037,10 +1039,10 @@ do
     local instanceHost=require('mc_input_host').new(function(callback) callback();return true end,
         function() end,service,environment)
     local key={id='global.AbilitySlot1',keyName='One',mode=1,phases={'Triggered'},action={type='ability',slot=1}}
-    assert(instanceHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdThreshold=.25}))
+    assert(instanceHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdLow=.1,holdHigh=.25}))
     local first=#forgotten
     assert(first==1,'a new trigger forgets the old instance')
-    assert(instanceHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdThreshold=1}))
+    assert(instanceHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdLow=.1,holdHigh=1}))
     assert(#forgotten==2,'a new threshold forgets it again')
     assert(instanceHost:sync() and #forgotten==2,'an unchanged plan keeps the instance')
     assert(instanceHost:stop())
@@ -1058,7 +1060,7 @@ do
     local first=#callbacks
     local key={id='global.AbilitySlot1',keyName='One',mode=3,phases={'Triggered'},
         progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
-    assert(pressHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdThreshold=.4}))
+    assert(pressHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdLow=.1,holdHigh=.4}))
     local byPhase={}
     for index=first+1,#callbacks do byPhase[callbacks[index].phase]=callbacks[index].callback end
     byPhase.Started({elapsed_processed=0})
@@ -1067,18 +1069,18 @@ do
     assert(#rims==1 and rims[1]==1,'full on press, and it stays full while held')
     byPhase.Completed({elapsed_processed=2.1})
     assert(rims[2]==0,'it empties on release')
-    -- A quick press stays full until the threshold, capped at 1 s, has passed.
+    -- A quick press stays full until the low mark has passed.
     local timers={}
     local delay=environment.delay
     environment.delay=function(ms,callback) timers[#timers+1]={ms=ms,run=callback};return true end
     byPhase.Started({elapsed_processed=0})
-    byPhase.Completed({elapsed_processed=.1})
-    assert(#rims==3 and rims[3]==1 and timers[1].ms==300,'still full after a quick release')
+    byPhase.Completed({elapsed_processed=.04})
+    assert(#rims==3 and rims[3]==1 and timers[1].ms==60,'still full after a quick release')
     timers[1].run()
-    assert(rims[4]==0,'empty once the threshold has passed')
+    assert(rims[4]==0,'empty once the low mark has passed')
     -- A newer press is not emptied by the older press's timer.
     byPhase.Started({elapsed_processed=0})
-    byPhase.Completed({elapsed_processed=.1})
+    byPhase.Completed({elapsed_processed=.04})
     byPhase.Started({elapsed_processed=0})
     timers[2].run()
     assert(#rims==6 and rims[6]==1,'the second press keeps its rim')
@@ -1088,7 +1090,7 @@ do
 end
 print('PASS a key acting on press is full while down')
 
--- The flash is capped at 1 s, however long the threshold.
+-- The flash lasts until the low mark, however long the window.
 do
     local timers={}
     local delay=environment.delay
@@ -1100,16 +1102,16 @@ do
     local first=#callbacks
     local key={id='global.AbilitySlot1',keyName='One',mode=3,phases={'Triggered'},
         progressPhases={'Started','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
-    assert(capHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdThreshold=2}))
+    assert(capHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdLow=.5,holdHigh=2}))
     local byPhase={}
     for index=first+1,#callbacks do byPhase[callbacks[index].phase]=callbacks[index].callback end
     byPhase.Started({elapsed_processed=0})
     byPhase.Completed({elapsed_processed=.2})
-    assert(timers[1]==800,'flash capped at 1 s: '..tostring(timers[1]))
+    assert(timers[1]==300,'flash until low: '..tostring(timers[1]))
     assert(capHost:stop())
     environment.delay,environment.setIndicatorProgress=delay,nil
 end
-print('PASS the rim flash is capped at 1 s')
+print('PASS the rim flash lasts until the low mark')
 
 -- A Groups key fills only the focused wheel's hint, the one focused at press.
 do
@@ -1123,16 +1125,16 @@ do
         local key={id='grouped.QuickSlot1',keyName='One',mode=1,phases={'Started','Triggered','Completed','Canceled'},
             progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='selected',slot=1}}
         assert(groupHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},
-            defaultGroup=defaultGroup,holdThreshold=.4}))
+            defaultGroup=defaultGroup,holdLow=.1,holdHigh=.4}))
         local byPhase={}
         for index=first+1,#callbacks do byPhase[callbacks[index].phase]=callbacks[index].callback end
         byPhase.Started({elapsed_processed=0})
-        byPhase.Ongoing({elapsed_processed=.2})
+        byPhase.Ongoing({elapsed_processed=.25})
     end
     run(2)
     assert(#rims==0,'the abilities hint stays empty while consumables have focus')
     run(1)
-    assert(#rims==2 and rims[1].widget==indicator and rims[2].value==.5,'the focused wheel fills')
+    assert(#rims==2 and rims[1].widget==indicator and math.abs(rims[2].value-.5)<1e-9,'the focused wheel fills')
     assert(groupHost:stop())
     environment.setIndicatorProgress=nil
 end

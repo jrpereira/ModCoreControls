@@ -1060,17 +1060,17 @@ function M.new(queue,log,service,environment)
     local rims={}
     -- Presses per binding, so a delayed empty never clears a later press's rim.
     local presses={}
-    local RIM_FLASH=1
     fillRim=function(binding,phase,event)
         local value
-        local threshold=api.plan and api.plan.holdThreshold or Context.DEFAULT_THRESHOLD
+        local low=api.plan and api.plan.holdLow or Context.DEFAULT_LOW
+        local high=api.plan and api.plan.holdHigh or Context.DEFAULT_HIGH
         local elapsed=tonumber(event and event.elapsed_processed) or 0
         if binding.mode==3 then
-            -- Acts on press: full while the key is down, and at least for the threshold
-            -- (at most RIM_FLASH seconds) so a quick press still shows.
+            -- Acts on press: full while the key is down, and at least until the low mark
+            -- so a quick press still shows.
             if phase=='Started' then presses[binding.id]=(presses[binding.id] or 0)+1 end
             value=(phase=='Completed' or phase=='Canceled') and 0 or 1
-            local remaining=math.min(threshold,RIM_FLASH)-elapsed
+            local remaining=low-elapsed
             if value==0 and remaining>0 and type(e.delay)=='function' then
                 local press=presses[binding.id]
                 pcall(e.delay,math.floor(remaining*1000+.5),function()
@@ -1083,13 +1083,14 @@ function M.new(queue,log,service,environment)
                 value=1
             end
         elseif binding.mode==0 then
-            -- Tap sharing its key with a Hold: full while pressed, empty once it fires,
-            -- is released or is held past the threshold.
+            -- Tap sharing its key with a Hold: lit from press until the low mark, when
+            -- the Hold starts filling; empty once it fires or is released.
             if phase=='Started' then value=1
-            elseif phase=='Ongoing' then value=elapsed<threshold and 1 or 0
+            elseif phase=='Ongoing' then value=elapsed<low and 1 or 0
             else value=0 end
         elseif phase=='Ongoing' then
-            value=math.max(0,math.min(1,elapsed/threshold))
+            -- Hold: empty until the low mark, then fills to act at the high mark.
+            value=math.max(0,math.min(1,(elapsed-low)/(high-low)))
         else value=0 end
         if phase=='Started' then pressGroup[binding.id]=api.state and api.state.selectedGroup end
         local unchanged=phase~='Started' and rims[binding.id]==value

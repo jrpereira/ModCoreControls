@@ -7,16 +7,17 @@ This page describes MCC's current quickslot input adapter.
 
 | Action | Tap | Hold |
 | --- | --- | --- |
-| Immediate | Fires on press; when the same key is also bound as Hold, on a release within the Hold threshold | Fires after the Hold threshold |
+| Immediate | Fires on press; when the same key is also bound as Hold, on a release before the high mark | Fires at the high mark |
 | Sustained | Toggles on/off | Active until release or cancellation |
 
-While a key set to Hold is held, its HUD key indicator's rim fills from press to the
-Hold threshold, as the game's own hold prompts do (`OnActionProgress` on the
-indicator, from the action's `Ongoing` events), and empties when the action fires
-or the key is released. A key set to Tap shows the rim too (`SetHoldDisplayOverride`):
-full while the key is down, and for at least the Hold threshold (at most 1 s) after a
-press so a quick one still shows; a Tap sharing its key with a Hold empties once it
-fires or is held past the threshold. These extra phases only drive the rim; they are never delivered as input.
+While a key set to Hold is held, its HUD key indicator's rim stays empty until the low
+mark, then fills to the high mark, where the key acts, as the game's own hold prompts
+do (`OnActionProgress` on the indicator, from the action's `Ongoing` events); it
+empties when the action fires or the key is released. A key set to Tap shows the rim
+too (`SetHoldDisplayOverride`): full while the key is down, and at least until the low
+mark after a press so a quick one still shows. A Tap sharing its key with a Hold is lit
+from press until the low mark, when the Hold's rim starts filling; it still fires on a
+release before the high mark. A quick press therefore never shows the Hold filling. These extra phases only drive the rim; they are never delivered as input.
 The Options page's **Show key outline** chooses which keys do this: None, Hold, or
 Tap & Hold (the default). A Hold key always keeps its rim; with None it just does not
 fill. A Groups key fills the hint of the wheel focused when it was pressed.
@@ -31,9 +32,10 @@ uses the action. When MCC rebuilds triggers (a new threshold, or Tap changed to
 Hold), it removes the player's instance of each rebuilt action from
 `EnhancedPlayerInput.ActionInstanceData`, so the change applies at once.
 
-The threshold is the Options page's **Hold threshold**: 250 ms by default,
-100 to 2000 ms in 10 ms steps. It only matters for Hold keys and for a Tap that
-shares its key with a Hold. A changed threshold rebuilds the triggers on Apply.
+The window is the Options page's **Hold threshold**, a low-high range: 100-350 ms by
+default, 100 to 500 ms in 10 ms steps, at least 50 ms apart. It only matters for Hold
+keys, for a Tap that shares its key with a Hold, and for the rim. A changed high mark
+rebuilds the triggers on Apply.
 
 Default's
 **Hold to Swap** is the same binding as **Swap to** set to Hold on the inherited
