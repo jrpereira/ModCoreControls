@@ -121,7 +121,9 @@ function M.new(e)
     -- Fills the Hold rim of every indicator showing bindingId: value from 0 to 1.
     -- native={action=<name>,slot=,group=}: a game quickslot key; only the indicator of
     -- the focused wheel still showing that action is filled.
-    function api:progress(plan,bindingId,value,native)
+    -- group (1 abilities, 2 consumables), when given, limits the fill to that wheel:
+    -- a Groups key acts on the focused wheel only.
+    function api:progress(plan,bindingId,value,native,group)
         if type(e.setProgress)~='function' or type(plan)~='table' then return false end
         local targets=progressTargets[bindingId]
         if native then
@@ -144,15 +146,19 @@ function M.new(e)
                     local bindings=wheel and e.property(wheel,fields[2])
                     for slot=1,4 do
                         local widget=ids[slot]==bindingId and bindings and e.property(bindings,positions[slot])
-                        if widget and e.valid(widget) then targets[#targets+1]=widget end
+                        if widget and e.valid(widget) then
+                            targets[#targets+1]={widget=widget,group=kind=='ability' and 1 or 2}
+                        end
                     end
                 end
             end
             progressTargets[bindingId]=targets
         end
         local done=false
-        for _,widget in ipairs(targets) do
-            if e.valid(widget) and pcall(e.setProgress,widget,value) then done=true end
+        for _,target in ipairs(targets) do
+            local widget=target.widget or target
+            if (group==nil or target.group==nil or target.group==group)
+                and e.valid(widget) and pcall(e.setProgress,widget,value) then done=true end
         end
         return done
     end

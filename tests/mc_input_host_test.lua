@@ -1088,3 +1088,30 @@ do
 end
 print('PASS game key hints get a Tap rim')
 
+-- A Groups key fills only the focused wheel's hint, the one focused at press.
+do
+    local rims={}
+    environment.inGameThread=function() return true end
+    environment.setIndicatorProgress=function(widget,value) rims[#rims+1]={widget=widget,value=value} end
+    local groupHost=require('mc_input_host').new(function(callback) callback();return true end,
+        function() end,service,environment)
+    local function run(defaultGroup)
+        local first=#callbacks
+        local key={id='grouped.QuickSlot1',keyName='One',mode=1,phases={'Started','Triggered','Completed','Canceled'},
+            progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='selected',slot=1}}
+        assert(groupHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},
+            defaultGroup=defaultGroup,holdThreshold=.4}))
+        local byPhase={}
+        for index=first+1,#callbacks do byPhase[callbacks[index].phase]=callbacks[index].callback end
+        byPhase.Started({elapsed_processed=0})
+        byPhase.Ongoing({elapsed_processed=.2})
+    end
+    run(2)
+    assert(#rims==0,'the abilities hint stays empty while consumables have focus')
+    run(1)
+    assert(#rims==2 and rims[1].widget==indicator and rims[2].value==.5,'the focused wheel fills')
+    assert(groupHost:stop())
+    environment.setIndicatorProgress=nil
+end
+print('PASS a Groups key fills only the focused wheel')
+

@@ -1061,10 +1061,14 @@ function M.new(queue,log,service,environment)
         for _,name in ipairs(binding.phases or {}) do if name==phase then return true end end
         return false
     end
+    -- The focused wheel when each key was pressed; a swap while held keeps its hint.
+    local pressGroup={}
     local function setRim(binding,value)
         local native=binding.native and {action=binding.standardAction,slot=binding.slot,
-            group=api.state and api.state.selectedGroup} or nil
-        local ok,why=pcall(indicators.progress,indicators,api.plan,binding.id,value,native)
+            group=pressGroup[binding.id]} or nil
+        -- A Groups key fills the hint of the wheel it acts on: the focused one at press.
+        local group=binding.action and binding.action.type=='selected' and pressGroup[binding.id] or nil
+        local ok,why=pcall(indicators.progress,indicators,api.plan,binding.id,value,native,group)
         if not ok then log.debug('rim progress failed: ',binding.id,': ',why) end
     end
     -- The rim value each binding last showed, so a Tap's every-frame Ongoing sets it once.
@@ -1081,6 +1085,7 @@ function M.new(queue,log,service,environment)
         elseif phase=='Ongoing' then
             value=math.max(0,math.min(1,elapsed/threshold))
         else value=0 end
+        if phase=='Started' then pressGroup[binding.id]=api.state and api.state.selectedGroup end
         local unchanged=phase~='Started' and rims[binding.id]==value
         rims[binding.id]=value
         if unchanged then return not delivers(binding,phase) and 'rim only' or nil end
