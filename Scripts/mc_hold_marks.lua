@@ -9,10 +9,10 @@
 -- state are reused or removed.
 local KeyIndicators=require('mc_key_indicators')
 local M={}
--- Layout units of the key's 85x85 box: the bar is 51 wide, centred, 11 thick, black at 80%
+-- Layout units of the key's 85x85 box: the bar is 51 wide, centred, 11 thick, black at full
 -- opacity, and its bottom edge sits 15 above the box's bottom.
 M.box=85
-M.bar={width=51,thickness=11,bottom=15,opacity=.8}
+M.bar={width=51,thickness=11,bottom=15,opacity=1}
 M.prefix='MCC_HoldMark_'
 
 function M.name(kind,position) return M.prefix..kind..'_'..position end
