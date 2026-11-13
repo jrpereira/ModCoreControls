@@ -42,6 +42,17 @@ do
     decoded=Config.decode('[ModCoreControls.module]\ndefault.HoldThreshold=320\n',definition)
     assert(decoded[threshold.id]==320)
 end
+-- Keys set to Hold listen to the rim phases; Tap keys and inherited keys do not.
+do
+    local values={}
+    for id,value in pairs(model.values) do values[id]=value end
+    local slot=definition.byId.MCC_actions_global_AbilitySlot1
+    values[slot.id]=Menu.keybind(slot,'J|Hold')
+    local built=find(Plan.build(definition,values),'global.AbilitySlot1')
+    assert(built.mode==1 and built.progressPhases and #built.progressPhases==5)
+    values[slot.id]=Menu.keybind(slot,'J|Tap')
+    assert(find(Plan.build(definition,values),'global.AbilitySlot1').progressPhases==nil)
+end
 assert(#default.bindings==1,'Default swap hold only')
 assert(not default.overrides.IA_Quickslot_Left,'unbound slot keys must not override native slots')
 for slot=1,4 do

@@ -107,6 +107,8 @@ local function defaultEnvironment()
             return ok and value or nil
         end,
         setIndicatorAction=function(widget,action) widget:SetEnhancedInputAction(action) end,
+        -- Fills a Hold key's rim, as CommonUI does for its own hold prompts.
+        setIndicatorProgress=function(widget,value) widget:OnActionProgress(value) end,
         -- Hold underlines (mc_hold_marks): an 85x85 SizeBox holding a black Image bar,
         -- added to the key's overlay, copying the key's placement.
         holdMark={
@@ -127,7 +129,10 @@ local function defaultEnvironment()
                 box:SetHeightOverride(HoldMarks.box)
                 box.Visibility=3 -- HitTestInvisible
                 bar:SetColorAndOpacity({R=0,G=0,B=0,A=1})
-                bar:SetDesiredSizeOverride({X=HoldMarks.bar.thickness,Y=HoldMarks.bar.thickness})
+                -- The brush size is the bar's thickness; it is written before the bar is
+                -- shown, as a desired size override set then does not apply.
+                bar.Brush.ImageSize.X=HoldMarks.bar.thickness
+                bar.Brush.ImageSize.Y=HoldMarks.bar.thickness
                 local inset=(HoldMarks.box-HoldMarks.bar.width)/2
                 local inner=box:SetContent(bar)
                 inner:SetHorizontalAlignment(0) -- Fill
@@ -219,6 +224,7 @@ function M.new(queue,log,service,environment)
     -- A leveled logger, or a plain function(message) as tests pass.
     log=Log.wrap(log)
     local api,liveOwner
+    local fillRim
     local e=environment or defaultEnvironment()
     if not (e.keep and e.live) then
         e=setmetatable({keep=e.keep or Lifetimes.keep,live=e.live or Lifetimes.live},{__index=e})
@@ -290,6 +296,7 @@ function M.new(queue,log,service,environment)
         valid=e.valid,path=e.path,property=property,
         resolve=e.resolve or function() return nil end,
         setAction=e.setIndicatorAction or function() return false end,
+        setProgress=e.setIndicatorProgress,
         hud=currentHud,
         load=e.loadIndicatorState,save=e.saveIndicatorState,
     })
@@ -944,6 +951,8 @@ function M.new(queue,log,service,environment)
             local installStarted=os.clock()
             local installed,why=callbackOwner:install(live.componentPath,actions,api.plan,function(binding,phase,event)
                 if api.phase~='ready' or api.generation~=generation then return end
+                -- A Hold key's rim fills from press to its threshold, then empties.
+                if binding.progressPhases and fillRim(binding,phase,event)=='rim only' then return end
                 local function deliver()
                     if api.phase=='ready' and api.generation==generation then
                         local ok,result=pcall(Quickslots.deliver,api.state,binding,phase,service)
@@ -1005,6 +1014,30 @@ function M.new(queue,log,service,environment)
         api.incomplete=api.unresolved~=nil or api.missingOverride==true or nil
         timed('indicators',updateIndicators,force)
         return true
+    end
+    -- Phases a binding listens to only for its rim are not delivered as input.
+    local function delivers(binding,phase)
+        for _,name in ipairs(binding.phases or {}) do if name==phase then return true end end
+        return false
+    end
+    local function setRim(binding,value)
+        local ok,why=pcall(indicators.progress,indicators,api.plan,binding.id,value)
+        if not ok then log.debug('rim progress failed: ',binding.id,': ',why) end
+    end
+    fillRim=function(binding,phase,event)
+        local value
+        if phase=='Ongoing' then
+            local threshold=api.plan and api.plan.holdThreshold or Context.DEFAULT_THRESHOLD
+            local elapsed=tonumber(event and event.elapsed_processed) or 0
+            value=math.max(0,math.min(1,elapsed/threshold))
+        else value=0 end
+        local onThread,current=false,nil
+        if type(e.inGameThread)=='function' then onThread,current=pcall(e.inGameThread) end
+        if onThread and current==true then setRim(binding,value)
+        else pcall(queue,function()
+            if api.phase=='ready' then setRim(binding,value) end
+        end) end
+        return not delivers(binding,phase) and 'rim only' or nil
     end
     local queuedPlan
     local operation

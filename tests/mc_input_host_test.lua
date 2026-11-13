@@ -949,3 +949,41 @@ do
     indicator.parent,indicator.Slot,indicator.placement=nil,nil,nil
 end
 print('PASS Hold keys are underlined and follow layout passes')
+
+-- A Hold key's rim fills from press to the Hold threshold and empties on release;
+-- the rim phases are not delivered as input.
+do
+    local rims,activated={},{}
+    local rimService={activate=function(_,kind,slot) activated[#activated+1]=kind..':'..slot;return true end,
+        select=function() return true end}
+    environment.inGameThread=function() return true end
+    environment.setIndicatorProgress=function(widget,value) rims[#rims+1]={widget=widget,value=value} end
+    local rimHost=require('mc_input_host').new(function(callback) callback();return true end,
+        function() end,rimService,environment)
+    local first=#callbacks
+    local holdKey={id='global.AbilitySlot1',keyName='One',mode=1,phases={'Triggered'},
+        progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
+    assert(rimHost:apply({contexts={'exploration','combat'},bindings={holdKey},overrides={},holdThreshold=.4}))
+    local function fire(phase,elapsed)
+        for index=first+1,#callbacks do
+            if callbacks[index].phase==phase then return callbacks[index].callback({elapsed_processed=elapsed}) end
+        end
+        error('no callback for '..phase)
+    end
+    fire('Started',0)
+    fire('Ongoing',.1)
+    fire('Ongoing',.2)
+    assert(#activated==0,'rim phases are not input')
+    assert(rims[1].widget==indicator and rims[1].value==0 and rims[2].value==.25 and rims[3].value==.5,
+        'the rim fills toward the threshold')
+    fire('Ongoing',.9)
+    assert(rims[4].value==1,'the rim never overfills')
+    fire('Triggered',.4)
+    assert(activated[1]=='ability:1' and rims[5].value==0,'the action fires and the rim empties')
+    fire('Canceled',.1)
+    assert(rims[6].value==0 and #activated==1)
+    assert(rimHost:stop())
+    environment.setIndicatorProgress=nil
+end
+print('PASS a Hold key fills its rim until the threshold')
+

@@ -83,6 +83,34 @@ function M.new(e)
         return ok and result~=false
     end
     local api={}
+    -- The indicators showing a binding, resolved when its hold starts.
+    local progressTargets={}
+    -- Fills the Hold rim of every indicator showing bindingId: value from 0 to 1.
+    function api:progress(plan,bindingId,value)
+        if type(e.setProgress)~='function' or type(plan)~='table' then return false end
+        local targets=progressTargets[bindingId]
+        if not targets or value==0 then
+            targets={}
+            local hud=e.hud()
+            if e.valid(hud) then
+                for kind,ids in pairs(M.slots(plan)) do
+                    local fields=wheels[kind]
+                    local wheel=e.property(hud,fields[1])
+                    local bindings=wheel and e.property(wheel,fields[2])
+                    for slot=1,4 do
+                        local widget=ids[slot]==bindingId and bindings and e.property(bindings,positions[slot])
+                        if widget and e.valid(widget) then targets[#targets+1]=widget end
+                    end
+                end
+            end
+            progressTargets[bindingId]=targets
+        end
+        local done=false
+        for _,widget in ipairs(targets) do
+            if e.valid(widget) and pcall(e.setProgress,widget,value) then done=true end
+        end
+        return done
+    end
     function api:refresh(actions,plan,opts)
         if type(actions)~='table' or type(plan)~='table' then return false,0,0 end
         opts=opts or {}

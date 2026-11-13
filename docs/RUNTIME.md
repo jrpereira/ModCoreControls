@@ -10,6 +10,12 @@ This page describes MCC's current quickslot input adapter.
 | Immediate | Qualifying release within the Tap threshold | Fires after the Hold threshold |
 | Sustained | Toggles on/off | Active until release or cancellation |
 
+While a key set to Hold is held, its HUD key indicator's rim fills from press to the
+Hold threshold, as the game's own hold prompts do (`OnActionProgress` on the
+indicator, from the action's `Ongoing` events), and empties when the action fires
+or the key is released. These extra phases only drive the rim; they are never
+delivered as input.
+
 Both thresholds are the Options page's **Hold threshold**: 250 ms by default,
 100 to 2000 ms in 10 ms steps. A changed threshold rebuilds the triggers on Apply.
 

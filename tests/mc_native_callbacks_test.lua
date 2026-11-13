@@ -31,3 +31,20 @@ end
 local ok,why=owner:install('Component',{tap=object('Tap'),hold=object('Hold')},plan,function()end)
 assert(not ok and why:find('injected failure',1,true) and closed==2)
 print('PASS native callback ownership and rollback')
+
+-- A Hold key also listens to its rim phases; each phase is bound once.
+do
+    function bridge.BindAction(target,action,phase,callback)
+        bindings[#bindings+1]={target=target,action=action,phase=phase,callback=callback}
+        return #bindings
+    end
+    local first=#bindings
+    assert(owner:install('Component',{rim=object('Rim')},{bindings={
+        {id='rim',phases={'Triggered'},progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'}},
+    }},function() end))
+    local phases={}
+    for index=first+1,#bindings do phases[#phases+1]=bindings[index].phase end
+    assert(table.concat(phases,',')=='Triggered,Started,Ongoing,Completed,Canceled',table.concat(phases,','))
+    assert(owner:close())
+end
+print('PASS a Hold key binds its rim phases once each')

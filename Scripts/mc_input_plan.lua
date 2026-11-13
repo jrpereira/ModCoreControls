@@ -172,6 +172,11 @@ function M.build(definition,values,options)
                             -- A key for a fixed wheel (Explicit Activation) always focuses
                             -- that wheel; a key relative to Default swaps.
                             direct=binding.action.type=='focus' and binding.action.group~=nil or nil}
+                        -- A key set to Hold fills its indicator's rim while held, as the
+                        -- game's own hold prompts do: it also listens to these phases.
+                        if name and mode==1 then
+                            item.progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'}
+                        end
                         plan.bindings[#plan.bindings+1]=item
                         active[binding.id]=item
                         addOverrides(plan.overrides,item.override)

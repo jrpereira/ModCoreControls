@@ -27,7 +27,13 @@ function M.new(bridge,fullName)
         -- action to subscribe; the others still bind.
         for _,binding in ipairs(plan.bindings) do
             local action=actions[binding.id]
-            for _,phase in ipairs(action and binding.phases or {}) do
+            local phases,seen={},{}
+            for _,list in ipairs({binding.phases or {},binding.progressPhases or {}}) do
+                for _,phase in ipairs(list) do
+                    if not seen[phase] then seen[phase]=true;phases[#phases+1]=phase end
+                end
+            end
+            for _,phase in ipairs(action and phases or {}) do
                 local bound,handle,bindWhy=pcall(bridge.BindAction,target,actionPath(action),phase,function(event)
                     callback(binding,phase,event)
                 end)
