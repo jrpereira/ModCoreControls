@@ -16,8 +16,9 @@ mark and fills from there. This follows the game's own hold prompts (`OnActionPr
 empties when the action fires or the key is released. A key set to Tap shows the rim
 too (`SetHoldDisplayOverride`): full while the key is down, and at least until the low
 mark after a press so a quick one still shows. A Tap sharing its key with a Hold is lit
-from press until the low mark, when the Hold's rim starts filling; it still fires on a
-release before the high mark. A quick press therefore never shows the Hold filling. These extra phases only drive the rim; they are never delivered as input.
+from press until it fires on release, or until the Hold fires at the high mark; from the
+low mark the Hold's rim fills beside it. A press shorter than low never shows the Hold
+filling. These extra phases only drive the rim; they are never delivered as input.
 The Options page's **Show key outline** chooses which keys do this: None, Hold, or
 Tap & Hold (the default). A Hold key always keeps its rim; with None it just does not
 fill. A Groups key fills the hint of the wheel focused when it was pressed.

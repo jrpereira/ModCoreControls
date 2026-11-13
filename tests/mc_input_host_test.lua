@@ -1040,7 +1040,9 @@ do
     assert(rims[2]==0 and activated[1]=='ability:1','it empties when the tap fires')
     fire('Started',0)
     fire('Ongoing',.15)
-    assert(rims[3]==1 and rims[4]==0 and #activated==1,'past the low mark the Hold takes over: it empties')
+    assert(#rims==3 and rims[3]==1,'past the low mark it stays lit beside the filling Hold')
+    fire('Ongoing',.45)
+    assert(rims[4]==0 and #activated==1,'at the high mark the Hold fires and the Tap goes dark')
     fire('Canceled',.6)
     assert(#rims==4)
     -- With Show key outline set to Hold, a Tap key no longer shows a rim.

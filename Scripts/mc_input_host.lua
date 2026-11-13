@@ -1083,10 +1083,10 @@ function M.new(queue,log,service,environment)
                 value=1
             end
         elseif binding.mode==0 then
-            -- Tap sharing its key with a Hold: lit from press until the low mark, when
-            -- the Hold starts filling; empty once it fires or is released.
+            -- Tap sharing its key with a Hold: lit from press until it fires, is released,
+            -- or the Hold fires at the high mark; from low it shows beside the Hold filling.
             if phase=='Started' then value=1
-            elseif phase=='Ongoing' then value=elapsed<low and 1 or 0
+            elseif phase=='Ongoing' then value=elapsed<high and 1 or 0
             else value=0 end
         elseif phase=='Ongoing' then
             -- Hold: fills from press to act at the high mark; one sharing its key with
