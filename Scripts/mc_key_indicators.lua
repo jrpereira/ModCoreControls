@@ -83,6 +83,36 @@ function M.new(e)
         return ok and result~=false
     end
     local api={}
+    local displayRims
+    -- Indicators whose rim is forced on, by widget path: the MCC action they show.
+    local rimShown={}
+    -- A Tap key shows its rim like a Hold key does; every other indicator shows the
+    -- game's own display. Set again when an indicator shows another action, as
+    -- assigning an action can reset it.
+    displayRims=function(plan)
+        if type(e.setHoldDisplay)~='function' then return end
+        local byId={}
+        for _,binding in ipairs(plan.bindings or {}) do byId[binding.id]=binding end
+        local hud=e.hud()
+        if not e.valid(hud) then return end
+        for kind,ids in pairs(M.slots(plan)) do
+            local fields=wheels[kind]
+            local wheel=e.property(hud,fields[1])
+            local bindings=wheel and e.property(wheel,fields[2])
+            for slot,position in ipairs(positions) do
+                local widget=bindings and e.property(bindings,position)
+                local path=widget and e.valid(widget) and e.path(widget)
+                if path then
+                    local binding=ids[slot] and byId[ids[slot]]
+                    local tap=binding~=nil and binding.keyName~=nil and binding.mode==0
+                    local shown=tap and currentPath(widget) or nil
+                    if rimShown[path]~=shown and (tap or rimShown[path]~=nil) then
+                        if pcall(e.setHoldDisplay,widget,tap) then rimShown[path]=shown end
+                    end
+                end
+            end
+        end
+    end
     -- The indicators showing a binding, resolved when its hold starts.
     local progressTargets={}
     -- Fills the Hold rim of every indicator showing bindingId: value from 0 to 1.
@@ -191,9 +221,12 @@ function M.new(e)
             else complete=false end
         end
         if journalDirty and not save() then complete=false end
+        displayRims(plan)
         return complete and completed==expected,completed,expected
     end
     function api:restoreAll()
+        -- Released indicators show the game's own rim display again.
+        pcall(displayRims,{bindings={}})
         local remaining={}
         for widgetPath,record in pairs(records) do
             local widget=e.resolve(widgetPath)

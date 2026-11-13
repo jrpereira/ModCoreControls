@@ -166,7 +166,7 @@ function M.new(e,log)
     function api:configure(nextPlan)
         local nextSignature=signature(nextPlan)
         if unchanged(nextPlan,nextSignature) then
-            plan=nextPlan;self.plan=plan
+            plan=nextPlan;self.plan=plan;self.rebuilt=nil
             return current
         end
         configured=nil
@@ -190,6 +190,10 @@ function M.new(e,log)
             end
         end
         self.plan,self.actions=plan,current
+        -- The actions whose triggers were just built. A player's input keeps its own
+        -- copy of each action's triggers, made when it first used the action.
+        self.rebuilt={}
+        for _,target in pairs(current) do self.rebuilt[#self.rebuilt+1]=target end
         for logical in pairs(attached) do map(logical) end
         configured=nextSignature
         return current

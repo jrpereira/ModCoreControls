@@ -156,6 +156,16 @@ assert(native.values.MCC_actions_global_AbilitySlot1=='J|Hold')
 model=choices.open(provider)
 assert(not model.error,model.error)
 assert(model.pending[slot]=='J|Hold')
+-- The Hold threshold slider saves its value on Apply.
+do
+    local threshold=indices.MCC_module_default_HoldThreshold
+    model:set(page,0)
+    assert(model.pending[threshold]==250,'the threshold starts at its default')
+    model:set(threshold,400)
+    assert(model:apply())
+    file=assert(io.open(temp .. '/config.ini','rb'));local text=file:read('*a');file:close()
+    assert(text:find('default.HoldThreshold=400',1,true),'the threshold is saved')
+end
 -- Live gamepad assignments become one read-only row per button.
 local schema=DMM.schema(definition,{{key='Gamepad_DPad_Left',label='D-Pad Left',actions={'Quickslot Left','Map|Zoom'}},
     {key='Gamepad_DPad_Up',label='D-Pad Up',actions={}}})

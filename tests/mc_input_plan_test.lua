@@ -51,7 +51,9 @@ do
     local built=find(Plan.build(definition,values),'global.AbilitySlot1')
     assert(built.mode==1 and built.progressPhases and #built.progressPhases==5)
     values[slot.id]=Menu.keybind(slot,'J|Tap')
-    assert(find(Plan.build(definition,values),'global.AbilitySlot1').progressPhases==nil)
+    assert(#find(Plan.build(definition,values),'global.AbilitySlot1').progressPhases==5,'Tap keys show a rim too')
+    values[slot.id]='none'
+    assert(find(Plan.build(definition,values),'global.AbilitySlot1')==nil)
 end
 assert(#default.bindings==1,'Default swap hold only')
 assert(not default.overrides.IA_Quickslot_Left,'unbound slot keys must not override native slots')

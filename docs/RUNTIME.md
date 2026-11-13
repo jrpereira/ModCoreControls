@@ -13,8 +13,14 @@ This page describes MCC's current quickslot input adapter.
 While a key set to Hold is held, its HUD key indicator's rim fills from press to the
 Hold threshold, as the game's own hold prompts do (`OnActionProgress` on the
 indicator, from the action's `Ongoing` events), and empties when the action fires
-or the key is released. These extra phases only drive the rim; they are never
-delivered as input.
+or the key is released. A key set to Tap shows the rim too (`SetHoldDisplayOverride`):
+full while pressed, empty once it fires, is released, or is held past the
+threshold. These extra phases only drive the rim; they are never delivered as input.
+
+A player's input keeps its own copy of each action's triggers, made when it first
+uses the action. When MCC rebuilds triggers (a new threshold, or Tap changed to
+Hold), it removes the player's instance of each rebuilt action from
+`EnhancedPlayerInput.ActionInstanceData`, so the change applies at once.
 
 Both thresholds are the Options page's **Hold threshold**: 250 ms by default,
 100 to 2000 ms in 10 ms steps. A changed threshold rebuilds the triggers on Apply.

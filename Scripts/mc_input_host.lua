@@ -109,6 +109,15 @@ local function defaultEnvironment()
         setIndicatorAction=function(widget,action) widget:SetEnhancedInputAction(action) end,
         -- Fills a Hold key's rim, as CommonUI does for its own hold prompts.
         setIndicatorProgress=function(widget,value) widget:OnActionProgress(value) end,
+        -- Shows the rim on a key that is not Hold.
+        setIndicatorHoldDisplay=function(widget,on) widget:SetHoldDisplayOverride(on) end,
+        -- Removes a player's instance of an action; true when one was there.
+        forgetInstance=function(playerInput,action)
+            local instances=playerInput.ActionInstanceData
+            if not instances:Contains(action) then return false end
+            instances:Remove(action)
+            return true
+        end,
         -- Hold underlines (mc_hold_marks): an 85x85 SizeBox holding a black Image bar,
         -- added to the key's overlay, copying the key's placement.
         holdMark={
@@ -224,7 +233,7 @@ function M.new(queue,log,service,environment)
     -- A leveled logger, or a plain function(message) as tests pass.
     log=Log.wrap(log)
     local api,liveOwner
-    local fillRim
+    local fillRim,forgetInstances
     local e=environment or defaultEnvironment()
     if not (e.keep and e.live) then
         e=setmetatable({keep=e.keep or Lifetimes.keep,live=e.live or Lifetimes.live},{__index=e})
@@ -297,6 +306,7 @@ function M.new(queue,log,service,environment)
         resolve=e.resolve or function() return nil end,
         setAction=e.setIndicatorAction or function() return false end,
         setProgress=e.setIndicatorProgress,
+        setHoldDisplay=e.setIndicatorHoldDisplay,
         hud=currentHud,
         load=e.loadIndicatorState,save=e.saveIndicatorState,
     })
@@ -947,6 +957,7 @@ function M.new(queue,log,service,environment)
             reportedKeep=nil
             api.phase='attaching';api.owner=kept
             local actions=timed('configure',context.configure,context,api.plan)
+            forgetInstances(live.playerInput)
             local generation=api.generation
             local installStarted=os.clock()
             local installed,why=callbackOwner:install(live.componentPath,actions,api.plan,function(binding,phase,event)
@@ -983,6 +994,7 @@ function M.new(queue,log,service,environment)
             api.actions=actions;api.componentPath=live.componentPath
         elseif standardKeyChanged or beforeRebuild then
             api.actions=context:configure(api.plan)
+            forgetInstances(live.playerInput)
             if not beforeRebuild and type(e.rebuild)=='function' then e.rebuild(live.playerInput) end
         end
         local remapped=false
@@ -1015,6 +1027,21 @@ function M.new(queue,log,service,environment)
         timed('indicators',updateIndicators,force)
         return true
     end
+    -- Rebuilt triggers reach a player only through a new instance of the action:
+    -- the player's input copied the old triggers when it first used it. Removing
+    -- its instance makes Enhanced Input copy the new ones on the next input frame.
+    forgetInstances=function(playerInput)
+        local rebuilt=context.rebuilt
+        if not rebuilt or #rebuilt==0 or type(e.forgetInstance)~='function' or not e.valid(playerInput) then return end
+        local forgotten=0
+        for _,action in ipairs(rebuilt) do
+            local ok,result=pcall(e.forgetInstance,playerInput,action)
+            if not ok then log.warn('input action instance refresh failed: ',result)
+            elseif result then forgotten=forgotten+1 end
+        end
+        context.rebuilt=nil
+        if forgotten>0 then log.debug('refreshed ',forgotten,' input action instance(s)') end
+    end
     -- Phases a binding listens to only for its rim are not delivered as input.
     local function delivers(binding,phase)
         for _,name in ipairs(binding.phases or {}) do if name==phase then return true end end
@@ -1024,13 +1051,23 @@ function M.new(queue,log,service,environment)
         local ok,why=pcall(indicators.progress,indicators,api.plan,binding.id,value)
         if not ok then log.debug('rim progress failed: ',binding.id,': ',why) end
     end
+    -- The rim value each binding last showed, so a Tap's every-frame Ongoing sets it once.
+    local rims={}
     fillRim=function(binding,phase,event)
         local value
-        if phase=='Ongoing' then
-            local threshold=api.plan and api.plan.holdThreshold or Context.DEFAULT_THRESHOLD
-            local elapsed=tonumber(event and event.elapsed_processed) or 0
+        local threshold=api.plan and api.plan.holdThreshold or Context.DEFAULT_THRESHOLD
+        local elapsed=tonumber(event and event.elapsed_processed) or 0
+        if binding.mode==0 then
+            -- Tap: full while pressed, empty once it fires, is released or held too long.
+            if phase=='Started' then value=1
+            elseif phase=='Ongoing' then value=elapsed<threshold and 1 or 0
+            else value=0 end
+        elseif phase=='Ongoing' then
             value=math.max(0,math.min(1,elapsed/threshold))
         else value=0 end
+        local unchanged=phase~='Started' and rims[binding.id]==value
+        rims[binding.id]=value
+        if unchanged then return not delivers(binding,phase) and 'rim only' or nil end
         local onThread,current=false,nil
         if type(e.inGameThread)=='function' then onThread,current=pcall(e.inGameThread) end
         if onThread and current==true then setRim(binding,value)

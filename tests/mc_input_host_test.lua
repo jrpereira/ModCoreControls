@@ -981,9 +981,67 @@ do
     fire('Triggered',.4)
     assert(activated[1]=='ability:1' and rims[5].value==0,'the action fires and the rim empties')
     fire('Canceled',.1)
-    assert(rims[6].value==0 and #activated==1)
+    assert(#rims==5 and #activated==1,'an empty rim is not emptied again')
     assert(rimHost:stop())
     environment.setIndicatorProgress=nil
 end
 print('PASS a Hold key fills its rim until the threshold')
+
+-- A Tap key's rim is shown, full while pressed, and empties when it fires, is
+-- released, or is held past the threshold.
+do
+    local rims,displays,activated={},{},{}
+    local rimService={activate=function(_,kind,slot) activated[#activated+1]=kind..':'..slot;return true end,
+        select=function() return true end}
+    environment.inGameThread=function() return true end
+    environment.setIndicatorProgress=function(widget,value) rims[#rims+1]=value end
+    environment.setIndicatorHoldDisplay=function(widget,on) displays[#displays+1]=on end
+    local tapHost=require('mc_input_host').new(function(callback) callback();return true end,
+        function() end,rimService,environment)
+    local first=#callbacks
+    local tapKey={id='global.AbilitySlot1',keyName='One',mode=0,phases={'Triggered'},
+        progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
+    assert(tapHost:apply({contexts={'exploration','combat'},bindings={tapKey},overrides={},holdThreshold=.4}))
+    assert(displays[#displays]==true,'a Tap key shows its rim')
+    local function fire(phase,elapsed)
+        for index=first+1,#callbacks do
+            if callbacks[index].phase==phase then return callbacks[index].callback({elapsed_processed=elapsed}) end
+        end
+        error('no callback for '..phase)
+    end
+    fire('Started',0)
+    fire('Ongoing',.1)
+    fire('Ongoing',.2)
+    assert(#rims==1 and rims[1]==1,'full on press, set once while held')
+    fire('Triggered',.2)
+    assert(rims[2]==0 and activated[1]=='ability:1','it empties when the tap fires')
+    fire('Started',0)
+    fire('Ongoing',.5)
+    assert(rims[3]==1 and rims[4]==0 and #activated==1,'held past the threshold, it empties')
+    fire('Canceled',.6)
+    assert(#rims==4)
+    assert(tapHost:deactivate())
+    assert(displays[#displays]==false,'released indicators show the game display again')
+    assert(tapHost:stop())
+    environment.setIndicatorProgress,environment.setIndicatorHoldDisplay=nil,nil
+end
+print('PASS a Tap key shows a full rim while pressed')
+
+-- Rebuilt triggers replace the player's copies: its action instances are removed.
+do
+    local forgotten={}
+    environment.forgetInstance=function(playerInput,action) forgotten[#forgotten+1]=action;return true end
+    local instanceHost=require('mc_input_host').new(function(callback) callback();return true end,
+        function() end,service,environment)
+    local key={id='global.AbilitySlot1',keyName='One',mode=1,phases={'Triggered'},action={type='ability',slot=1}}
+    assert(instanceHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdThreshold=.25}))
+    local first=#forgotten
+    assert(first==1,'a new trigger forgets the old instance')
+    assert(instanceHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdThreshold=1}))
+    assert(#forgotten==2,'a new threshold forgets it again')
+    assert(instanceHost:sync() and #forgotten==2,'an unchanged plan keeps the instance')
+    assert(instanceHost:stop())
+    environment.forgetInstance=nil
+end
+print('PASS rebuilt triggers refresh the player action instances')
 
