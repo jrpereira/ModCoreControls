@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.2.0
+
+- Requires ModCore Settings 1.7.0 or later.
+- No change to controls or settings since 1.0.12. The version moves to 1.2.0
+  because releases 1.0.1 to 1.0.12 shipped significant performance and bug fixes
+  that were numbered as patch revisions: using a skill no longer stutters the
+  game, loading a save from a running game no longer crashes it or leaves keys
+  unbound and wheels stuck, and MCC no longer searches every game object or every
+  InputAction on routine syncs, attaches and combat changes. The larger step marks
+  that body of work.
+
 ## v1.0.12
 
 - Requires ModCore Settings 1.6.0 or later.
