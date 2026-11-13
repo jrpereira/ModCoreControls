@@ -17,8 +17,8 @@ or the key is released. A key set to Tap shows the rim too (`SetHoldDisplayOverr
 full while pressed, empty once it fires, is released, or is held past the
 threshold. These extra phases only drive the rim; they are never delivered as input.
 The Options page's **Show key outline** chooses which keys do this: None, Hold, or
-Tap & Hold (the default). With None, a Hold key's rim no longer fills, but the game
-still draws its empty rim on Hold keys.
+Tap & Hold (the default). A Hold key always keeps its rim; with None it just does not
+fill.
 
 A player's input keeps its own copy of each action's triggers, made when it first
 uses the action. When MCC rebuilds triggers (a new threshold, or Tap changed to
