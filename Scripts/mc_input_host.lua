@@ -960,7 +960,21 @@ function M.new(queue,log,service,environment)
             forgetInstances(live.playerInput)
             local generation=api.generation
             local installStarted=os.clock()
-            local installed,why=callbackOwner:install(live.componentPath,actions,api.plan,function(binding,phase,event)
+            -- Rim-only listeners on the game's quickslot actions ride along with MCC's own.
+            local installPlan,installActions=api.plan,actions
+            if api.plan.rims and #api.plan.rims>0 then
+                installActions=setmetatable({},{__index=actions})
+                installPlan=setmetatable({bindings={}},{__index=api.plan})
+                for _,binding in ipairs(api.plan.bindings) do installPlan.bindings[#installPlan.bindings+1]=binding end
+                for _,rim in ipairs(api.plan.rims) do
+                    local nativeAction=standardAction(rim.standardAction)
+                    if nativeAction then
+                        installActions[rim.id]=nativeAction
+                        installPlan.bindings[#installPlan.bindings+1]=rim
+                    end
+                end
+            end
+            local installed,why=callbackOwner:install(live.componentPath,installActions,installPlan,function(binding,phase,event)
                 if api.phase~='ready' or api.generation~=generation then return end
                 -- A Hold key's rim fills from press to its threshold, then empties.
                 if binding.progressPhases and fillRim(binding,phase,event)=='rim only' then return end
@@ -1048,7 +1062,9 @@ function M.new(queue,log,service,environment)
         return false
     end
     local function setRim(binding,value)
-        local ok,why=pcall(indicators.progress,indicators,api.plan,binding.id,value)
+        local native=binding.native and {action=binding.standardAction,slot=binding.slot,
+            group=api.state and api.state.selectedGroup} or nil
+        local ok,why=pcall(indicators.progress,indicators,api.plan,binding.id,value,native)
         if not ok then log.debug('rim progress failed: ',binding.id,': ',why) end
     end
     -- The rim value each binding last showed, so a Tap's every-frame Ongoing sets it once.

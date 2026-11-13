@@ -247,6 +247,15 @@ function M.build(definition,values,options)
         end
     end
     assert(#plan.contexts>0,'maps have no contexts')
+    -- Key hints still showing the game's own quickslot keys get a Tap rim as well:
+    -- MCC listens to those actions only to fill it, never as input.
+    plan.rims={}
+    if plan.keyOutline==M.OUTLINE.both then
+        for slot,position in ipairs({'Left','Top','Right','Bottom'}) do
+            plan.rims[#plan.rims+1]={id='native.IA_Quickslot_'..position,standardAction='IA_Quickslot_'..position,
+                slot=slot,mode=0,native=true,phases={},progressPhases={'Started','Triggered','Completed','Canceled'}}
+        end
+    end
     return plan
 end
 

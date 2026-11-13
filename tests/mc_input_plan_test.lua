@@ -66,6 +66,12 @@ do
     assert(not phases('Hold',0) and not phases('Tap',0),'None: no rim')
     assert(phases('Hold',2) and phases('Tap',2),'Tap & Hold: both')
     values[outline.id]=2
+    local rims=Plan.build(definition,values).rims
+    assert(#rims==4 and rims[1].standardAction=='IA_Quickslot_Left' and #rims[1].phases==0,
+        'Tap & Hold listens to the game quickslot keys for the rim only')
+    values[outline.id]=1
+    assert(#Plan.build(definition,values).rims==0,'Hold leaves the game keys alone')
+    values[outline.id]=2
 end
 assert(#default.bindings==1,'Default swap hold only')
 assert(not default.overrides.IA_Quickslot_Left,'unbound slot keys must not override native slots')

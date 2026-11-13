@@ -18,7 +18,9 @@ full while pressed, empty once it fires, is released, or is held past the
 threshold. These extra phases only drive the rim; they are never delivered as input.
 The Options page's **Show key outline** chooses which keys do this: None, Hold, or
 Tap & Hold (the default). A Hold key always keeps its rim; with None it just does not
-fill.
+fill. Under Tap & Hold, a key hint that still shows the game's own quickslot key
+(`IA_Quickslot_<position>`) gets a Tap rim too: MCC listens to that action only to fill
+the focused wheel's hint on press, never as input.
 
 A player's input keeps its own copy of each action's triggers, made when it first
 uses the action. When MCC rebuilds triggers (a new threshold, or Tap changed to
