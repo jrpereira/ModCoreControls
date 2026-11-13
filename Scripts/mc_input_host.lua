@@ -1058,13 +1058,30 @@ function M.new(queue,log,service,environment)
     end
     -- The rim value each binding last showed, so a Tap's every-frame Ongoing sets it once.
     local rims={}
+    -- Presses per binding, so a delayed empty never clears a later press's rim.
+    local presses={}
+    local RIM_FLASH=1
     fillRim=function(binding,phase,event)
         local value
         local threshold=api.plan and api.plan.holdThreshold or Context.DEFAULT_THRESHOLD
         local elapsed=tonumber(event and event.elapsed_processed) or 0
         if binding.mode==3 then
-            -- Acts on press: full while the key is down.
+            -- Acts on press: full while the key is down, and at least for the threshold
+            -- (at most RIM_FLASH seconds) so a quick press still shows.
+            if phase=='Started' then presses[binding.id]=(presses[binding.id] or 0)+1 end
             value=(phase=='Completed' or phase=='Canceled') and 0 or 1
+            local remaining=math.min(threshold,RIM_FLASH)-elapsed
+            if value==0 and remaining>0 and type(e.delay)=='function' then
+                local press=presses[binding.id]
+                pcall(e.delay,math.floor(remaining*1000+.5),function()
+                    pcall(queue,function()
+                        if presses[binding.id]~=press or api.phase~='ready' or rims[binding.id]~=1 then return end
+                        rims[binding.id]=0
+                        setRim(binding,0)
+                    end)
+                end)
+                value=1
+            end
         elseif binding.mode==0 then
             -- Tap sharing its key with a Hold: full while pressed, empty once it fires,
             -- is released or is held past the threshold.

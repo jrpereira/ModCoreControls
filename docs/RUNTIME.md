@@ -14,7 +14,8 @@ While a key set to Hold is held, its HUD key indicator's rim fills from press to
 Hold threshold, as the game's own hold prompts do (`OnActionProgress` on the
 indicator, from the action's `Ongoing` events), and empties when the action fires
 or the key is released. A key set to Tap shows the rim too (`SetHoldDisplayOverride`):
-full while the key is down; a Tap sharing its key with a Hold also empties once it
+full while the key is down, and for at least the Hold threshold (at most 1 s) after a
+press so a quick one still shows; a Tap sharing its key with a Hold empties once it
 fires or is held past the threshold. These extra phases only drive the rim; they are never delivered as input.
 The Options page's **Show key outline** chooses which keys do this: None, Hold, or
 Tap & Hold (the default). A Hold key always keeps its rim; with None it just does not

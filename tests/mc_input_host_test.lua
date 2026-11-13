@@ -1067,10 +1067,49 @@ do
     assert(#rims==1 and rims[1]==1,'full on press, and it stays full while held')
     byPhase.Completed({elapsed_processed=2.1})
     assert(rims[2]==0,'it empties on release')
+    -- A quick press stays full until the threshold, capped at 1 s, has passed.
+    local timers={}
+    local delay=environment.delay
+    environment.delay=function(ms,callback) timers[#timers+1]={ms=ms,run=callback};return true end
+    byPhase.Started({elapsed_processed=0})
+    byPhase.Completed({elapsed_processed=.1})
+    assert(#rims==3 and rims[3]==1 and timers[1].ms==300,'still full after a quick release')
+    timers[1].run()
+    assert(rims[4]==0,'empty once the threshold has passed')
+    -- A newer press is not emptied by the older press's timer.
+    byPhase.Started({elapsed_processed=0})
+    byPhase.Completed({elapsed_processed=.1})
+    byPhase.Started({elapsed_processed=0})
+    timers[2].run()
+    assert(#rims==6 and rims[6]==1,'the second press keeps its rim')
+    environment.delay=delay
     assert(pressHost:stop())
     environment.setIndicatorProgress=nil
 end
 print('PASS a key acting on press is full while down')
+
+-- The flash is capped at 1 s, however long the threshold.
+do
+    local timers={}
+    local delay=environment.delay
+    environment.inGameThread=function() return true end
+    environment.setIndicatorProgress=function() end
+    environment.delay=function(ms,callback) timers[#timers+1]=ms;return true end
+    local capHost=require('mc_input_host').new(function(callback) callback();return true end,
+        function() end,service,environment)
+    local first=#callbacks
+    local key={id='global.AbilitySlot1',keyName='One',mode=3,phases={'Triggered'},
+        progressPhases={'Started','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
+    assert(capHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdThreshold=2}))
+    local byPhase={}
+    for index=first+1,#callbacks do byPhase[callbacks[index].phase]=callbacks[index].callback end
+    byPhase.Started({elapsed_processed=0})
+    byPhase.Completed({elapsed_processed=.2})
+    assert(timers[1]==800,'flash capped at 1 s: '..tostring(timers[1]))
+    assert(capHost:stop())
+    environment.delay,environment.setIndicatorProgress=delay,nil
+end
+print('PASS the rim flash is capped at 1 s')
 
 -- A Groups key fills only the focused wheel's hint, the one focused at press.
 do
