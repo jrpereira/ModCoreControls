@@ -7,30 +7,34 @@ This page describes MCC's current quickslot input adapter.
 
 | Action | Tap | Hold |
 | --- | --- | --- |
-| Immediate | Qualifying release within the Tap threshold | Fires after the Hold threshold |
+| Immediate | Fires on press; when the same key is also bound as Hold, on a release within the Hold threshold | Fires after the Hold threshold |
 | Sustained | Toggles on/off | Active until release or cancellation |
 
 While a key set to Hold is held, its HUD key indicator's rim fills from press to the
 Hold threshold, as the game's own hold prompts do (`OnActionProgress` on the
 indicator, from the action's `Ongoing` events), and empties when the action fires
 or the key is released. A key set to Tap shows the rim too (`SetHoldDisplayOverride`):
-full while pressed, empty once it fires, is released, or is held past the
-threshold. These extra phases only drive the rim; they are never delivered as input.
+full while the key is down; a Tap sharing its key with a Hold also empties once it
+fires or is held past the threshold. These extra phases only drive the rim; they are never delivered as input.
 The Options page's **Show key outline** chooses which keys do this: None, Hold, or
 Tap & Hold (the default). A Hold key always keeps its rim; with None it just does not
-fill. Under Tap & Hold, a key hint that still shows the game's own quickslot key
-(`IA_Quickslot_<position>`) gets a Tap rim too: MCC listens to that action only to fill
-the focused wheel's hint on press, never as input.
+fill. A Groups key fills the hint of the wheel focused when it was pressed.
+
+A Groups slot key left on its default control (Quickslot 1-4) is an MCC binding too:
+it inherits the player's key for the game's `IA_Quickslot_<position>`, acts on press as
+the game's action does, and suppresses that action. Its hint, glyph and rim are MCC's
+like any other key. A player key bound elsewhere on the same key takes it over.
 
 A player's input keeps its own copy of each action's triggers, made when it first
 uses the action. When MCC rebuilds triggers (a new threshold, or Tap changed to
 Hold), it removes the player's instance of each rebuilt action from
 `EnhancedPlayerInput.ActionInstanceData`, so the change applies at once.
 
-Both thresholds are the Options page's **Hold threshold**: 250 ms by default,
-100 to 2000 ms in 10 ms steps. A changed threshold rebuilds the triggers on Apply.
+The threshold is the Options page's **Hold threshold**: 250 ms by default,
+100 to 2000 ms in 10 ms steps. It only matters for Hold keys and for a Tap that
+shares its key with a Hold. A changed threshold rebuilds the triggers on Apply.
 
-The grouped **Swap to** key is special: Tap swaps on press. Default's
+Default's
 **Hold to Swap** is the same binding as **Swap to** set to Hold on the inherited
 Toggle Quickslots key: it does not wait for a Hold threshold.
 Explicit focus keys keep their declared Tap/Hold behavior: a held focus key shows

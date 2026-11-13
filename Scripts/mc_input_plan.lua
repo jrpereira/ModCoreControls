@@ -121,6 +121,20 @@ function M.build(definition,values,options)
         end
     end
     local contexts,used={},{}
+    -- Keys some binding uses as Hold. A Tap on such a key stays a real Tap, so the
+    -- two can be told apart; any other Tap acts on press.
+    local holdKeys={}
+    for _,other in ipairs(runtimeMaps(definition)) do
+        for _,group in ipairs(other.groups) do
+            for _,binding in ipairs(group.keys) do
+                local value=not binding.inactive and values[binding.setting.id]
+                if type(value)=='string' and value:match('|Hold$') then
+                    local name=require('mc_menu').binding(binding.setting,value)
+                    if name then holdKeys[name:lower()]=true end
+                end
+            end
+        end
+    end
     for _,map in ipairs(runtimeMaps(definition)) do
         plan.maps[#plan.maps+1]=map.id
         assert(#(map.contexts or {})>0,'map has no contexts: ' .. map.id)
@@ -150,8 +164,12 @@ function M.build(definition,values,options)
                     if not name then mode=select(2,Menu.binding(setting,Menu.keybind(setting,'A'))) end
                     local resolved=resolve(binding.action,plan.defaultGroup)
                     action({id=binding.id,action=resolved,sustained=binding.sustained})
-                    -- An override=true key on its default control leaves that
-                    -- key to the native action and adds no binding of its own.
+                    -- A slot key left on its default control inherits the player's key for
+                    -- the game's action and takes it over: the game's action is suppressed.
+                    -- Other override=true keys on their default control (Swap to, on the
+                    -- swap key) leave it to the native action and add no binding.
+                    local inherits=not name and binding.defaultControl~=nil
+                        and (binding.override~=true or binding.action.type=='selected')
                     -- One key and trigger bind one setting: the same pair on two rows is
                     -- rejected at Apply, naming both, and skipped at startup. The same key
                     -- with another trigger is a different binding. Triggers compare as the
@@ -170,12 +188,12 @@ function M.build(definition,values,options)
                             plan.skipped[#plan.skipped+1]=duplicate
                         else used[identity]=label end
                     end
-                    if not duplicate and (name or (binding.defaultControl and binding.override~=true)) then
+                    if not duplicate and (name or inherits) then
                         local override=binding.override
-                        if override==true then override=name and binding.defaultControl or nil end
-                        -- The swap key set to Tap acts on press (Pressed trigger), so its focus
-                        -- change starts before the key is released. Explicit keys keep Tap.
-                        if mode==0 and resolved.type=='focus' and binding.action.wheel then mode=3 end
+                        if override==true then override=binding.defaultControl end
+                        -- Tap acts on press (Pressed trigger) unless the key is also bound as
+                        -- Hold; an inherited key acts on press, as the game's own action does.
+                        if mode==0 and (not name or not holdKeys[name:lower()]) then mode=3 end
                         local item={id=map.id .. '.' .. binding.id,keyName=name,mode=mode,
                             phases=phases(binding,mode),sustained=binding.sustained,
                             action=resolved,override=override,
@@ -186,8 +204,9 @@ function M.build(definition,values,options)
                         -- A Hold key fills its indicator's rim while held, as the game's own
                         -- hold prompts do; a Tap key's rim is full while pressed. They also
                         -- listen to these phases, only for the rim.
-                        if name and (mode==1 and plan.keyOutline>=M.OUTLINE.hold
-                            or mode==0 and plan.keyOutline==M.OUTLINE.both) then
+                        if mode==1 and name and plan.keyOutline>=M.OUTLINE.hold
+                            or (mode==0 or mode==3) and binding.action.type~='focus'
+                                and plan.keyOutline==M.OUTLINE.both then
                             item.progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'}
                         end
                         plan.bindings[#plan.bindings+1]=item
@@ -247,15 +266,6 @@ function M.build(definition,values,options)
         end
     end
     assert(#plan.contexts>0,'maps have no contexts')
-    -- Key hints still showing the game's own quickslot keys get a Tap rim as well:
-    -- MCC listens to those actions only to fill it, never as input.
-    plan.rims={}
-    if plan.keyOutline==M.OUTLINE.both then
-        for slot,position in ipairs({'Left','Top','Right','Bottom'}) do
-            plan.rims[#plan.rims+1]={id='native.IA_Quickslot_'..position,standardAction='IA_Quickslot_'..position,
-                slot=slot,mode=0,native=true,phases={},progressPhases={'Started','Triggered','Completed','Canceled'}}
-        end
-    end
     return plan
 end
 

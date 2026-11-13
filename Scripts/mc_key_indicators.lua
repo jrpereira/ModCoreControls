@@ -105,9 +105,9 @@ function M.new(e)
                 if path then
                     local binding=ids[slot] and byId[ids[slot]]
                     local both=plan.keyOutline==nil or plan.keyOutline==2
-                    -- An MCC Tap key, or the game's own key on a slot MCC does not bind.
-                    local tap=both and (binding~=nil and binding.keyName~=nil and binding.mode==0
-                        or binding==nil and plan.rims~=nil and #plan.rims>0)
+                    -- A key that is not Hold: Tap, or acting on press.
+                    local tap=both and binding~=nil and (binding.keyName~=nil or binding.standardAction~=nil)
+                        and (binding.mode==0 or binding.mode==3)
                     local shown=tap and currentPath(widget) or nil
                     if rimShown[path]~=shown and (tap or rimShown[path]~=nil) then
                         if pcall(e.setHoldDisplay,widget,tap) then rimShown[path]=shown end
@@ -119,24 +119,12 @@ function M.new(e)
     -- The indicators showing a binding, resolved when its hold starts.
     local progressTargets={}
     -- Fills the Hold rim of every indicator showing bindingId: value from 0 to 1.
-    -- native={action=<name>,slot=,group=}: a game quickslot key; only the indicator of
-    -- the focused wheel still showing that action is filled.
     -- group (1 abilities, 2 consumables), when given, limits the fill to that wheel:
     -- a Groups key acts on the focused wheel only.
-    function api:progress(plan,bindingId,value,native,group)
+    function api:progress(plan,bindingId,value,group)
         if type(e.setProgress)~='function' or type(plan)~='table' then return false end
         local targets=progressTargets[bindingId]
-        if native then
-            targets={}
-            local hud=e.hud()
-            local kind=native.group==1 and 'ability' or native.group==2 and 'consumable' or nil
-            local fields=kind and wheels[kind]
-            local wheel=fields and e.valid(hud) and e.property(hud,fields[1])
-            local bindings=wheel and e.property(wheel,fields[2])
-            local widget=bindings and e.property(bindings,positions[native.slot])
-            local shown=widget and e.valid(widget) and currentPath(widget)
-            if shown and shown:match('([^%.:/]+)$')==native.action then targets[1]=widget end
-        elseif not targets or value==0 then
+        if not targets or value==0 then
             targets={}
             local hud=e.hud()
             if e.valid(hud) then

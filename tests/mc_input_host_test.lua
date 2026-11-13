@@ -1048,45 +1048,29 @@ do
 end
 print('PASS rebuilt triggers refresh the player action instances')
 
--- A key hint still showing the game's own quickslot key gets a Tap rim: MCC listens
--- to the game's action for the rim only, filling the focused wheel's hint.
+-- A key acting on press shows a full rim while it is down.
 do
-    local nativeLeft=object('InputAction','/Game/Input/IA_Quickslot_Left.IA_Quickslot_Left')
-    local all=environment.all
-    environment.all=function(class)
-        if class=='InputAction' then return {nativeOverride,nativeLeft} end
-        return all(class)
-    end
-    local shown=indicator.EnhancedInputAction
-    indicator.EnhancedInputAction=nativeLeft
-    resolved[nativeLeft.path]=nativeLeft
-    local rims,displays,activated={},{},{}
-    local rimService={activate=function(_,kind,slot) activated[#activated+1]=kind..':'..slot;return true end,
-        select=function() return true end}
+    local rims={}
     environment.inGameThread=function() return true end
-    environment.setIndicatorProgress=function(widget,value) rims[#rims+1]={widget=widget,value=value} end
-    environment.setIndicatorHoldDisplay=function(widget,on) displays[#displays+1]=on end
-    local nativeHost=require('mc_input_host').new(function(callback) callback();return true end,
-        function() end,rimService,environment)
+    environment.setIndicatorProgress=function(widget,value) rims[#rims+1]=value end
+    local pressHost=require('mc_input_host').new(function(callback) callback();return true end,
+        function() end,service,environment)
     local first=#callbacks
-    local rimsPlan={contexts={'exploration','combat'},bindings={},overrides={},defaultGroup=1,keyOutline=2,
-        rims={{id='native.IA_Quickslot_Left',standardAction='IA_Quickslot_Left',slot=1,mode=0,native=true,
-            phases={},progressPhases={'Started','Triggered','Completed','Canceled'}}}}
-    assert(nativeHost:apply(rimsPlan))
-    assert(displays[#displays]==true,'the game key hint shows its rim')
-    local phases={}
-    for index=first+1,#callbacks do phases[callbacks[index].phase]=callbacks[index] end
-    assert(phases.Started and phases.Canceled and not phases.Ongoing,'the game action is heard for the rim')
-    phases.Started.callback({elapsed_processed=0})
-    assert(rims[1] and rims[1].widget==indicator and rims[1].value==1,'pressing the game key fills the focused hint')
-    phases.Triggered.callback({elapsed_processed=.1})
-    assert(rims[2].value==0 and #activated==0,'it empties; MCC delivers no input for it')
-    assert(nativeHost:stop())
-    indicator.EnhancedInputAction=shown
-    environment.all=all
-    environment.setIndicatorProgress,environment.setIndicatorHoldDisplay=nil,nil
+    local key={id='global.AbilitySlot1',keyName='One',mode=3,phases={'Triggered'},
+        progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
+    assert(pressHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdThreshold=.4}))
+    local byPhase={}
+    for index=first+1,#callbacks do byPhase[callbacks[index].phase]=callbacks[index].callback end
+    byPhase.Started({elapsed_processed=0})
+    byPhase.Triggered({elapsed_processed=0})
+    byPhase.Ongoing({elapsed_processed=2})
+    assert(#rims==1 and rims[1]==1,'full on press, and it stays full while held')
+    byPhase.Completed({elapsed_processed=2.1})
+    assert(rims[2]==0,'it empties on release')
+    assert(pressHost:stop())
+    environment.setIndicatorProgress=nil
 end
-print('PASS game key hints get a Tap rim')
+print('PASS a key acting on press is full while down')
 
 -- A Groups key fills only the focused wheel's hint, the one focused at press.
 do

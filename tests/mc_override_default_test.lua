@@ -13,29 +13,31 @@ local function find(plan,id)
     for _,item in ipairs(plan.bindings) do if item.id==id then return item end end
 end
 
--- Quickslot 1 inherits IA_Quickslot_Left; override=true suppresses that native
--- action only while the player binds a custom key in its place.
+-- Quickslot 1 inherits IA_Quickslot_Left. Left on its default it still becomes an MCC
+-- binding on the player's key for that action, acting on press, and suppresses the
+-- native action; a custom key takes its place.
 local definition,Menu,Plan=define(function(actions) actions.grouped.map[1].settings[1].params.override=true end)
 local slot=definition.sections[2].maps[1].groups[1].keys[1]
 assert(slot.id=='QuickSlot1' and slot.defaultControl=='IA_Quickslot_Left' and slot.override==true)
 local model=Menu.new(definition,{})
 
 local inherited=Plan.build(definition,model.values)
-assert(not inherited.overrides.IA_Quickslot_Left,'an inherited key must leave the native action alone')
-assert(not find(inherited,'grouped.QuickSlot1'),
-    'an override=true key on its default control must leave that key to the native action')
+assert(inherited.overrides.IA_Quickslot_Left,'an inherited key takes over the native action')
+local own=find(inherited,'grouped.QuickSlot1')
+assert(own and own.keyName==nil and own.standardAction=='IA_Quickslot_Left' and own.mode==3,
+    'a key left on its default inherits the player key and acts on press')
 
 model:set(slot.setting.id,'F|Tap')
 local custom=Plan.build(definition,model.values)
 assert(custom.overrides.IA_Quickslot_Left,'a custom key must override its default control')
 local item=find(custom,'grouped.QuickSlot1')
 assert(item.keyName=='F' and item.override=='IA_Quickslot_Left' and item.standardAction==nil)
--- Other inherited slots and Default's hold-swap override are unaffected.
-assert(not custom.overrides.IA_Quickslot_Top and custom.overrides.IA_Combat_ToggleQuickslots)
+-- Other slots stay inherited, and Default's hold-swap override is unaffected.
+assert(custom.overrides.IA_Quickslot_Top and custom.overrides.IA_Combat_ToggleQuickslots)
 
 model:set(slot.setting.id,'none')
-assert(not Plan.build(definition,model.values).overrides.IA_Quickslot_Left,
-    'returning to the default key must drop the override')
+assert(find(Plan.build(definition,model.values),'grouped.QuickSlot1').standardAction=='IA_Quickslot_Left',
+    'returning to the default key inherits it again')
 
 -- The hold-swap action and an override=true key on the same native action share one entry.
 definition,Menu,Plan=define(function(actions) actions.grouped.map[2].settings[1].params.override=true end)
@@ -53,4 +55,4 @@ assert(not pcall(define,function(actions) actions.grouped.map[3].settings[1].par
 assert(not pcall(define,function(actions) actions.grouped.override=true end),
     'a map-level override=true must be rejected')
 
-print('PASS override=true follows a custom binding of the default control')
+print('PASS default slot keys become inherited MCC bindings')

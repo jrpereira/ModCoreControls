@@ -685,7 +685,8 @@ function M.new(queue,log,service,environment)
             end
         end
         for _,binding in ipairs(plan.bindings) do
-            if binding.swap then
+            -- Any inherited key (the swap's, a slot key left on its default) steps aside.
+            if binding.standardAction and binding.keyName==nil then
                 local suppressed=nil
                 for _,keyName in ipairs(binding.keyNames or {}) do
                     local owner=claimed[keyName:lower()]
@@ -960,21 +961,7 @@ function M.new(queue,log,service,environment)
             forgetInstances(live.playerInput)
             local generation=api.generation
             local installStarted=os.clock()
-            -- Rim-only listeners on the game's quickslot actions ride along with MCC's own.
-            local installPlan,installActions=api.plan,actions
-            if api.plan.rims and #api.plan.rims>0 then
-                installActions=setmetatable({},{__index=actions})
-                installPlan=setmetatable({bindings={}},{__index=api.plan})
-                for _,binding in ipairs(api.plan.bindings) do installPlan.bindings[#installPlan.bindings+1]=binding end
-                for _,rim in ipairs(api.plan.rims) do
-                    local nativeAction=standardAction(rim.standardAction)
-                    if nativeAction then
-                        installActions[rim.id]=nativeAction
-                        installPlan.bindings[#installPlan.bindings+1]=rim
-                    end
-                end
-            end
-            local installed,why=callbackOwner:install(live.componentPath,installActions,installPlan,function(binding,phase,event)
+            local installed,why=callbackOwner:install(live.componentPath,actions,api.plan,function(binding,phase,event)
                 if api.phase~='ready' or api.generation~=generation then return end
                 -- A Hold key's rim fills from press to its threshold, then empties.
                 if binding.progressPhases and fillRim(binding,phase,event)=='rim only' then return end
@@ -1064,11 +1051,9 @@ function M.new(queue,log,service,environment)
     -- The focused wheel when each key was pressed; a swap while held keeps its hint.
     local pressGroup={}
     local function setRim(binding,value)
-        local native=binding.native and {action=binding.standardAction,slot=binding.slot,
-            group=pressGroup[binding.id]} or nil
         -- A Groups key fills the hint of the wheel it acts on: the focused one at press.
         local group=binding.action and binding.action.type=='selected' and pressGroup[binding.id] or nil
-        local ok,why=pcall(indicators.progress,indicators,api.plan,binding.id,value,native,group)
+        local ok,why=pcall(indicators.progress,indicators,api.plan,binding.id,value,group)
         if not ok then log.debug('rim progress failed: ',binding.id,': ',why) end
     end
     -- The rim value each binding last showed, so a Tap's every-frame Ongoing sets it once.
@@ -1077,8 +1062,12 @@ function M.new(queue,log,service,environment)
         local value
         local threshold=api.plan and api.plan.holdThreshold or Context.DEFAULT_THRESHOLD
         local elapsed=tonumber(event and event.elapsed_processed) or 0
-        if binding.mode==0 then
-            -- Tap: full while pressed, empty once it fires, is released or held too long.
+        if binding.mode==3 then
+            -- Acts on press: full while the key is down.
+            value=(phase=='Completed' or phase=='Canceled') and 0 or 1
+        elseif binding.mode==0 then
+            -- Tap sharing its key with a Hold: full while pressed, empty once it fires,
+            -- is released or is held past the threshold.
             if phase=='Started' then value=1
             elseif phase=='Ongoing' then value=elapsed<threshold and 1 or 0
             else value=0 end

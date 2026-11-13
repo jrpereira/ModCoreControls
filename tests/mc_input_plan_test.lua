@@ -66,18 +66,23 @@ do
     assert(not phases('Hold',0) and not phases('Tap',0),'None: no rim')
     assert(phases('Hold',2) and phases('Tap',2),'Tap & Hold: both')
     values[outline.id]=2
-    local rims=Plan.build(definition,values).rims
-    assert(#rims==4 and rims[1].standardAction=='IA_Quickslot_Left' and #rims[1].phases==0,
-        'Tap & Hold listens to the game quickslot keys for the rim only')
-    values[outline.id]=1
-    assert(#Plan.build(definition,values).rims==0,'Hold leaves the game keys alone')
+    -- Tap acts on press unless the same key is also bound as Hold.
+    values[slot.id]=Menu.keybind(slot,'J|Tap')
+    assert(find(Plan.build(definition,values),'global.AbilitySlot1').mode==3,'a lone Tap acts on press')
+    local other=definition.byId.MCC_actions_global_AbilitySlot2
+    values[other.id]=Menu.keybind(other,'J|Hold')
+    local both=Plan.build(definition,values)
+    assert(find(both,'global.AbilitySlot1').mode==0 and find(both,'global.AbilitySlot2').mode==1,
+        'a Tap sharing its key with a Hold stays a Tap')
+    values[other.id]='none'
     values[outline.id]=2
 end
-assert(#default.bindings==1,'Default swap hold only')
-assert(not default.overrides.IA_Quickslot_Left,'unbound slot keys must not override native slots')
+assert(#default.bindings==5,'Default swap hold and the four inherited slot keys')
+assert(default.overrides.IA_Quickslot_Left,'slot keys on their default take over the native slots')
 for slot=1,4 do
-    assert(not find(default,'grouped.QuickSlot'..slot),
-        'a slot key on its default control must not bind beside the native quickslot')
+    local inherited=find(default,'grouped.QuickSlot'..slot)
+    assert(inherited and inherited.keyName==nil and inherited.mode==3 and inherited.standardAction,
+        'a slot key on its default control inherits the player key and acts on press')
 end
 assert(not find(default,'grouped.GroupFocus2'),
     'Group 2 on its default control must not share the swap key')
@@ -90,7 +95,7 @@ assert(defaultHold.swap and defaultHold.mode==2 and defaultHold.sustained and de
     'Hold to Swap is Swap to set to Hold on the inherited key: show Abilities while held')
 model:set(defaultMap.holdSwap.enabled.id,0)
 local tapDefault=Plan.build(definition,model.values)
-assert(not tapDefault.holdSwap.enabled and #tapDefault.bindings==1,'saved Off must retain tap swapping')
+assert(not tapDefault.holdSwap.enabled and #tapDefault.bindings==5,'saved Off must retain tap swapping')
 local toggle=tapDefault.bindings[1]
 assert(toggle.action.type=='flip' and toggle.mode==3 and toggle.consume
     and toggle.standardAction=='IA_Combat_ToggleQuickslots' and toggle.keyName==nil,
@@ -105,7 +110,7 @@ model:set(defaultMap.holdSwap.outsideCombat.id,1)
 model:set(defaultMap.holdSwap.enabled.id,1)
 model:set(defaultMap.holdSwap.defaultWheel.id,1)
 local changedDefault=Plan.build(definition,model.values)
-assert(#changedDefault.bindings==1 and changedDefault.holdSwap.defaultGroup==1
+assert(#changedDefault.bindings==5 and changedDefault.holdSwap.defaultGroup==1
     and changedDefault.defaultGroup==1,'the plan must activate the chosen Default wheel')
 local hold=changedDefault.bindings[1]
 assert(hold.mode==2 and hold.sustained and hold.action.group==2,
@@ -138,7 +143,7 @@ model:set(fixedFive.setting.id,'3|Tap')
 assert(not pcall(model.set,model,fixedOne.setting.id,'2'),'the model holds only canonical text')
 assert(not pcall(model.set,model,fixedOne.setting.id,'Two|Tap'),'number keys are stored as digits')
 local both=Plan.build(definition,model.values)
-assert(#both.bindings==5,'tap swap, custom slot 1, Group 2 and two fixed slots')
+assert(#both.bindings==8,'tap swap, custom slot 1, inherited slots 2-4, Group 2 and two fixed slots')
 local shared=find(both,'grouped.QuickSlot1')
 assert(shared.action.type=='selected' and shared.keyName=='One' and shared.standardAction==nil)
 assert(table.concat(shared.phases,',')=='Started,Triggered,Completed,Canceled')
@@ -148,9 +153,9 @@ assert(focus.action.group==1,'Group 2 must focus the wheel other than Default')
 local ability,consumable=find(both,'global.AbilitySlot1'),find(both,'global.ConsumableSlot1')
 assert(ability.action.type=='ability' and ability.action.slot==1 and ability.keyName=='Two')
 assert(consumable.action.type=='consumable' and consumable.action.slot==1)
--- Quickslot 1 has a custom key, so override=true suppresses its native slot action.
+-- Quickslot 1 has a custom key and slots 2-4 inherit theirs: all suppress their native action.
 assert(both.overrides.IA_Quickslot_Left and shared.override=='IA_Quickslot_Left'
-    and not both.overrides.IA_Quickslot_Top and both.overrides.IA_Combat_ToggleQuickslots)
+    and both.overrides.IA_Quickslot_Top and both.overrides.IA_Combat_ToggleQuickslots)
 assert(focus.override=='IA_Combat_ToggleQuickslots','a custom Group 2 key overrides the toggle')
 model:set(secondary.setting.id,'none')
 assert(not find(Plan.build(definition,model.values),'grouped.GroupFocus2'),
@@ -213,10 +218,10 @@ model:set(defaultMap.holdSwap.defaultWheel.id,1)
 -- Explicit keys always focus their own wheel; the swap key swaps.
 assert(find(relative,'grouped.ActivateAbilities').direct and find(relative,'grouped.ActivateConsumables').direct
     and not find(relative,'grouped.GroupFocus2').direct,'explicit keys never swap')
--- Explicit keys keep a real Tap; the swap key set to Tap acts on press.
+-- A Tap key acts on press (Pressed trigger) when no Hold shares its key.
 local tapped=find(relative,'grouped.ActivateConsumables')
-assert(tapped.mode==0 and tapped.phases[1]=='Triggered' and #tapped.phases==1,
-    'an explicit key set to Tap uses a Tap trigger')
+assert(tapped.mode==3 and tapped.phases[1]=='Triggered' and #tapped.phases==1,
+    'a lone Tap uses a Pressed trigger')
 model:set(secondary.setting.id,'J|Tap')
 local pressed=find(Plan.build(definition,model.values),'grouped.GroupFocus2')
 assert(pressed.mode==3 and #pressed.phases==1,'the swap key set to Tap uses a Pressed trigger')
