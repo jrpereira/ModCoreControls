@@ -13,7 +13,9 @@ updates the HUD key indicators.
   while held and returns to Default on release.
 - **Set the Tap vs Hold Threshold:** a window from Low to High (100-350 ms by default,
   within 100-500 ms): a Hold key acts at High, its rim filling up to it; a Tap fires
-  on press, or on a release before High when the same key is also a Hold.
+  on press, or on a release before High when the same key is also a Hold. With
+  **Instant Tap** off, a Tap alone on its key fires on release or at High, whichever
+  comes first.
 - **Use keyboard and mouse bindings with Tap/Hold:** configure supported actions
   in the menu and activate them in exploration and combat.
 - **Keep all control maps available:** every map's bindings work together; the
@@ -22,11 +24,12 @@ updates the HUD key indicators.
   maps and saves successful changes for the next session.
 - **Keep HUD hints aligned:** key indicators reflect MCC bindings, with original
   values restored when those modifications are removed. Keys set to Hold are
-  underlined.
+  underlined, and a key's outline fills while it is held (**Show key outline**:
+  None, Hold, or Tap & Hold).
 - **Integrate with native input:** MCC handles player/input-resource changes,
   inherited game keys and declared overrides through Enhanced Input.
-- **Coordinate controls and visuals:** publish wheel-focus events for MCT
-  templates and host quickslot visual settings on the Controls page.
+- **Coordinate controls and visuals:** publish wheel-focus and Global-slot events
+  for MCT templates and host quickslot visual settings on the Controls page.
 
 ## Choose the right module
 
