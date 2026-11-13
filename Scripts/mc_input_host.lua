@@ -3,6 +3,7 @@ local Context=require('mc_input_context')
 local Callbacks=require('mc_native_callbacks')
 local Quickslots=require('mc_quickslots')
 local KeyIndicators=require('mc_key_indicators')
+local HoldMarks=require('mc_hold_marks')
 local Overrides=require('mc_overrides')
 local Events=require('mc_events')
 local Log=require('mc_log')
@@ -106,6 +107,74 @@ local function defaultEnvironment()
             return ok and value or nil
         end,
         setIndicatorAction=function(widget,action) widget:SetEnhancedInputAction(action) end,
+        -- Hold underlines (mc_hold_marks): an 85x85 SizeBox holding a black Image bar,
+        -- added to the key's overlay, copying the key's placement.
+        holdMark={
+            parent=function(widget) return widget:GetParent() end,
+            find=function(parent,name)
+                for index=0,parent:GetChildrenCount()-1 do
+                    local child=parent:GetChildAt(index)
+                    if valid(child) and child:GetFName():ToString()==name then return child end
+                end
+            end,
+            create=function(parent,name)
+                local HoldMarks=require('mc_hold_marks')
+                local outer=parent:GetOuter()
+                local box=StaticConstructObject(StaticFindObject('/Script/UMG.SizeBox'),outer,FName(name))
+                local bar=StaticConstructObject(StaticFindObject('/Script/UMG.Image'),outer,FName(name..'_Bar'))
+                assert(valid(box) and valid(bar),'hold mark widgets unavailable')
+                box:SetWidthOverride(HoldMarks.box)
+                box:SetHeightOverride(HoldMarks.box)
+                box.Visibility=3 -- HitTestInvisible
+                bar:SetColorAndOpacity({R=0,G=0,B=0,A=1})
+                bar:SetDesiredSizeOverride({X=HoldMarks.bar.thickness,Y=HoldMarks.bar.thickness})
+                local inset=(HoldMarks.box-HoldMarks.bar.width)/2
+                local inner=box:SetContent(bar)
+                inner:SetHorizontalAlignment(0) -- Fill
+                inner:SetVerticalAlignment(3)   -- Bottom
+                inner:SetPadding({Left=inset,Top=0,Right=inset,Bottom=HoldMarks.bar.bottom})
+                local slot=parent:AddChildToOverlay(box)
+                slot:SetHorizontalAlignment(2)
+                slot:SetVerticalAlignment(2)
+                return box
+            end,
+            placement=function(key)
+                local slot=key.Slot
+                local padding=slot.Padding
+                local transform=key.RenderTransform
+                local pivot=key.RenderTransformPivot
+                return {padLeft=padding.Left,padTop=padding.Top,padRight=padding.Right,padBottom=padding.Bottom,
+                    horizontal=slot.HorizontalAlignment,vertical=slot.VerticalAlignment,
+                    x=transform.Translation.X,y=transform.Translation.Y,
+                    scaleX=transform.Scale.X,scaleY=transform.Scale.Y,
+                    shearX=transform.Shear.X,shearY=transform.Shear.Y,angle=transform.Angle,
+                    pivotX=pivot.X,pivotY=pivot.Y,visibility=key.Visibility,opacity=key.RenderOpacity}
+            end,
+            apply=function(mark,p)
+                local slot=mark.Slot
+                slot:SetPadding({Left=p.padLeft,Top=p.padTop,Right=p.padRight,Bottom=p.padBottom})
+                slot:SetHorizontalAlignment(p.horizontal)
+                slot:SetVerticalAlignment(p.vertical)
+                mark:SetRenderTranslation({X=p.x,Y=p.y})
+                mark:SetRenderScale({X=p.scaleX,Y=p.scaleY})
+                mark:SetRenderShear({X=p.shearX,Y=p.shearY})
+                mark:SetRenderTransformAngle(p.angle)
+                mark:SetRenderTransformPivot({X=p.pivotX,Y=p.pivotY})
+                -- Shown keys leave the mark HitTestInvisible; hidden ones hide it too.
+                mark:SetVisibility((p.visibility==1 or p.visibility==2) and p.visibility or 3)
+                mark:SetRenderOpacity(p.opacity)
+            end,
+            remove=function(mark) mark:RemoveFromParent() end,
+        },
+        -- ModCore Templates' layout passes, through mc_events.
+        subscribeLayout=function(callback,log)
+            if not (rawget(_G,'ModRef') and type(rawget(_G,'RegisterConsoleCommandHandler'))=='function') then
+                return nil
+            end
+            local _,stop=Events.subscribe({ModRef=ModRef,RegisterConsoleCommandHandler=RegisterConsoleCommandHandler,
+                log=log},Events.layout,callback)
+            return stop
+        end,
         constructOverride=function(action,marker)
             local gateClass=cls('InputTriggerChordAction')
             local gatePath=assert(path(action),'override action path unavailable') .. ':' .. marker
@@ -213,16 +282,41 @@ function M.new(queue,log,service,environment)
         local ok,result=pcall(function() return value:ToString() end)
         return ok and tostring(result) or tostring(value)
     end
+    local function currentHud()
+        if type(service.hud)=='function' then return service:hud() end
+        return type(e.hud)=='function' and e.hud() or e.find('WBP_GameHUD_C')
+    end
     local indicators=KeyIndicators.new({
         valid=e.valid,path=e.path,property=property,
         resolve=e.resolve or function() return nil end,
         setAction=e.setIndicatorAction or function() return false end,
-        hud=function()
-            if type(service.hud)=='function' then return service:hud() end
-            return type(e.hud)=='function' and e.hud() or e.find('WBP_GameHUD_C')
-        end,
+        hud=currentHud,
         load=e.loadIndicatorState,save=e.saveIndicatorState,
     })
+    -- Underlines on Hold keys; without the engine functions (tests) there are none.
+    local marks=type(e.holdMark)=='table' and HoldMarks.new({valid=e.valid,path=e.path,property=property,
+        hud=currentHud,parent=e.holdMark.parent,find=e.holdMark.find,create=e.holdMark.create,
+        placement=e.holdMark.placement,apply=e.holdMark.apply,remove=e.holdMark.remove,log=log}) or nil
+    local function refreshMarks(plan)
+        if not marks then return end
+        local ok,why=pcall(marks.refresh,marks,plan)
+        if not ok then log.warn('Hold marks update failed: ',why) end
+    end
+    -- A ModCore Templates layout pass may have moved quickslot keys: the marks copy
+    -- their placement again on the next game-thread turn.
+    local stopLayout
+    if marks and type(e.subscribeLayout)=='function' then
+        local ok,result=pcall(e.subscribeLayout,function(event)
+            if event.category~='player.quickslots' or (api and api.phase=='stopped') then return end
+            local queued,why=pcall(queue,function()
+                if api.phase=='stopped' then return end
+                local placed,placeWhy=pcall(marks.place,marks)
+                if not placed then log.warn('Hold marks placement failed: ',placeWhy) end
+            end)
+            if not queued or why==false then log.warn('Hold marks placement failed to queue: ',why) end
+        end,log)
+        if ok then stopLayout=result else log.warn('layout events unavailable: ',result) end
+    end
     local overrides=Overrides.new({
         marker='MCC_OverrideChord',valid=e.valid,path=e.path,unwrap=e.unwrap,
         keep=e.keep,live=e.live,
@@ -641,6 +735,7 @@ function M.new(queue,log,service,environment)
         local detached,detachWhy=pcall(function() return internal(function() return context:detachAll() end) end)
         if not detached then errors[#errors+1]='mapping detach: ' .. tostring(detachWhy)
         elseif detachWhy==false then errors[#errors+1]='mapping detach incomplete' end
+        refreshMarks(nil)
         local restored,complete=pcall(indicators.restoreAll,indicators)
         if not restored then errors[#errors+1]='indicator restoration: ' .. tostring(complete)
         elseif complete==false then errors[#errors+1]='indicator restoration incomplete' end
@@ -712,6 +807,7 @@ function M.new(queue,log,service,environment)
         local ok,complete,count,expected=pcall(indicators.refresh,indicators,api.actions,api.plan,
             {revision=api.generation,force=force==true})
         if not ok then log.warn('key indicator update failed: ',complete);return false end
+        refreshMarks(api.enabled and api.plan or nil)
         if complete or (expected or count or 0)==0 then return true end
         log.debug('key indicators updated partially: ',count,'/',expected)
         return false
@@ -1193,6 +1289,7 @@ function M.new(queue,log,service,environment)
             local cleared,why,detail=retire(true,true)
             if not cleared then return false,why,detail end
             api.phase='stopped';api.enabled=false
+            if type(stopLayout)=='function' then pcall(stopLayout) end
             local remaining,errors={},{}
             for _,entry in ipairs(registrations) do
                 if type(e.unhook)~='function' then

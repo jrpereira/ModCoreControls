@@ -6,6 +6,51 @@ local wheels={
     consumable={'WBP_HUD_Quickslots','WBP_HUD_Quickslots_Bindings'},
 }
 
+M.positions=positions
+M.wheels=wheels
+
+-- The plan binding each quickslot's key indicator shows, by binding id:
+-- {ability={[slot]=id},consumable={[slot]=id}}. A grouped key shows on both
+-- wheels; a later binding replaces an earlier one, and a display alias shows its
+-- source binding.
+function M.slots(plan)
+    local mapped={ability={},consumable={}}
+    for _,binding in ipairs(plan.bindings or {}) do
+        local target=binding.action or {}
+        if target.type=='selected' then
+            mapped.ability[target.slot]=binding.id
+            mapped.consumable[target.slot]=binding.id
+        elseif (target.type=='ability' or target.type=='consumable') and target.slot then
+            mapped[target.type][target.slot]=binding.id
+        end
+    end
+    -- Display aliases intentionally reuse the source action.  Besides the
+    -- glyph this preserves its trigger mode, unlike synthesising a text
+    -- label for each grouped slot.
+    for _,display in ipairs(plan.displays or {}) do
+        local target=display.action or {}
+        if target.slot and (target.type=='ability' or target.type=='consumable') then
+            mapped[target.type][target.slot]=display.source
+        end
+    end
+    return mapped
+end
+
+-- {ability={[slot]=true},consumable={...}}: the slots whose indicator shows an MCC
+-- key set to Hold. A slot showing the game's own key is never Hold.
+function M.hold(plan)
+    local byId={}
+    for _,binding in ipairs(plan.bindings or {}) do byId[binding.id]=binding end
+    local hold={ability={},consumable={}}
+    for kind,ids in pairs(M.slots(plan)) do
+        for slot=1,4 do
+            local binding=ids[slot] and byId[ids[slot]]
+            hold[kind][slot]=binding~=nil and binding.keyName~=nil and (binding.mode==1 or binding.mode==2)
+        end
+    end
+    return hold
+end
+
 function M.new(e)
     local records={}
     local stored=type(e.load)=='function' and e.load() or nil
@@ -42,25 +87,8 @@ function M.new(e)
         if type(actions)~='table' or type(plan)~='table' then return false,0,0 end
         opts=opts or {}
         local mapped={ability={},consumable={}}
-        for _,binding in ipairs(plan.bindings or {}) do
-            local action=actions[binding.id]
-            local target=binding.action or {}
-            if target.type=='selected' then
-                mapped.ability[target.slot]=action
-                mapped.consumable[target.slot]=action
-            elseif (target.type=='ability' or target.type=='consumable') and target.slot then
-                mapped[target.type][target.slot]=action
-            end
-        end
-        -- Display aliases intentionally reuse the source action.  Besides the
-        -- glyph this preserves its trigger mode, unlike synthesising a text
-        -- label for each grouped slot.
-        for _,display in ipairs(plan.displays or {}) do
-            local action=actions[display.source]
-            local target=display.action or {}
-            if target.slot and (target.type=='ability' or target.type=='consumable') then
-                mapped[target.type][target.slot]=action
-            end
+        for kind,ids in pairs(M.slots(plan)) do
+            for slot=1,4 do mapped[kind][slot]=ids[slot] and actions[ids[slot]] end
         end
         local hud=e.hud()
         if not e.valid(hud) then return false,0,0 end

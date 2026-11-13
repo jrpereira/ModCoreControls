@@ -902,3 +902,50 @@ do
     lifetimes.weak=weak
 end
 print('PASS a fresh wrapper of the same player stack keeps MCC attached')
+
+-- Hold keys get an underline mark, placed again after a ModCore Templates layout
+-- pass and removed when controls are disabled.
+do
+    local overlay={children={}}
+    indicator.parent=overlay
+    indicator.Slot={};indicator.placement={x=10}
+    local layout,created,placed,removed=nil,0,0,0
+    local env=setmetatable({
+        holdMark={
+            parent=function(widget) return widget.parent end,
+            find=function(parent,name)
+                for _,child in ipairs(parent.children) do if child.name==name and child.valid then return child end end
+            end,
+            create=function(parent,name)
+                created=created+1
+                local mark=object('SizeBox','/Engine/Transient.'..name);mark.name=name
+                parent.children[#parent.children+1]=mark
+                return mark
+            end,
+            placement=function(key) return {x=key.placement.x} end,
+            apply=function(mark,p) placed=placed+1;mark.x=p.x end,
+            remove=function(mark) removed=removed+1;mark.valid=false end,
+        },
+        subscribeLayout=function(callback) layout=callback;return function() layout=nil end end,
+    },{__index=environment})
+    local markHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,service,env)
+    assert(layout,'the host listens for layout passes')
+    local holdPlan={contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',keyName='One',mode=1,
+        phases={'Triggered'},action={type='ability',slot=1}}},overrides={}}
+    assert(markHost:apply(holdPlan))
+    local mark=overlay.children[1]
+    assert(created==1 and mark and mark.name=='MCC_HoldMark_ability_Left' and mark.x==10,
+        'a Hold key is marked where its key is')
+    indicator.placement.x=20
+    layout({name='templates.layout.changed',category='player.quickslots'})
+    assert(mark.x==20,'a layout pass places the mark again')
+    local before=placed
+    layout({name='templates.layout.changed',category='other.category'})
+    assert(placed==before,'other categories are ignored')
+    assert(markHost:deactivate())
+    assert(not mark.valid and removed==1,'disabling controls removes the mark')
+    assert(markHost:stop() and layout==nil,'stopping ends the layout subscription')
+    indicator.parent,indicator.Slot,indicator.placement=nil,nil,nil
+end
+print('PASS Hold keys are underlined and follow layout passes')

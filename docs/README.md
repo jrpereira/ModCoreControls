@@ -20,7 +20,8 @@ updates the HUD key indicators.
 - **Save validated bindings:** Apply checks for duplicate custom keys across
   maps and saves successful changes for the next session.
 - **Keep HUD hints aligned:** key indicators reflect MCC bindings, with original
-  values restored when those modifications are removed.
+  values restored when those modifications are removed. Keys set to Hold are
+  underlined.
 - **Integrate with native input:** MCC handles player/input-resource changes,
   inherited game keys and declared overrides through Enhanced Input.
 - **Coordinate controls and visuals:** publish wheel-focus events for MCT

@@ -9,7 +9,7 @@ ModCore Controls (MCC) lets you configure Dawnwalker's keyboard and mouse quicks
 [*]Configure Tap/Hold bindings for supported actions in exploration and combat, with an adjustable Hold threshold (100-500 ms, 250 ms by default).
 [*]Use all control maps together; selecting a map only changes the rows displayed in the menu.
 [*]Apply checks duplicate custom keys across maps and saves successful changes between sessions.
-[*]HUD key hints reflect MCC bindings; MCC restores original indicators when its modifications are removed.
+[*]HUD key hints reflect MCC bindings, and keys set to Hold are underlined; MCC restores original indicators when its modifications are removed.
 [*]Native input integration handles player/input-resource changes, inherited game keys and declared overrides.
 [*]Wheel-focus events let ModCore Templates coordinate visuals with controls; the Controls page also hosts contributed quickslot visual settings.
 [/list]

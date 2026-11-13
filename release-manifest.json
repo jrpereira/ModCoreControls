@@ -14,6 +14,7 @@
     "Scripts/mc_input_context.lua": "Scripts/mc_input_context.lua",
     "Scripts/mc_input_host.lua": "Scripts/mc_input_host.lua",
     "Scripts/mc_input_plan.lua": "Scripts/mc_input_plan.lua",
+    "Scripts/mc_hold_marks.lua": "Scripts/mc_hold_marks.lua",
     "Scripts/mc_key_indicators.lua": "Scripts/mc_key_indicators.lua",
     "Scripts/mc_lifetimes.lua": "Scripts/mc_lifetimes.lua",
     "Scripts/vendor/mc_ini.lua": "Scripts/vendor/mc_ini.lua",
