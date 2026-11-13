@@ -102,7 +102,8 @@ function M.define(registry, mapRegistry)
             section.maps[#section.maps + 1] = { id=mapId, name=declaration.name,
                 value=declaration.value, declaration=declaration, groups={},
                 contexts=declaration.contexts, override=declaration.override,
-                settings={},holdSwap=declaration.holdSwap,holdThreshold=declaration.holdThreshold }
+                settings={},holdSwap=declaration.holdSwap,holdThreshold=declaration.holdThreshold,
+                keyOutline=declaration.keyOutline }
         end
         table.sort(section.maps, function(a,b) return a.value < b.value end)
         if #section.maps > 0 then
@@ -153,6 +154,11 @@ function M.define(registry, mapRegistry)
                 settingsById[source.id]=item
             end
             mapSettings[id .. '\0' .. map.id]=settingsById
+            if map.keyOutline then
+                local outline=settingsById[map.keyOutline]
+                assert(outline and outline.kind=='choice','key outline setting unavailable: '..map.id)
+                map.keyOutline=outline
+            end
             if map.holdThreshold then
                 local threshold=settingsById[map.holdThreshold]
                 assert(threshold and threshold.kind=='integer','Hold threshold setting unavailable: '..map.id)

@@ -105,6 +105,7 @@ function M.new(e)
                 if path then
                     local binding=ids[slot] and byId[ids[slot]]
                     local tap=binding~=nil and binding.keyName~=nil and binding.mode==0
+                        and (plan.keyOutline==nil or plan.keyOutline==2)
                     local shown=tap and currentPath(widget) or nil
                     if rimShown[path]~=shown and (tap or rimShown[path]~=nil) then
                         if pcall(e.setHoldDisplay,widget,tap) then rimShown[path]=shown end

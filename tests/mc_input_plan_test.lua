@@ -54,6 +54,18 @@ do
     assert(#find(Plan.build(definition,values),'global.AbilitySlot1').progressPhases==5,'Tap keys show a rim too')
     values[slot.id]='none'
     assert(find(Plan.build(definition,values),'global.AbilitySlot1')==nil)
+    -- Show key outline: None drops both rims, Hold keeps only the Hold rim.
+    local outline=definition.byId.MCC_module_default_KeyOutline
+    assert(outline and outline.default==2 and table.concat(outline.labels,'|')=='None|Hold|Tap & Hold')
+    local function phases(trigger,value)
+        values[slot.id]=Menu.keybind(slot,'J|'..trigger)
+        values[outline.id]=value
+        return find(Plan.build(definition,values),'global.AbilitySlot1').progressPhases
+    end
+    assert(phases('Hold',1) and not phases('Tap',1),'Hold: only Hold keys show a rim')
+    assert(not phases('Hold',0) and not phases('Tap',0),'None: no rim')
+    assert(phases('Hold',2) and phases('Tap',2),'Tap & Hold: both')
+    values[outline.id]=2
 end
 assert(#default.bindings==1,'Default swap hold only')
 assert(not default.overrides.IA_Quickslot_Left,'unbound slot keys must not override native slots')

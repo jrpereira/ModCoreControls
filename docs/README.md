@@ -52,7 +52,7 @@ fully restart the game after changing Lua files.
 
 | Controls page | Contents |
 | --- | --- |
-| Options | Default wheel, Toggle Quickslots behavior and Hold threshold |
+| Options | Default wheel, Toggle Quickslots behavior, Hold threshold and key outline |
 | Visuals | MCT quickslot template selection and settings, when contributed |
 | Key & Mouse | Actions maps |
 | Controller | Read-only list of the player's current gamepad mappings |

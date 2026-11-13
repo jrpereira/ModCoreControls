@@ -105,10 +105,21 @@ end
 -- options.lenient: a key and trigger bound twice keep their first binding and the
 -- later one is skipped and listed in plan.skipped, so saved controls still start.
 -- Without it, as at Apply, the pair bound twice is an error naming both rows.
+-- Show key outline: none, Hold keys only, or Tap and Hold keys.
+M.OUTLINE={none=0,hold=1,both=2}
+
 function M.build(definition,values,options)
     local lenient=options and options.lenient
     local plan={maps={},contexts={},bindings={},displays={},overrides={},skipped={},
-        defaultGroup=defaultWheel(definition,values)}
+        defaultGroup=defaultWheel(definition,values),keyOutline=M.OUTLINE.both}
+    -- Which key hints show a rim; read first, as every binding depends on it.
+    for _,map in ipairs(runtimeMaps(definition)) do
+        if map.keyOutline then
+            local value=assert(values[map.keyOutline.id],'key outline setting missing')
+            assert(require('mc_menu').valid(map.keyOutline,value),'invalid key outline setting')
+            plan.keyOutline=value
+        end
+    end
     local contexts,used={},{}
     for _,map in ipairs(runtimeMaps(definition)) do
         plan.maps[#plan.maps+1]=map.id
@@ -175,7 +186,8 @@ function M.build(definition,values,options)
                         -- A Hold key fills its indicator's rim while held, as the game's own
                         -- hold prompts do; a Tap key's rim is full while pressed. They also
                         -- listen to these phases, only for the rim.
-                        if name and (mode==1 or mode==0) then
+                        if name and (mode==1 and plan.keyOutline>=M.OUTLINE.hold
+                            or mode==0 and plan.keyOutline==M.OUTLINE.both) then
                             item.progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'}
                         end
                         plan.bindings[#plan.bindings+1]=item

@@ -44,8 +44,13 @@ M.addSectionMap('module', {
                 description='How long a key set to Hold must be held before it acts. A shorter press'
                     ..' is a Tap.',
                 params={min=100,max=2000,step=10,suffix=' ms'}},
+            {id='KeyOutline',name='Show key outline',type='picker',default=2,
+                description='The rim on HUD key hints: a Hold key\'s fills while held, a Tap key\'s is'
+                    ..' full while pressed.',
+                params={values={0,1,2},labels={'None','Hold','Tap & Hold'}}},
         },
         holdThreshold='HoldThreshold',
+        keyOutline='KeyOutline',
         holdSwap={enabled='HoldSwap', defaultWheel='DefaultWheel', outsideCombat='SwapOutsideCombat',
             action='IA_Combat_ToggleQuickslots'},
         map={},

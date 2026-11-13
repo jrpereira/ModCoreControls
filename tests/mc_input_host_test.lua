@@ -1020,8 +1020,11 @@ do
     assert(rims[3]==1 and rims[4]==0 and #activated==1,'held past the threshold, it empties')
     fire('Canceled',.6)
     assert(#rims==4)
+    -- With Show key outline set to Hold, a Tap key no longer shows a rim.
+    assert(tapHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',keyName='One',
+        mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={},holdThreshold=.4,keyOutline=1}))
+    assert(displays[#displays]==false,'the Tap rim is turned off')
     assert(tapHost:deactivate())
-    assert(displays[#displays]==false,'released indicators show the game display again')
     assert(tapHost:stop())
     environment.setIndicatorProgress,environment.setIndicatorHoldDisplay=nil,nil
 end
