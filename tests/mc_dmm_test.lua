@@ -100,6 +100,18 @@ for _,id in ipairs({'MCC_Visuals_Pending','MCC_Pad_Unavailable','MCC_Pad_Note'})
     local item=items[assert(indices[id],id)]
     assert(item.mcReadOnly and #item.values==1,'read-only display row: ' .. id)
 end
+-- Key Press Behaviour heads its own block of the Options settings, in order.
+do
+    local schema=DMM.schema(definition)
+    local heading=schema:match('%[Category%.(module%.default%.settings%.%d+)%][^%[]*mcLabels=0:Key Press Behaviour')
+    assert(heading,'Key Press Behaviour heading')
+    local order={}
+    for id,group in schema:gmatch('%[Setting%.([%w_]+)%][^%[]-Group=([%w%._]+)') do
+        if group==heading then order[#order+1]=id end
+    end
+    assert(table.concat(order,',')=='MCC_module_default_InstantTap,MCC_module_default_HoldThreshold,'
+        ..'MCC_module_default_KeyOutline',table.concat(order,','))
+end
 local slotRow=DMM.schema(definition):match('%[Setting%.MCC_Visuals_Pending%][^%[]*')
 assert(slotRow and slotRow:find('mcSlot=visuals',1,true) and slotRow:find('mcSlotLabel=1',1,true)
     and slotRow:find('Label=Quickslots Visuals',1,true) and slotRow:find('mcCategory=1',1,true)

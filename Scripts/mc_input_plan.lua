@@ -112,8 +112,15 @@ function M.build(definition,values,options)
     local lenient=options and options.lenient
     local plan={maps={},contexts={},bindings={},displays={},overrides={},skipped={},
         defaultGroup=defaultWheel(definition,values),keyOutline=M.OUTLINE.both}
-    -- Which key hints show a rim; read first, as every binding depends on it.
+    -- Which key hints show a rim, and whether a lone Tap fires on press; read first,
+    -- as every binding depends on them.
+    local instantTap=true
     for _,map in ipairs(runtimeMaps(definition)) do
+        if map.instantTap then
+            local value=values[map.instantTap.id]
+            assert(value==0 or value==1,'invalid instant Tap setting')
+            instantTap=value==1
+        end
         if map.keyOutline then
             local value=assert(values[map.keyOutline.id],'key outline setting missing')
             assert(require('mc_menu').valid(map.keyOutline,value),'invalid key outline setting')
@@ -194,8 +201,10 @@ function M.build(definition,values,options)
                         local override=binding.override
                         if override==true then override=binding.defaultControl end
                         -- Tap acts on press (Pressed trigger) unless the key is also bound as
-                        -- Hold; an inherited key acts on press, as the game's own action does.
-                        if mode==0 and (not name or not holdKeys[name:lower()]) then mode=3 end
+                        -- Hold, or Instant Tap is off; an inherited slot key acts on press, as
+                        -- the game's own action does. The swap key set to Tap always acts on press.
+                        if mode==0 and (not name or resolved.type=='focus' and binding.action.wheel
+                            or instantTap and not holdKeys[name:lower()]) then mode=3 end
                         local item={id=map.id .. '.' .. binding.id,keyName=name,mode=mode,
                             phases=phases(binding,mode),sustained=binding.sustained,
                             action=resolved,override=override,

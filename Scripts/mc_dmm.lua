@@ -141,7 +141,18 @@ function M.schema(definition,gamepad)
                     local value=#section.maps>1 and map.value or pageValue
                     block(lines,'Category.'..id,{VisibleWhen=when,VisibleValues=value,
                         mcLabelWhen=when,mcLabels=value..':'..map.name,mcHelp=help(nil)})
-                    for _,item in ipairs(map.settings) do row(item,id) end
+                    -- A setting with a heading starts a titled block; the ones after it
+                    -- follow under it.
+                    local current,blocks=id,0
+                    for _,item in ipairs(map.settings) do
+                        if item.heading then
+                            blocks=blocks+1
+                            current=id..'.'..blocks
+                            block(lines,'Category.'..current,{VisibleWhen=when,VisibleValues=value,
+                                mcLabelWhen=when,mcLabels=value..':'..item.heading})
+                        end
+                        row(item,current)
+                    end
                 end
                 for groupIndex,group in ipairs(map.groups) do
                     local id=section.id .. '.' .. map.id .. '.' .. groupIndex

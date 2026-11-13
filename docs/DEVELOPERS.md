@@ -47,7 +47,9 @@ own Lua state and seal the registry when they build their definition; a later
 | Group inside `map` | `name`, `settings` | `description` |
 | Setting | `id`, `name`, `type` | `default`, `description`, `params` |
 
-Type-specific options belong inside `params`. Unknown setting and parameter
+Type-specific options belong inside `params`. A map setting may also carry `heading`:
+it starts a titled block of the map's settings on the page, holding it and the ones
+after it. Unknown setting and parameter
 fields are rejected. Descriptions must be one line, at most 4096 bytes.
 
 | Type | Placement | `params` |

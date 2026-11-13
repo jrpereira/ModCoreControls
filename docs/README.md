@@ -11,7 +11,7 @@ updates the HUD key indicators.
 - **Configure wheel switching:** choose the default wheel and Toggle Quickslots
   behavior, including hold-to-swap. A wheel key set to Hold shows its wheel
   while held and returns to Default on release.
-- **Set the Hold threshold:** a low-high window (100-350 ms by default, within
+- **Set the Tap vs Hold Threshold:** a low-high window (100-350 ms by default, within
   100-500 ms): a Hold key's rim fills from low and the key acts at high; a Tap fires
   on press, or on a release before high when the same key is also a Hold.
 - **Use keyboard and mouse bindings with Tap/Hold:** configure supported actions
@@ -53,7 +53,7 @@ fully restart the game after changing Lua files.
 
 | Controls page | Contents |
 | --- | --- |
-| Options | Default wheel, Toggle Quickslots behavior, Hold threshold and key outline |
+| Options | Default wheel and Toggle Quickslots behavior; Key Press Behaviour: Instant Tap, Tap vs Hold Threshold and key outline |
 | Visuals | MCT quickslot template selection and settings, when contributed |
 | Key & Mouse | Actions maps |
 | Controller | Read-only list of the player's current gamepad mappings |

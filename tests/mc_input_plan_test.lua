@@ -79,6 +79,17 @@ do
     assert(find(both,'global.AbilitySlot1').mode==0 and find(both,'global.AbilitySlot2').mode==1,
         'a Tap sharing its key with a Hold stays a Tap')
     assert(find(both,'global.AbilitySlot2').sharesTap,'the Hold knows a Tap shares its key')
+    -- Instant Tap off: every Tap fires on release, even without a Hold on its key.
+    local instant=definition.byId.MCC_module_default_InstantTap
+    assert(instant and instant.default==1 and instant.heading=='Key Press Behaviour'
+        and instant.name=='Instant Tap when no Hold for same key')
+    assert(definition.byId.MCC_module_default_HoldThreshold.name=='Tap vs Hold Threshold')
+    values[other.id]='none'
+    values[instant.id]=0
+    assert(find(Plan.build(definition,values),'global.AbilitySlot1').mode==0,'Instant Tap off: Tap on release')
+    values[instant.id]=1
+    assert(find(Plan.build(definition,values),'global.AbilitySlot1').mode==3,'Instant Tap on: Tap on press')
+    values[other.id]=Menu.keybind(other,'J|Hold')
     values[slot.id]='none'
     assert(not find(Plan.build(definition,values),'global.AbilitySlot2').sharesTap,'a lone Hold does not')
     values[slot.id]=Menu.keybind(slot,'J|Tap')

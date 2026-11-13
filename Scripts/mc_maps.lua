@@ -40,7 +40,12 @@ M.addSectionMap('module', {
                 params={values={0,1},labels={'Off','On'}}},
             {id='DefaultWheel',name='Default wheel',type='picker',default=2,
                 params={values={1,2},labels={'Abilities','Consumables'}}},
-            {id='HoldThreshold',name='Hold threshold',type='range',default='100|350',
+            {id='InstantTap',name='Instant Tap when no Hold for same key',type='picker',default=1,
+                heading='Key Press Behaviour',
+                description='On: a key bound as Tap fires on press unless the same key is also bound as'
+                    ..' Hold. Off: every Tap fires on release, within the High threshold.',
+                params={values={0,1},labels={'Off','On'}}},
+            {id='HoldThreshold',name='Tap vs Hold Threshold',type='range',default='100|350',
                 description='A key bound only as Tap fires on press and its outline flashes until Low.'
                     ..' A key bound only as Hold fires at High; its outline fills from 0 to High.'
                     ..' When a key has both, pressing lights the Tap; at Low the Hold starts filling'
@@ -54,6 +59,7 @@ M.addSectionMap('module', {
         },
         holdThreshold='HoldThreshold',
         keyOutline='KeyOutline',
+        instantTap='InstantTap',
         holdSwap={enabled='HoldSwap', defaultWheel='DefaultWheel', outsideCombat='SwapOutsideCombat',
             action='IA_Combat_ToggleQuickslots'},
         map={},

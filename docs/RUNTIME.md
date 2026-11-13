@@ -7,7 +7,7 @@ This page describes MCC's current quickslot input adapter.
 
 | Action | Tap | Hold |
 | --- | --- | --- |
-| Immediate | Fires on press; when the same key is also bound as Hold, on a release before the high mark | Fires at the high mark |
+| Immediate | Fires on press; on a release before the high mark when the same key is also bound as Hold, or when **Instant Tap when no Hold for same key** is off | Fires at the high mark |
 | Sustained | Toggles on/off | Active until release or cancellation |
 
 While a key set to Hold is held, its HUD key indicator's rim fills from press to the
@@ -33,7 +33,8 @@ uses the action. When MCC rebuilds triggers (a new threshold, or Tap changed to
 Hold), it removes the player's instance of each rebuilt action from
 `EnhancedPlayerInput.ActionInstanceData`, so the change applies at once.
 
-The window is the Options page's **Hold threshold**, a low-high range: 100-350 ms by
+These settings sit under **Key Press Behaviour** on the Options page. The window is
+**Tap vs Hold Threshold**, a low-high range: 100-350 ms by
 default, 100 to 500 ms in 10 ms steps, at least 50 ms apart. It only matters for Hold
 keys, for a Tap that shares its key with a Hold, and for the rim. A changed high mark
 rebuilds the triggers on Apply.

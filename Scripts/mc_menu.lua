@@ -10,7 +10,8 @@ end
 -- Declared settings carry id, name, type and default; the rest of a type's
 -- arguments sit in params. Unknown fields are rejected so a misplaced argument
 -- cannot be silently ignored.
-local common={id=true,name=true,type=true,default=true,params=true,description=true}
+-- heading (map settings only) starts a titled block of the map's settings on the page.
+local common={id=true,name=true,type=true,default=true,params=true,description=true,heading=true}
 local paramFields={
     -- tab=true shows the choices as tabs instead of a left/right picker; cycle=true
     -- shows only the current choice, in the keybind key column, advancing on click.
@@ -104,7 +105,7 @@ function M.define(registry, mapRegistry)
                 value=declaration.value, declaration=declaration, groups={},
                 contexts=declaration.contexts, override=declaration.override,
                 settings={},holdSwap=declaration.holdSwap,holdThreshold=declaration.holdThreshold,
-                keyOutline=declaration.keyOutline }
+                keyOutline=declaration.keyOutline,instantTap=declaration.instantTap }
         end
         table.sort(section.maps, function(a,b) return a.value < b.value end)
         if #section.maps > 0 then
@@ -147,6 +148,9 @@ function M.define(registry, mapRegistry)
                 item.configSection='ModCoreControls.'..id
                 item.configKey=map.id..'.'..token(source.id)
                 item.description=description(source.description,source.id)
+                assert(source.heading==nil or type(source.heading)=='string' and source.heading:match('%S')
+                    and not source.heading:find('[:;]'),'invalid heading: '..source.id)
+                item.heading=source.heading
                 assert(params.tab==nil or type(params.tab)=='boolean','tab must be true or false: '..source.id)
                 assert(params.cycle==nil or type(params.cycle)=='boolean','cycle must be true or false: '..source.id)
                 assert(not (params.tab and params.cycle),'a setting is tabs or a cycle, not both: '..source.id)
@@ -156,6 +160,11 @@ function M.define(registry, mapRegistry)
                 settingsById[source.id]=item
             end
             mapSettings[id .. '\0' .. map.id]=settingsById
+            if map.instantTap then
+                local instant=settingsById[map.instantTap]
+                assert(instant and instant.kind=='choice','instant Tap setting unavailable: '..map.id)
+                map.instantTap=instant
+            end
             if map.keyOutline then
                 local outline=settingsById[map.keyOutline]
                 assert(outline and outline.kind=='choice','key outline setting unavailable: '..map.id)
@@ -195,6 +204,7 @@ function M.define(registry, mapRegistry)
                 map.groups[#map.groups+1] = output
                 for _, entry in ipairs(group.settings) do
                     local params=declared(entry,{keybind=true,mirror=true},map.id)
+                    assert(entry.heading==nil,'heading is for map settings only: '..tostring(entry.id))
                     if entry.type=='mirror' then
                         local source={id=entry.id,name=entry.name,mirror=params}
                         assert(entry.default==nil,'a mirror takes its default from its setting: ' .. entry.id)
