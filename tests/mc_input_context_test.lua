@@ -87,6 +87,23 @@ do
     context:configure(plan)
     e.trigger=trigger
 end
+do
+    -- Tap and Hold use the plan's Hold threshold, 250 ms when it carries none, and a
+    -- new threshold rebuilds the triggers.
+    assert(actions.tap.Triggers[1].TapReleaseTimeThreshold==.25,'default Tap threshold')
+    plan.holdThreshold=.4
+    plan.bindings[1].mode=1
+    context:configure(plan)
+    assert(actions.tap.Triggers[1].HoldTimeThreshold==.4,'Hold uses the plan threshold')
+    plan.holdThreshold=.15
+    context:configure(plan)
+    assert(actions.tap.Triggers[1].HoldTimeThreshold==.15,'a new threshold rebuilds the trigger')
+    plan.bindings[1].mode=0
+    context:configure(plan)
+    assert(actions.tap.Triggers[1].TapReleaseTimeThreshold==.15,'Tap uses the plan threshold')
+    plan.holdThreshold=nil
+    context:configure(plan)
+end
 context:detachAll()
 assert(#world.Mappings==1 and world.Mappings[1]==nativeEntry,'detach must remove only MCC keys')
 for name in pairs(created) do

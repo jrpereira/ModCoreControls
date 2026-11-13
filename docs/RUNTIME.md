@@ -10,6 +10,9 @@ This page describes MCC's current quickslot input adapter.
 | Immediate | Qualifying release within the Tap threshold | Fires after the Hold threshold |
 | Sustained | Toggles on/off | Active until release or cancellation |
 
+Both thresholds are the Options page's **Hold threshold**: 250 ms by default,
+100 to 500 ms in 10 ms steps. A changed threshold rebuilds the triggers on Apply.
+
 The grouped **Swap to** key is special: Tap swaps on press. Default's
 **Hold to Swap** is the same binding as **Swap to** set to Hold on the inherited
 Toggle Quickslots key: it does not wait for a Hold threshold.

@@ -53,6 +53,7 @@ fields are rejected. Descriptions must be one line, at most 4096 bytes.
 | Type | Placement | `params` |
 | --- | --- | --- |
 | `picker` | Map's `settings` | `values`, `labels`; optional `tab` or `cycle` |
+| `integer` | Map's `settings` | `min`, `max`; optional `step` (from `min`, default 1) and `suffix` (shown as a slider) |
 | `keybind` | Group's `settings` | `trigger`, `action`; optional options below |
 | `mirror` | Group's `settings` | `section`, `map`, `setting`; optional `tab` or `cycle` |
 
@@ -79,7 +80,7 @@ reject the Apply.
 
 A binding stores `none` or `<FKey>|<trigger>`, such as `J|Hold` or `1|Tap`.
 A bare default key uses the first declared trigger. `none` and numeric `0` in a
-declaration mean unbound; picker choices are integers. Legacy numeric key codes
+declaration mean unbound; picker choices and integer settings are whole numbers. Legacy numeric key codes
 are not the current keybind format.
 
 `mc_config.lua` preserves unrelated INI content and refuses to overwrite a file

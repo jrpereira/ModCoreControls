@@ -15,6 +15,8 @@ local paramFields={
     -- tab=true shows the choices as tabs instead of a left/right picker; cycle=true
     -- shows only the current choice, in the keybind key column, advancing on click.
     picker={values=true,labels=true,tab=true,cycle=true},
+    -- A whole number from min to max in steps of step (from min); suffix follows it.
+    integer={min=true,max=true,step=true,suffix=true},
     mirror={section=true,map=true,setting=true,tab=true,cycle=true},
     keybind={trigger=true,action=true,optional=true,defaultControl=true,override=true,
         sustained=true,inactive=true,groupedBy=true,displayAlias=true},
@@ -100,7 +102,7 @@ function M.define(registry, mapRegistry)
             section.maps[#section.maps + 1] = { id=mapId, name=declaration.name,
                 value=declaration.value, declaration=declaration, groups={},
                 contexts=declaration.contexts, override=declaration.override,
-                settings={},holdSwap=declaration.holdSwap }
+                settings={},holdSwap=declaration.holdSwap,holdThreshold=declaration.holdThreshold }
         end
         table.sort(section.maps, function(a,b) return a.value < b.value end)
         if #section.maps > 0 then
@@ -119,14 +121,26 @@ function M.define(registry, mapRegistry)
             local declaredSettings=map.declaration.settings or {}
             local settingsById={}
             for _,source in ipairs(declaredSettings) do
-                local params=declared(source,{picker=true},map.id)
+                local params=declared(source,{picker=true,integer=true},map.id)
                 assert(not settingsById[source.id],'duplicate map setting in '..map.id..': '..source.id)
                 assert(type(source.name)=='string' and source.name:match('%S'),
                     'map setting needs a name: '..source.id)
-                local values,labels=params.values or {},params.labels or {}
-                assert(#values>0 and #values==#labels,'invalid map setting choices: '..source.id)
-                local item=setting('MCC_'..token(id)..'_'..token(map.id)..'_'..token(source.id),
-                    source.name,'choice',source.default,values,labels)
+                local item
+                if source.type=='integer' then
+                    local min,max,step=params.min,params.max,params.step or 1
+                    assert(math.type(min)=='integer' and math.type(max)=='integer' and min<max
+                        and math.type(step)=='integer' and step>=1 and (max-min)%step==0,
+                        'invalid integer range: '..source.id)
+                    assert(params.suffix==nil or type(params.suffix)=='string','suffix must be text: '..source.id)
+                    item=setting('MCC_'..token(id)..'_'..token(map.id)..'_'..token(source.id),
+                        source.name,'integer',source.default)
+                    item.minimum,item.maximum,item.step,item.suffix=min,max,step,params.suffix
+                else
+                    local values,labels=params.values or {},params.labels or {}
+                    assert(#values>0 and #values==#labels,'invalid map setting choices: '..source.id)
+                    item=setting('MCC_'..token(id)..'_'..token(map.id)..'_'..token(source.id),
+                        source.name,'choice',source.default,values,labels)
+                end
                 item.configSection='ModCoreControls.'..id
                 item.configKey=map.id..'.'..token(source.id)
                 item.description=description(source.description,source.id)
@@ -139,6 +153,11 @@ function M.define(registry, mapRegistry)
                 settingsById[source.id]=item
             end
             mapSettings[id .. '\0' .. map.id]=settingsById
+            if map.holdThreshold then
+                local threshold=settingsById[map.holdThreshold]
+                assert(threshold and threshold.kind=='integer','Hold threshold setting unavailable: '..map.id)
+                map.holdThreshold=threshold
+            end
             if map.holdSwap then
                 assert(type(map.holdSwap)=='table','invalid Hold Swap declaration: '..map.id)
                 map.holdSwap={enabled=assert(settingsById[map.holdSwap.enabled],
@@ -336,6 +355,9 @@ end
 function M.valid(setting, value)
     if setting.kind=='keybind' then return type(value)=='string' and M.keybind(setting,value)==value end
     if type(value)~='number' or value%1~=0 then return false end
+    if setting.kind=='integer' then
+        return value>=setting.minimum and value<=setting.maximum and (value-setting.minimum)%setting.step==0
+    end
     for _, allowed in ipairs(setting.values) do if value==allowed then return true end end
     return false
 end

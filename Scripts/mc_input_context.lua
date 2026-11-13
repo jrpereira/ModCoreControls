@@ -14,6 +14,9 @@ function M.actionName(id)
 end
 -- Key names compare as the engine compares them: without regard to case.
 local function keyId(name) return string.lower(tostring(name)) end
+-- Seconds a Hold key must be held, and the longest press that is a Tap, when the
+-- plan does not carry the player's Hold threshold.
+M.DEFAULT_THRESHOLD=.25
 
 function M.new(e,log)
     log=require('mc_log').wrap(log)
@@ -53,8 +56,9 @@ function M.new(e,log)
         assert(className,'unsupported input trigger mode: '..tostring(mode))
         local result=e.trigger(target,className)
         assert(e.valid(result),'input trigger unavailable')
-        if mode==1 then result.HoldTimeThreshold=e.threshold or .2;result.bIsOneShot=true
-        elseif mode==0 then result.TapReleaseTimeThreshold=e.threshold or .2 end
+        local threshold=plan and plan.holdThreshold or e.threshold or M.DEFAULT_THRESHOLD
+        if mode==1 then result.HoldTimeThreshold=threshold;result.bIsOneShot=true
+        elseif mode==0 then result.TapReleaseTimeThreshold=threshold end
         target.Triggers={result}
     end
     -- MCC keys an earlier Lua state mapped into this context (before a mod restart or
@@ -138,7 +142,8 @@ function M.new(e,log)
     end
     -- Everything configure and map read from a plan, as text.
     local function signature(value)
-        local parts={table.concat(value.contexts or {},',')}
+        -- A new Hold threshold rebuilds every trigger.
+        local parts={table.concat(value.contexts or {},','),tostring(value.holdThreshold)}
         for _,binding in ipairs(value.bindings) do
             local suppressed={}
             for keyName in pairs(binding.suppressed or {}) do suppressed[#suppressed+1]=keyName end

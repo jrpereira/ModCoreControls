@@ -179,6 +179,12 @@ function M.build(definition,values,options)
                 end
             end
         end
+        -- Every Tap and Hold trigger uses the Hold threshold, in seconds.
+        if map.holdThreshold then
+            local ms=assert(values[map.holdThreshold.id],'Hold threshold setting missing')
+            assert(require('mc_menu').valid(map.holdThreshold,ms),'invalid Hold threshold setting')
+            plan.holdThreshold=ms/1000
+        end
         if map.holdSwap then
             local enabled=assert(values[map.holdSwap.enabled.id],'Hold Swap setting missing')
             assert(enabled==0 or enabled==1,'invalid Hold Swap setting')

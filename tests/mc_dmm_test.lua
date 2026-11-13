@@ -69,7 +69,7 @@ else
 end
 local editable=0
 for _,setting in ipairs(definition.settings) do
-    if setting.kind=='keybind' or #setting.values>1 then
+    if setting.kind=='keybind' or setting.kind=='integer' or #setting.values>1 then
         editable=editable+1
         local index=assert(indices[setting.id],'missing DMM row: ' .. setting.id)
         local item=items[index]
@@ -77,7 +77,10 @@ for _,setting in ipairs(definition.settings) do
         assert(item.file=='config.ini','config file mismatch: ' .. setting.id)
         assert(item.section==setting.configSection,'config section mismatch: ' .. setting.id)
         assert(item.key==setting.configKey,'config key mismatch: ' .. setting.id)
-        if setting.kind=='choice' then
+        if setting.kind=='integer' then
+            assert(item.kind=='slider' and item.minimum==setting.minimum and item.maximum==setting.maximum
+                and item.step==setting.step and item.suffix==setting.suffix,'integer row: '..setting.id)
+        elseif setting.kind=='choice' then
             same(item.values,setting.values,setting.id .. ' values')
             assert(not item.mcTabs,'no mode pickers render as tabs: ' .. setting.id)
             same(item.labels,setting.labels,setting.id .. ' labels')

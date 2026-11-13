@@ -40,7 +40,12 @@ M.addSectionMap('module', {
                 params={values={0,1},labels={'Off','On'}}},
             {id='DefaultWheel',name='Default wheel',type='picker',default=2,
                 params={values={1,2},labels={'Abilities','Consumables'}}},
+            {id='HoldThreshold',name='Hold threshold',type='integer',default=250,
+                description='How long a key set to Hold must be held before it acts. A shorter press'
+                    ..' is a Tap.',
+                params={min=100,max=500,step=10,suffix=' ms'}},
         },
+        holdThreshold='HoldThreshold',
         holdSwap={enabled='HoldSwap', defaultWheel='DefaultWheel', outsideCombat='SwapOutsideCombat',
             action='IA_Combat_ToggleQuickslots'},
         map={},
