@@ -159,7 +159,7 @@ it to template event callbacks. Events are not logged on every swap. Use
 A quickslot key indicator whose key is set to Hold gets a black underline
 (`mc_hold_marks.lua`). The indicator is a leaf widget, so the mark is a sibling in
 the key's overlay: an 85x85 `SizeBox` named `MCC_HoldMark_<wheel>_<position>`
-holding a bar 51 wide, 11 thick, centred, with its bottom edge 16 above the box's
+holding a black bar at 80% opacity, 51 wide, 11 thick, centred, with its bottom edge 15 above the box's
 bottom (layout units). The box copies its key's slot padding and alignment, render
 transform and pivot, visibility and render opacity, so it moves, scales, hides and
 fades with the key under any layout.

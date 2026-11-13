@@ -137,7 +137,7 @@ local function defaultEnvironment()
                 box:SetWidthOverride(HoldMarks.box)
                 box:SetHeightOverride(HoldMarks.box)
                 box.Visibility=3 -- HitTestInvisible
-                bar:SetColorAndOpacity({R=0,G=0,B=0,A=1})
+                bar:SetColorAndOpacity({R=0,G=0,B=0,A=HoldMarks.bar.opacity})
                 -- The brush size is the bar's thickness; it is written before the bar is
                 -- shown, as a desired size override set then does not apply.
                 bar.Brush.ImageSize.X=HoldMarks.bar.thickness
