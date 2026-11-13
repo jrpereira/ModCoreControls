@@ -107,7 +107,7 @@ function M.new(e)
                     local both=plan.keyOutline==nil or plan.keyOutline==2
                     -- A key that is not Hold: Tap, or acting on press.
                     local tap=both and binding~=nil and (binding.keyName~=nil or binding.standardAction~=nil)
-                        and (binding.mode==0 or binding.mode==3)
+                        and (binding.mode==0 or binding.mode==3 or binding.mode==4)
                     local shown=tap and currentPath(widget) or nil
                     if rimShown[path]~=shown and (tap or rimShown[path]~=nil) then
                         if pcall(e.setHoldDisplay,widget,tap) then rimShown[path]=shown end

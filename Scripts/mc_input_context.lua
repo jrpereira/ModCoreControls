@@ -48,18 +48,25 @@ function M.new(e,log)
         end
         return actions[binding.id]
     end
+    -- Modes: 0 Tap (release before the high mark), 1 Hold (at the high mark),
+    -- 2 sustained (no trigger), 3 Pressed (on press), 4 Tap or Hold (on release, or at
+    -- the high mark while still held, whichever comes first: one of them always fires).
     local function trigger(target,mode)
         if mode==2 then target.Triggers={}; return end
+        local threshold=plan and plan.holdHigh or e.threshold or M.DEFAULT_HIGH
+        local function build(className)
+            local result=e.trigger(target,className)
+            assert(e.valid(result),'input trigger unavailable')
+            if className=='InputTriggerHold' then result.HoldTimeThreshold=threshold;result.bIsOneShot=true
+            elseif className=='InputTriggerTap' then result.TapReleaseTimeThreshold=threshold end
+            return result
+        end
+        if mode==4 then target.Triggers={build('InputTriggerTap'),build('InputTriggerHold')};return end
         local className=mode==1 and 'InputTriggerHold'
             or mode==3 and 'InputTriggerPressed'
             or mode==0 and 'InputTriggerTap' or nil
         assert(className,'unsupported input trigger mode: '..tostring(mode))
-        local result=e.trigger(target,className)
-        assert(e.valid(result),'input trigger unavailable')
-        local threshold=plan and plan.holdHigh or e.threshold or M.DEFAULT_HIGH
-        if mode==1 then result.HoldTimeThreshold=threshold;result.bIsOneShot=true
-        elseif mode==0 then result.TapReleaseTimeThreshold=threshold end
-        target.Triggers={result}
+        target.Triggers={build(className)}
     end
     -- MCC keys an earlier Lua state mapped into this context (before a mod restart or
     -- hot reload) are still there under the same actions; remove them too.

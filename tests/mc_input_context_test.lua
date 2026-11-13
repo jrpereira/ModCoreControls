@@ -101,6 +101,15 @@ do
     plan.bindings[1].mode=0
     context:configure(plan)
     assert(actions.tap.Triggers[1].TapReleaseTimeThreshold==.15,'Tap uses the plan threshold')
+    -- Tap or Hold: a Tap on release before High plus a one-shot Hold at High.
+    plan.holdHigh=.35
+    plan.bindings[1].mode=4
+    context:configure(plan)
+    local both=actions.tap.Triggers
+    assert(#both==2 and both[1].path=='InputTriggerTap' and both[1].TapReleaseTimeThreshold==.35
+        and both[2].path=='InputTriggerHold' and both[2].HoldTimeThreshold==.35 and both[2].bIsOneShot,
+        'release or High, whichever comes first')
+    plan.bindings[1].mode=0
     plan.holdHigh=nil
     context:configure(plan)
 end

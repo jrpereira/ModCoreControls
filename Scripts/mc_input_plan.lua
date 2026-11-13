@@ -200,11 +200,12 @@ function M.build(definition,values,options)
                     if not duplicate and (name or inherits) then
                         local override=binding.override
                         if override==true then override=binding.defaultControl end
-                        -- Tap acts on press (Pressed trigger) unless the key is also bound as
-                        -- Hold, or Instant Tap is off; an inherited slot key acts on press, as
-                        -- the game's own action does. The swap key set to Tap always acts on press.
-                        if mode==0 and (not name or resolved.type=='focus' and binding.action.wheel
-                            or instantTap and not holdKeys[name:lower()]) then mode=3 end
+                        -- A Tap alone on its key acts on press (Pressed trigger); with Instant
+                        -- Tap off, on release or at the high mark, whichever comes first. A Tap
+                        -- sharing its key with a Hold stays a Tap. An inherited slot key acts on
+                        -- press, as the game's own action does, as does the swap key set to Tap.
+                        if mode==0 and (not name or resolved.type=='focus' and binding.action.wheel) then mode=3
+                        elseif mode==0 and not holdKeys[name:lower()] then mode=instantTap and 3 or 4 end
                         local item={id=map.id .. '.' .. binding.id,keyName=name,mode=mode,
                             phases=phases(binding,mode),sustained=binding.sustained,
                             action=resolved,override=override,
@@ -218,7 +219,7 @@ function M.build(definition,values,options)
                         -- hold prompts do; a Tap key's rim is full while pressed. They also
                         -- listen to these phases, only for the rim.
                         if mode==1 and name and plan.keyOutline>=M.OUTLINE.hold
-                            or (mode==0 or mode==3) and binding.action.type~='focus'
+                            or (mode==0 or mode==3 or mode==4) and binding.action.type~='focus'
                                 and plan.keyOutline==M.OUTLINE.both then
                             item.progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'}
                         end

@@ -7,7 +7,7 @@ This page describes MCC's current quickslot input adapter.
 
 | Action | Tap | Hold |
 | --- | --- | --- |
-| Immediate | Fires on press; on a release before the high mark when the same key is also bound as Hold, or when **Instant Tap when no Hold for same key** is off | Fires at the high mark |
+| Immediate | Fires on press. With **Instant Tap when no Hold for same key** off: on release or at the high mark, whichever comes first. When the same key is also bound as Hold: on a release before the high mark | Fires at the high mark |
 | Sustained | Toggles on/off | Active until release or cancellation |
 
 While a key set to Hold is held, its HUD key indicator's rim fills from press to the

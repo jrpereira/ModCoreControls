@@ -1082,8 +1082,8 @@ function M.new(queue,log,service,environment)
                 end)
                 value=1
             end
-        elseif binding.mode==0 then
-            -- Tap sharing its key with a Hold: lit from press until it fires, is released,
+        elseif binding.mode==0 or binding.mode==4 then
+            -- Tap, alone with Instant Tap off or sharing its key with a Hold: lit from press until it fires, is released,
             -- or the Hold fires at the high mark; from low it shows beside the Hold filling.
             if phase=='Started' then value=1
             elseif phase=='Ongoing' then value=elapsed<high and 1 or 0
