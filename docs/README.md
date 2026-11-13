@@ -12,7 +12,7 @@ updates the HUD key indicators.
   behavior, including hold-to-swap. A wheel key set to Hold shows its wheel
   while held and returns to Default on release.
 - **Set the Hold threshold:** how long a Hold key must be held before it acts,
-  from 100 to 500 ms (250 ms by default); a shorter press is a Tap.
+  from 100 to 2000 ms (250 ms by default); a shorter press is a Tap.
 - **Use keyboard and mouse bindings with Tap/Hold:** configure supported actions
   in the menu and activate them in exploration and combat.
 - **Keep all control maps available:** every map's bindings work together; the

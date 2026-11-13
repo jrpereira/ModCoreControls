@@ -23,21 +23,21 @@ assert(table.concat(default.maps,',')=='default,grouped,global' and default.nati
 assert(table.concat(default.contexts,',')=='exploration,combat')
 assert(default.holdSwap.enabled and default.holdSwap.defaultGroup==2 and default.defaultGroup==2)
 assert(default.overrides.IA_Combat_ToggleQuickslots,'Default must suppress the native toggle')
--- Hold threshold: 250 ms by default, from 100 to 500 ms in 10 ms steps, in seconds in the plan.
+-- Hold threshold: 250 ms by default, from 100 to 2000 ms in 10 ms steps, in seconds in the plan.
 do
     local threshold=definition.byId.MCC_module_default_HoldThreshold
     assert(threshold and threshold.kind=='integer' and threshold.default==250
-        and threshold.minimum==100 and threshold.maximum==500 and threshold.step==10)
+        and threshold.minimum==100 and threshold.maximum==2000 and threshold.step==10)
     assert(default.holdThreshold==.25,'the default threshold reaches the plan')
-    for _,value in ipairs({99,95,505,255,250.5}) do assert(not Menu.valid(threshold,value),'rejects '..value) end
-    for _,value in ipairs({100,110,500}) do assert(Menu.valid(threshold,value),'accepts '..value) end
+    for _,value in ipairs({99,95,2005,2010,255,250.5}) do assert(not Menu.valid(threshold,value),'rejects '..value) end
+    for _,value in ipairs({100,110,500,2000}) do assert(Menu.valid(threshold,value),'accepts '..value) end
     local values={}
     for id,value in pairs(model.values) do values[id]=value end
     values[threshold.id]=400
     assert(Plan.build(definition,values).holdThreshold==.4)
     -- A saved value outside the range falls back to the default.
     local Config=require('mc_config')
-    local decoded=Config.decode('[ModCoreControls.module]\ndefault.HoldThreshold=505\n',definition)
+    local decoded=Config.decode('[ModCoreControls.module]\ndefault.HoldThreshold=2010\n',definition)
     assert(decoded[threshold.id]==nil,'an invalid saved threshold is left out')
     decoded=Config.decode('[ModCoreControls.module]\ndefault.HoldThreshold=320\n',definition)
     assert(decoded[threshold.id]==320)

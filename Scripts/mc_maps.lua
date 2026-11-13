@@ -43,7 +43,7 @@ M.addSectionMap('module', {
             {id='HoldThreshold',name='Hold threshold',type='integer',default=250,
                 description='How long a key set to Hold must be held before it acts. A shorter press'
                     ..' is a Tap.',
-                params={min=100,max=500,step=10,suffix=' ms'}},
+                params={min=100,max=2000,step=10,suffix=' ms'}},
         },
         holdThreshold='HoldThreshold',
         holdSwap={enabled='HoldSwap', defaultWheel='DefaultWheel', outsideCombat='SwapOutsideCombat',
