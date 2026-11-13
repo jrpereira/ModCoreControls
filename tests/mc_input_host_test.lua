@@ -961,7 +961,7 @@ do
     local rimHost=require('mc_input_host').new(function(callback) callback();return true end,
         function() end,rimService,environment)
     local first=#callbacks
-    local holdKey={id='global.AbilitySlot1',keyName='One',mode=1,phases={'Triggered'},
+    local holdKey={id='global.AbilitySlot1',keyName='One',mode=1,phases={'Triggered'},sharesTap=true,
         progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
     assert(rimHost:apply({contexts={'exploration','combat'},bindings={holdKey},overrides={},holdLow=.1,holdHigh=.4}))
     local function fire(phase,elapsed)
@@ -977,7 +977,7 @@ do
     assert(#activated==0,'rim phases are not input')
     local function near(a,b) return math.abs(a-b)<1e-9 end
     assert(rims[1].widget==indicator and rims[1].value==0 and near(rims[2].value,.25) and near(rims[3].value,.5),
-        'the rim stays empty until low, then fills toward high')
+        'sharing its key with a Tap, the rim stays empty until low, then fills toward high')
     fire('Ongoing',.9)
     assert(rims[4].value==1,'the rim never overfills')
     fire('Triggered',.4)
@@ -988,6 +988,27 @@ do
     environment.setIndicatorProgress=nil
 end
 print('PASS a Hold key fills its rim until the threshold')
+
+-- A Hold key alone fills its rim from press to the high mark.
+do
+    local rims={}
+    environment.inGameThread=function() return true end
+    environment.setIndicatorProgress=function(widget,value) rims[#rims+1]=value end
+    local loneHost=require('mc_input_host').new(function(callback) callback();return true end,
+        function() end,service,environment)
+    local first=#callbacks
+    local key={id='global.AbilitySlot1',keyName='One',mode=1,phases={'Triggered'},
+        progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
+    assert(loneHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdLow=.1,holdHigh=.4}))
+    local byPhase={}
+    for index=first+1,#callbacks do byPhase[callbacks[index].phase]=callbacks[index].callback end
+    byPhase.Started({elapsed_processed=0})
+    byPhase.Ongoing({elapsed_processed=.05})
+    assert(math.abs(rims[2]-.125)<1e-9,'it fills from press, before low: '..tostring(rims[2]))
+    assert(loneHost:stop())
+    environment.setIndicatorProgress=nil
+end
+print('PASS a lone Hold key fills from press')
 
 -- A Tap key's rim is shown, full while pressed, and empties when it fires, is
 -- released, or is held past the threshold.
@@ -1134,7 +1155,7 @@ do
     run(2)
     assert(#rims==0,'the abilities hint stays empty while consumables have focus')
     run(1)
-    assert(#rims==2 and rims[1].widget==indicator and math.abs(rims[2].value-.5)<1e-9,'the focused wheel fills')
+    assert(#rims==2 and rims[1].widget==indicator and math.abs(rims[2].value-.625)<1e-9,'the focused wheel fills')
     assert(groupHost:stop())
     environment.setIndicatorProgress=nil
 end

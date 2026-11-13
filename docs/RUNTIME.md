@@ -10,9 +10,9 @@ This page describes MCC's current quickslot input adapter.
 | Immediate | Fires on press; when the same key is also bound as Hold, on a release before the high mark | Fires at the high mark |
 | Sustained | Toggles on/off | Active until release or cancellation |
 
-While a key set to Hold is held, its HUD key indicator's rim stays empty until the low
-mark, then fills to the high mark, where the key acts, as the game's own hold prompts
-do (`OnActionProgress` on the indicator, from the action's `Ongoing` events); it
+While a key set to Hold is held, its HUD key indicator's rim fills from press to the
+high mark, where the key acts; when a Tap shares its key, it stays empty until the low
+mark and fills from there. This follows the game's own hold prompts (`OnActionProgress` on the indicator, from the action's `Ongoing` events); it
 empties when the action fires or the key is released. A key set to Tap shows the rim
 too (`SetHoldDisplayOverride`): full while the key is down, and at least until the low
 mark after a press so a quick one still shows. A Tap sharing its key with a Hold is lit

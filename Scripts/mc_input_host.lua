@@ -1089,8 +1089,10 @@ function M.new(queue,log,service,environment)
             elseif phase=='Ongoing' then value=elapsed<low and 1 or 0
             else value=0 end
         elseif phase=='Ongoing' then
-            -- Hold: empty until the low mark, then fills to act at the high mark.
-            value=math.max(0,math.min(1,(elapsed-low)/(high-low)))
+            -- Hold: fills from press to act at the high mark; one sharing its key with
+            -- a Tap stays empty until the low mark, while the Tap is lit.
+            local from=binding.sharesTap and low or 0
+            value=math.max(0,math.min(1,(elapsed-from)/(high-from)))
         else value=0 end
         if phase=='Started' then pressGroup[binding.id]=api.state and api.state.selectedGroup end
         local unchanged=phase~='Started' and rims[binding.id]==value

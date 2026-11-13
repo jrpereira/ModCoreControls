@@ -78,6 +78,10 @@ do
     local both=Plan.build(definition,values)
     assert(find(both,'global.AbilitySlot1').mode==0 and find(both,'global.AbilitySlot2').mode==1,
         'a Tap sharing its key with a Hold stays a Tap')
+    assert(find(both,'global.AbilitySlot2').sharesTap,'the Hold knows a Tap shares its key')
+    values[slot.id]='none'
+    assert(not find(Plan.build(definition,values),'global.AbilitySlot2').sharesTap,'a lone Hold does not')
+    values[slot.id]=Menu.keybind(slot,'J|Tap')
     values[other.id]='none'
     values[outline.id]=2
 end

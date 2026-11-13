@@ -42,7 +42,7 @@ M.addSectionMap('module', {
                 params={values={1,2},labels={'Abilities','Consumables'}}},
             {id='HoldThreshold',name='Hold threshold',type='range',default='100|350',
                 description='A key bound only as Tap fires on press and its outline flashes until Low.'
-                    ..' A key bound only as Hold fires at High; its outline fills from Low to High.'
+                    ..' A key bound only as Hold fires at High; its outline fills from 0 to High.'
                     ..' When a key has both, pressing lights the Tap; at Low the Tap goes dark and the'
                     ..' Hold starts filling; at High the Hold fires. Releasing before High fires the Tap,'
                     ..' so a quick press never shows the Hold filling.',

@@ -123,14 +123,16 @@ function M.build(definition,values,options)
     local contexts,used={},{}
     -- Keys some binding uses as Hold. A Tap on such a key stays a real Tap, so the
     -- two can be told apart; any other Tap acts on press.
-    local holdKeys={}
+    local holdKeys,tapKeys={},{}
     for _,other in ipairs(runtimeMaps(definition)) do
         for _,group in ipairs(other.groups) do
             for _,binding in ipairs(group.keys) do
                 local value=not binding.inactive and values[binding.setting.id]
-                if type(value)=='string' and value:match('|Hold$') then
-                    local name=require('mc_menu').binding(binding.setting,value)
-                    if name then holdKeys[name:lower()]=true end
+                local trigger=type(value)=='string' and value:match('|(%a+)$')
+                local name=trigger and require('mc_menu').binding(binding.setting,value)
+                if name then
+                    if trigger=='Hold' then holdKeys[name:lower()]=true
+                    elseif trigger=='Tap' then tapKeys[name:lower()]=true end
                 end
             end
         end
@@ -200,7 +202,9 @@ function M.build(definition,values,options)
                             standardAction=not name and binding.defaultControl or nil,
                             -- A key for a fixed wheel (Explicit Activation) always focuses
                             -- that wheel; a key relative to Default swaps.
-                            direct=binding.action.type=='focus' and binding.action.group~=nil or nil}
+                            direct=binding.action.type=='focus' and binding.action.group~=nil or nil,
+                            -- A Hold sharing its key with a Tap starts filling its rim at Low.
+                            sharesTap=mode==1 and name~=nil and tapKeys[name:lower()] or nil}
                         -- A Hold key fills its indicator's rim while held, as the game's own
                         -- hold prompts do; a Tap key's rim is full while pressed. They also
                         -- listen to these phases, only for the rim.
