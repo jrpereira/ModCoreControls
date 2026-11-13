@@ -2,6 +2,7 @@
 
 ## v1.0.12
 
+- Requires ModCore Settings 1.6.0 or later.
 - A wheel key set to Hold shows its wheel while held and returns to Default on
   release, even if another wheel key is still held.
 - Hold to Swap works exactly like Swap to set to Hold on the Toggle Quickslots key:
