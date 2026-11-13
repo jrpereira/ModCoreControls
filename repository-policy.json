@@ -8,7 +8,7 @@
     "Scripts/vendor/safe_file.lua": "ModCoreSettings",
     "Scripts/vendor/settings_api.lua": "ModCoreSettings",
     "Scripts/vendor/standard_keys.lua": "ModCoreSettings",
-    "tests/support/lifetimes.lua": "UE4SSLuaEventBridge",
+    "tests/support/lifetimes.lua": "UE4SSLuaEXtensions",
     "tests/test_deployment_preflight.py": "ModCoreSettings",
     "tests/test_manifest_package.py": "ModCoreSettings",
     "tests/test_package.py": "ModCoreSettings",
