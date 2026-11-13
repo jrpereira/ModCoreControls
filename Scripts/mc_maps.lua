@@ -42,8 +42,8 @@ M.addSectionMap('module', {
                 params={values={1,2},labels={'Abilities','Consumables'}}},
             {id='InstantTap',name='Instant Tap when no Hold for same key',type='picker',default=1,
                 heading='Key Press Behaviour',
-                description='A key bound only to Tap fires on press (On), or on release or at the High'
-                    ..' threshold, whichever comes first (Off), so a tap always acts.',
+                description='A key bound only to Tap fires on press (On), or on release or at High,'
+                    ..' whichever comes first (Off), so a tap always acts.',
                 params={values={0,1},labels={'Off','On'}}},
             {id='HoldThreshold',name='Tap vs Hold Threshold',type='range',default='100|350',
                 description='A key bound only as Hold fires at High; its outline fills from 0 to High.'

@@ -11,9 +11,9 @@ updates the HUD key indicators.
 - **Configure wheel switching:** choose the default wheel and Toggle Quickslots
   behavior, including hold-to-swap. A wheel key set to Hold shows its wheel
   while held and returns to Default on release.
-- **Set the Tap vs Hold Threshold:** a low-high window (100-350 ms by default, within
-  100-500 ms): a Hold key's rim fills from low and the key acts at high; a Tap fires
-  on press, or on a release before high when the same key is also a Hold.
+- **Set the Tap vs Hold Threshold:** a window from Low to High (100-350 ms by default,
+  within 100-500 ms): a Hold key acts at High, its rim filling up to it; a Tap fires
+  on press, or on a release before High when the same key is also a Hold.
 - **Use keyboard and mouse bindings with Tap/Hold:** configure supported actions
   in the menu and activate them in exploration and combat.
 - **Keep all control maps available:** every map's bindings work together; the

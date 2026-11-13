@@ -7,18 +7,18 @@ This page describes MCC's current quickslot input adapter.
 
 | Action | Tap | Hold |
 | --- | --- | --- |
-| Immediate | Fires on press. With **Instant Tap when no Hold for same key** off: on release or at the high mark, whichever comes first. When the same key is also bound as Hold: on a release before the high mark | Fires at the high mark |
+| Immediate | Fires on press. With **Instant Tap when no Hold for same key** off: on release or at High, whichever comes first. When the same key is also bound as Hold: on a release before High | Fires at High |
 | Sustained | Toggles on/off | Active until release or cancellation |
 
-While a key set to Hold is held, its HUD key indicator's rim fills from press to the
-high mark, where the key acts; when a Tap shares its key, it stays empty until the low
-mark and fills from there. This follows the game's own hold prompts (`OnActionProgress` on the indicator, from the action's `Ongoing` events); it
-empties when the action fires or the key is released. A key set to Tap shows the rim
-too (`SetHoldDisplayOverride`): full while the key is down, and at least until the low
-mark after a press so a quick one still shows. A Tap sharing its key with a Hold is lit
-from press until it fires on release, or until the Hold fires at the high mark; from the
-low mark the Hold's rim fills beside it. A press shorter than low never shows the Hold
-filling. These extra phases only drive the rim; they are never delivered as input.
+While a key set to Hold is held, its HUD key indicator's rim fills from press to High,
+where the key acts; when a Tap shares its key, it stays empty until Low and fills from
+there. This follows the game's own hold prompts (`OnActionProgress` on the indicator,
+from the action's `Ongoing` events); it empties when the action fires or the key is
+released. A key set to Tap shows the rim too (`SetHoldDisplayOverride`): full while the
+key is down, and at least until Low after a press so a quick one still shows. A Tap
+sharing its key with a Hold is lit from press until it fires on a release before High,
+or until the Hold fires at High; from Low the Hold's rim fills beside it. A press
+shorter than Low never shows the Hold filling. These extra phases only drive the rim; they are never delivered as input.
 The Options page's **Show key outline** chooses which keys do this: None, Hold, or
 Tap & Hold (the default). A Hold key always keeps its rim; with None it just does not
 fill. A Groups key fills the hint of the wheel focused when it was pressed.
@@ -34,9 +34,8 @@ Hold), it removes the player's instance of each rebuilt action from
 `EnhancedPlayerInput.ActionInstanceData`, so the change applies at once.
 
 These settings sit under **Key Press Behaviour** on the Options page. The window is
-**Tap vs Hold Threshold**, a low-high range: 100-350 ms by
-default, 100 to 500 ms in 10 ms steps, at least 50 ms apart. It only matters for Hold
-keys, for a Tap that shares its key with a Hold, and for the rim. A changed high mark
+**Tap vs Hold Threshold**, a range from Low to High: 100-350 ms by default, 100 to 500 ms in 10 ms steps, at least 50 ms apart. It only matters for Hold
+keys, for a Tap that shares its key with a Hold, and for the rim. A changed High
 rebuilds the triggers on Apply.
 
 Default's

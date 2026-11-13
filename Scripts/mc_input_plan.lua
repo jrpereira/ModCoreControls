@@ -201,7 +201,7 @@ function M.build(definition,values,options)
                         local override=binding.override
                         if override==true then override=binding.defaultControl end
                         -- A Tap alone on its key acts on press (Pressed trigger); with Instant
-                        -- Tap off, on release or at the high mark, whichever comes first. A Tap
+                        -- Tap off, on release or at High, whichever comes first. A Tap
                         -- sharing its key with a Hold stays a Tap. An inherited slot key acts on
                         -- press, as the game's own action does, as does the swap key set to Tap.
                         if mode==0 and (not name or resolved.type=='focus' and binding.action.wheel) then mode=3
@@ -230,8 +230,8 @@ function M.build(definition,values,options)
                 end
             end
         end
-        -- The Hold window, in seconds: a Hold key's rim fills from low and the key acts
-        -- at high; a Tap sharing its key acts on a release before high.
+        -- The Tap vs Hold window, in seconds: Low and High. A Hold key acts at High; a Tap
+        -- sharing its key acts on a release before High.
         if map.holdThreshold then
             local low,high=require('mc_menu').range(map.holdThreshold,values[map.holdThreshold.id])
             assert(low,'invalid Hold threshold setting')

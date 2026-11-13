@@ -1066,7 +1066,7 @@ function M.new(queue,log,service,environment)
         local high=api.plan and api.plan.holdHigh or Context.DEFAULT_HIGH
         local elapsed=tonumber(event and event.elapsed_processed) or 0
         if binding.mode==3 then
-            -- Acts on press: full while the key is down, and at least until the low mark
+            -- Acts on press: full while the key is down, and at least until Low
             -- so a quick press still shows.
             if phase=='Started' then presses[binding.id]=(presses[binding.id] or 0)+1 end
             value=(phase=='Completed' or phase=='Canceled') and 0 or 1
@@ -1084,13 +1084,13 @@ function M.new(queue,log,service,environment)
             end
         elseif binding.mode==0 or binding.mode==4 then
             -- Tap, alone with Instant Tap off or sharing its key with a Hold: lit from press until it fires, is released,
-            -- or the Hold fires at the high mark; from low it shows beside the Hold filling.
+            -- or the Hold fires at High; from Low it shows beside the Hold filling.
             if phase=='Started' then value=1
             elseif phase=='Ongoing' then value=elapsed<high and 1 or 0
             else value=0 end
         elseif phase=='Ongoing' then
-            -- Hold: fills from press to act at the high mark; one sharing its key with
-            -- a Tap stays empty until the low mark, while the Tap is lit.
+            -- Hold: fills from press to act at High; one sharing its key with
+            -- a Tap stays empty until Low, while the Tap is lit.
             local from=binding.sharesTap and low or 0
             value=math.max(0,math.min(1,(elapsed-from)/(high-from)))
         else value=0 end

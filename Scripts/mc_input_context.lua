@@ -15,7 +15,7 @@ end
 -- Key names compare as the engine compares them: without regard to case.
 local function keyId(name) return string.lower(tostring(name)) end
 -- The Hold window in seconds when the plan does not carry the player's: a Hold key
--- acts at high, and a Tap sharing its key acts on a release before high.
+-- acts at High, and a Tap sharing its key acts on a release before High.
 M.DEFAULT_LOW,M.DEFAULT_HIGH=.1,.35
 
 function M.new(e,log)
@@ -48,9 +48,9 @@ function M.new(e,log)
         end
         return actions[binding.id]
     end
-    -- Modes: 0 Tap (release before the high mark), 1 Hold (at the high mark),
+    -- Modes: 0 Tap (release before High), 1 Hold (at High),
     -- 2 sustained (no trigger), 3 Pressed (on press), 4 Tap or Hold (on release, or at
-    -- the high mark while still held, whichever comes first: one of them always fires).
+    -- High while still held, whichever comes first: one of them always fires).
     local function trigger(target,mode)
         if mode==2 then target.Triggers={}; return end
         local threshold=plan and plan.holdHigh or e.threshold or M.DEFAULT_HIGH
