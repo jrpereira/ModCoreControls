@@ -97,3 +97,22 @@ do
     assert(late.revision==0 and late.payload.global[1][1]==false,'a short bit string is skipped, not fatal')
 end
 print('PASS global slots event')
+
+-- templates.layout.changed: MCT publishes it once per pass and category.
+do
+    local layout=Events.subscribe(api,Events.layout)
+    assert(publish(Events.layout,{category='player.quickslots'},owner))
+    assert(values['MCT.Templates.LayoutChanged.v1.data']=='1 player.quickslots')
+    assert(layout.revision==1 and layout.payload.category=='player.quickslots')
+    assert(Events.format(Events.layout,{category='player.quickslots'})
+        =='templates.layout.changed {"category":"player.quickslots"}')
+    assert(not pcall(publish,Events.layout,{category='bad id'},owner),'category ids are word characters and dots')
+    assert(not pcall(publish,Events.layout,{category=string.rep('a',41)},owner),'at most 40 characters')
+    assert(not pcall(publish,Events.layout,{},owner),'a category is required')
+    local state={}
+    local hub=Events.hub(api,state)
+    hub:register({events={[Events.layout]=function() end}})
+    assert(state.layout['player.quickslots']==1)
+    hub:stop()
+end
+print('PASS layout changed event')
