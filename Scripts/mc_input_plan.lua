@@ -200,9 +200,10 @@ function M.build(definition,values,options)
                 plan.bindings[#plan.bindings+1]=item
             end
             if enabled==1 then
-                -- Hold shows the other wheel; release returns to the previous one.
-                swap('press',3,{holdSwapEdge='press',action={type='focus',group=3-defaultGroup}})
-                swap('release',4,{holdSwapEdge='release',action={type='focus',group=defaultGroup}})
+                -- The same binding as Swap to set to Hold on this key: press shows the
+                -- other wheel, release returns to Default.
+                swap('hold',2,{sustained=true,phases={'Started','Completed','Canceled'},
+                    action={type='focus',group=3-defaultGroup}})
             else
                 swap('toggle',3,{action={type='flip'}})
             end

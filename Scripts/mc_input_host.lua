@@ -139,7 +139,6 @@ local function defaultEnvironment()
         end,
         hook=function(name,callback) return RegisterHook(name,function() end,callback) end,
         preHook=function(name,callback) return RegisterHook(name,callback) end,
-        notify=function(name,callback) return NotifyOnNewObject(name,callback) end,
         unhook=rawget(_G,'UnregisterHook'),
         inGameThread=rawget(_G,'IsInGameThread'),
         delay=rawget(_G,'ExecuteWithDelay'),
@@ -155,11 +154,34 @@ function M.new(queue,log,service,environment)
     if not (e.keep and e.live) then
         e=setmetatable({keep=e.keep or Lifetimes.keep,live=e.live or Lifetimes.live},{__index=e})
     end
+    -- Debug timing: a step that takes 4 ms or more is logged, so slow attaches can be
+    -- traced to object scans or to MCC's own steps.
+    local function timed(label,callback,...)
+        local started=os.clock()
+        local results=table.pack(callback(...))
+        local elapsed=(os.clock()-started)*1000
+        if elapsed>=4 then log.debug(label,' took ',string.format('%.1f',elapsed),' ms') end
+        return table.unpack(results,1,results.n)
+    end
+    for _,scan in ipairs({'all','find'}) do
+        local original=e[scan]
+        if type(original)=='function' then
+            e=setmetatable({[scan]=function(class,...)
+                return timed('scan '..tostring(class),original,class,...)
+            end},{__index=e})
+        end
+    end
     local publishControl=Events.publisher(rawget(_G,'ModRef'))
+    -- The player a sync is presenting the wheel to, before it is attached.
+    local presenting
     service=service or Quickslots.new({keep=e.keep,live=e.live,emit=function(name,payload)
-        local ok,why=pcall(publishControl,name,payload,api and liveOwner())
+        local owner=presenting or (api and liveOwner())
+        local ok,why=pcall(publishControl,name,payload,owner)
         if not ok or why==false then
             log.warn('control event publication failed: ',why)
+        else
+            log.debug('published ',name,' to ',payload and payload.group and payload.group.to,
+                owner and '' or ' (no player to notify)')
         end
     end})
     local context=Context.new(e,log)
@@ -210,7 +232,10 @@ function M.new(queue,log,service,environment)
     api={enabled=false,ready=false,generation=0,active={},state={},phase='pending'}
     local wakeQueued,busy,pendingWake,internalDepth=false,false,false,0
     local indicatorsQueued=false
-    local wake,scheduleRetry
+    local wake,scheduleRetry,retryPresentation
+    -- The game setting up its gameplay input is when the player is ready. Set once
+    -- its hook is in.
+    local setupHooked=false
     local registrations={}
     local lastPending,reportedMissing,reportedKeep
     local function internal(callback)
@@ -259,6 +284,12 @@ function M.new(queue,log,service,environment)
         return owner and owner.playerInput
     end
 
+    -- The input component of the controller's pawn, as stack() finds it.
+    local function currentComponent(controller)
+        local pawn=property(controller,'AcknowledgedPawn') or property(controller,'Pawn')
+        return pawn and property(pawn,'InputComponent') or nil
+    end
+
     local function resolveBridge()
         local candidate=type(e.bridge)=='function' and e.bridge() or e.bridge
         if candidate==bridge and callbacks then return callbacks end
@@ -277,11 +308,46 @@ function M.new(queue,log,service,environment)
             local closed,why=callbacks:close()
             if not closed then return nil,'previous input bridge cleanup pending: ' .. tostring(why) end
         end
-        bridge=candidate;callbacks=Callbacks.new(bridge,e.full)
+        bridge=candidate
+        -- Each bridge call is timed like a scan, so a slow attach shows which one costs.
+        local timedBridge=setmetatable({},{__index=function(_,name)
+            local value=bridge[name]
+            if type(value)~='function' then return value end
+            return function(...) return timed('bridge '..name,value,...) end
+        end})
+        callbacks=Callbacks.new(timedBridge,e.full)
         return callbacks
     end
 
+    -- The local player and its Enhanced Input subsystem outlive level and save loads,
+    -- so once found they are kept and the new controller is read from the player:
+    -- a later attach scans for neither. Either one dying falls back to the scans.
+    local knownPlayer
+    local function knownStack()
+        if not knownPlayer then return nil end
+        local player,subsystem=e.live(knownPlayer.player),e.live(knownPlayer.subsystem)
+        if not (player and subsystem) then knownPlayer=nil;return nil end
+        local controller=property(player,'PlayerController')
+        if not e.valid(controller) or not sameObject(property(controller,'Player'),player) then return nil end
+        local playerInput=property(controller,'PlayerInput')
+        local component=currentComponent(controller)
+        if not (e.valid(playerInput) and e.valid(component)) then return nil end
+        return {controller=controller,player=player,playerInput=playerInput,
+            component=component,subsystem=subsystem,componentPath=e.path(component)}
+    end
+    local function remember(found)
+        local player,subsystem=e.keep(found.player),e.keep(found.subsystem)
+        knownPlayer=player and subsystem and {player=player,subsystem=subsystem} or nil
+        return found
+    end
+    local scanStack
     local function stack()
+        local known=knownStack()
+        if known then return known end
+        local found=scanStack()
+        return found and remember(found) or nil
+    end
+    scanStack=function()
         local controllers=e.all and e.all('BP_PlayerController_C') or {}
         if #controllers==0 and e.find then
             local found=e.find('BP_PlayerController_C',function(item)
@@ -430,6 +496,13 @@ function M.new(queue,log,service,environment)
     -- after an Apply, after the game applies new keyboard mappings, and while one is still
     -- unresolved. A context change, as on entering or leaving combat, reads none.
     local keysStale,knownKeys=true,{}
+    -- Set by a retry: override actions skipped as missing are looked up again even
+    -- though no context changed.
+    local overridesStale=false
+    -- Set by a signal that the player may have been replaced (a loading screen fading
+    -- out, a possession): the next sync scans for the player instead of reusing the
+    -- kept one. Scanning reads every live object, too slow for every rebuild request.
+    local ownerStale=false
     -- Returns whether any inherited key changed, and the actions whose keys could not
     -- be resolved (action name -> reason). An unresolved action leaves only its own
     -- bindings without keys; every other binding still attaches.
@@ -463,7 +536,6 @@ function M.new(queue,log,service,environment)
         end
         for _,binding in ipairs(plan.bindings) do
             local actionName=binding.standardAction
-                or binding.holdSwapEdge and plan.holdSwap and plan.holdSwap.sourceAction
             if actionName then
                 local keyNames=resolve(actionName)
                 if not keyNames then
@@ -568,7 +640,7 @@ function M.new(queue,log,service,environment)
         api.phase='pending'
         api.owner=nil;api.componentPath=nil
         api.actions=nil;api.overrideTargets=nil;api.overrideWanted=nil
-        api.missingOverride=nil
+        api.missingOverride=nil;api.incomplete=nil
         if clearPlan then api.enabled=false;api.plan=nil end
         return true
     end
@@ -612,7 +684,8 @@ function M.new(queue,log,service,environment)
     end
     local function bindOwner(live)
         if type(service.bind)=='function' then
-            live.hud=ownerHud(live)
+            -- The kept HUD while it lives; scanning for it reads every live object.
+            live.hud=type(service.hud)=='function' and service:hud() or ownerHud(live)
             local ok,why=service:bind(live,api.generation)
             if ok==false then log.debug('quickslot HUD pending: ',why) end
         end
@@ -643,7 +716,15 @@ function M.new(queue,log,service,environment)
             end
             return false,bridgeWhy,{status='pending'}
         end
-        local live=stack()
+        -- The kept player, while it lives and still owns its input; else a scan.
+        local live
+        if api.ready and not ownerStale then
+            live=liveOwner()
+            if live and not (sameObject(property(live.controller,'PlayerInput'),live.playerInput)
+                and sameObject(currentComponent(live.controller),live.component)) then live=nil end
+        end
+        ownerStale=false
+        live=live or stack()
         if not live then
             if api.ready or api.owner then
                 local cleared,why,detail=retire(false,true)
@@ -655,7 +736,24 @@ function M.new(queue,log,service,environment)
             local cleared,why,detail=retire(false,true)
             if not cleared then return false,why,detail end
         end
+        -- The wheel is presented as soon as the player and its HUD are known, before
+        -- the slower work of attaching input: choosing it needs only the HUD, and
+        -- displays waiting on the focus event show it at once. An attach starts its
+        -- generation here, so the quickslot service is bound to it only once.
+        if not api.ready then api.generation=api.generation+1 end
+        bindOwner(live)
+        if type(Quickslots.reconcile)=='function' then
+            presenting=live
+            pcall(Quickslots.reconcile,api.state,service)
+            presenting=nil
+        end
+        -- After a load the player is often found before the game has created its HUD.
+        if api.state.pendingGroup~=nil and retryPresentation then retryPresentation() end
         local desired=wanted(live.playerInput,api.plan.contexts)
+        -- The game can lift every gameplay context for a moment, as during some skills.
+        -- MCC's keys stay in the game's contexts and apply again when they return, so
+        -- the same player keeps its input rather than detaching and attaching again.
+        if not next(desired) and api.ready then return true end
         if not next(desired) then
             if api.ready or api.owner then
                 local cleared,why,detail=retire(false,true)
@@ -665,7 +763,7 @@ function M.new(queue,log,service,environment)
         end
         -- An inherited key that cannot be resolved skips only its own bindings; the rest
         -- attach, and the key is resolved again on every later sync.
-        local resolved,unresolved=assignStandardKeys(api.plan,live.playerInput,live)
+        local resolved,unresolved=timed('inherited keys',assignStandardKeys,api.plan,live.playerInput,live)
         reportUnresolved(unresolved)
         local standardKeyChanged=api.ready and resolved
         local targets,selected
@@ -679,7 +777,8 @@ function M.new(queue,log,service,environment)
             end
         end
         local reuse=api.ready and api.overrideTargets~=nil
-            and not (api.missingOverride and contextChanged)
+            and not (api.missingOverride and (contextChanged or overridesStale))
+        overridesStale=false
         if reuse then
             -- A native action unloaded or replaced since is resolved again; it never
             -- retires the rest of MCC input.
@@ -700,7 +799,7 @@ function M.new(queue,log,service,environment)
             local ok,a,b,c
             if resolvedForApply and resolvedForApply.plan==api.plan then
                 ok,a,b,c=true,resolvedForApply[1],resolvedForApply[2],resolvedForApply[3]
-            else ok,a,b,c=pcall(resolveTargets,api.plan) end
+            else ok,a,b,c=timed('override targets',pcall,resolveTargets,api.plan) end
             resolvedForApply=nil
             if not ok then return false,a,{status='pending',original=a} end
             targets,selected=a,b
@@ -728,9 +827,9 @@ function M.new(queue,log,service,environment)
             end
             reportedKeep=nil
             api.phase='attaching';api.owner=kept
-            local actions=context:configure(api.plan)
-            local generation=api.generation+1
-            api.generation=generation
+            local actions=timed('configure',context.configure,context,api.plan)
+            local generation=api.generation
+            local installStarted=os.clock()
             local installed,why=callbackOwner:install(live.componentPath,actions,api.plan,function(binding,phase,event)
                 if api.phase~='ready' or api.generation~=generation then return end
                 local function deliver()
@@ -753,6 +852,8 @@ function M.new(queue,log,service,environment)
                     log.error('input callback queue failed: ',queueWhy)
                 end
             end)
+            local installElapsed=(os.clock()-installStarted)*1000
+            if installElapsed>=4 then log.debug('callbacks took ',string.format('%.1f',installElapsed),' ms') end
             if not installed then
                 local cleared,cleanupWhy=retire(false,true)
                 return false,cleared and why or tostring(why) .. '; cleanup: ' .. tostring(cleanupWhy),
@@ -781,14 +882,15 @@ function M.new(queue,log,service,environment)
         -- Changing an applied context's mappings takes effect on the next control
         -- mapping rebuild; a pending game rebuild picks the change up by itself.
         if remapped and not beforeRebuild and type(e.rebuild)=='function' then e.rebuild(live.playerInput) end
-        overrides:apply(selected,live.playerInput,targets)
+        timed('overrides',overrides.apply,overrides,selected,live.playerInput,targets)
         if api.phase=='attaching' then
             api.phase='ready';api.ready=true
             log.info('controls attached to player input')
         end
-        bindOwner(live)
-        if type(Quickslots.reconcile)=='function' then pcall(Quickslots.reconcile,api.state,service) end
-        updateIndicators(force)
+        -- Attached with an inherited key or an override action still missing: retried
+        -- until it resolves, as an attach is.
+        api.incomplete=api.unresolved~=nil or api.missingOverride==true or nil
+        timed('indicators',updateIndicators,force)
         return true
     end
     local queuedPlan
@@ -810,8 +912,12 @@ function M.new(queue,log,service,environment)
     operation=function(callback)
         if busy then pendingWake=true;return false,'lifecycle operation pending',{status='pending'} end
         busy=true
+        local started=os.clock()
         local ok,active,why,detail=pcall(callback)
         busy=false
+        -- Input work runs inside game calls; a slow one shows as a stutter.
+        local elapsed=(os.clock()-started)*1000
+        if elapsed>=4 then log.debug('input operation took ',string.format('%.1f',elapsed),' ms') end
         if not ok then
             pendingWake=false
             local original=active
@@ -828,10 +934,11 @@ function M.new(queue,log,service,environment)
             pendingWake=false
             if wake then wake() end
         end
-        -- A failed attach is retried as a pending one is: during a save load the
-        -- last hook can fire while the new player is half built, and no later hook
-        -- is guaranteed to wake input again.
-        if active then api.retryStep=0
+        -- A failed attach is retried as a pending one is: the game can set up its input
+        -- out while the new player is half built, and no later hook wakes input.
+        if active then
+            if api.incomplete and scheduleRetry then scheduleRetry()
+            else api.retryStep=0 end
         elseif detail and scheduleRetry then scheduleRetry() end
         return active,why,detail
     end
@@ -878,21 +985,70 @@ function M.new(queue,log,service,environment)
         return updateIndicators(force)
     end
 
-    -- While enabled but not attached, a sync is retried after 100 ms, 500 ms, 3 s, 6 s
-    -- and then every 12 s, so attaching never depends on a later game hook alone. Each
-    -- retry scans for the player's objects, and the game hooks wake a sync as soon as
-    -- gameplay input appears, so the steady interval stays long. One retry is scheduled
-    -- at a time.
+    -- While enabled but not attached, or attached with a key or override action still
+    -- missing, a sync is retried after 100 ms, 500 ms, 3 s, 6 s and 12 s: the game can
+    -- set up its input a moment before the new player is complete. The next gameplay
+    -- input setup starts the schedule again. Without the setup hook nothing else would
+    -- wake input, so the retries then continue every 12 s. One retry is scheduled at a
+    -- time.
+    -- While the wheel cannot be presented yet, usually because the player was found
+    -- before the game created its HUD, only the presentation is tried again after
+    -- 100 ms, 250 ms, 500 ms, 1 s and 2 s: it looks up the HUD and presents, with no
+    -- input sync. The tries stop once the wheel is shown.
+    local PRESENT_RETRIES={100,250,500,1000,2000}
+    local presentStep,presentArmed=0,false
+    retryPresentation=function()
+        if presentArmed or type(e.delay)~='function' or type(Quickslots.reconcile)~='function' then return end
+        presentStep=0
+        local function arm()
+            presentStep=presentStep+1
+            local ms=PRESENT_RETRIES[presentStep]
+            if not ms then return end
+            presentArmed=true
+            local ok,result=pcall(e.delay,ms,function()
+                local queued,why=pcall(queue,function()
+                    presentArmed=false
+                    if api.phase=='stopped' or not api.enabled or api.state.pendingGroup==nil then return end
+                    if busy then return arm() end
+                    local live=liveOwner()
+                    if not live then return end
+                    bindOwner(live)
+                    presenting=live
+                    pcall(Quickslots.reconcile,api.state,service)
+                    presenting=nil
+                    if api.state.pendingGroup~=nil then return arm() end
+                    log.debug('wheel presented on retry ',presentStep)
+                    -- The HUD is new: its key indicators still show the game's keys.
+                    if api.phase=='ready' then updateIndicators() end
+                end)
+                if not queued or why==false then presentArmed=false;log.warn('presentation retry failed to queue: ',why) end
+            end)
+            if not ok or result==false then
+                presentArmed=false
+                log.warn('presentation retry registration failed: ',result)
+            end
+        end
+        arm()
+    end
+    local RETRIES=5
     local retryArmed=false
     scheduleRetry=function()
         if type(e.delay)~='function' or not api.enabled or api.phase=='stopped' or retryArmed then return end
         local step=(api.retryStep or 0)+1
+        if setupHooked and step>RETRIES then
+            log.debug('input retries ended; waiting for the game to set up its input')
+            return
+        end
         api.retryStep=step
         local ms=step==1 and 100 or step==2 and 500 or 3000*(1<<math.min(step-3,2))
         retryArmed=true
         local ok,result=pcall(e.delay,ms,function()
             retryArmed=false
-            if api.phase=='stopped' or not api.enabled or api.ready then return end
+            if api.phase=='stopped' or not api.enabled then return end
+            if api.ready then
+                if not api.incomplete then return end
+                overridesStale=true
+            end
             wake()
         end)
         if not ok or result==false then
@@ -901,9 +1057,8 @@ function M.new(queue,log,service,environment)
         end
     end
 
-    wake=function(source)
+    wake=function()
         if api.phase=='stopped' or not api.enabled then return end
-        if internalDepth>0 and source=='mapping' then return end
         if busy then pendingWake=true;return end
         if wakeQueued then return end
         wakeQueued=true
@@ -921,15 +1076,15 @@ function M.new(queue,log,service,environment)
             wakeQueued=false;log.error('lifecycle wake failed: ',why)
         end
     end
-    local function register(kind,name,callback)
+    local function register(kind,name,callback,registered)
         local method=e[kind]
         if type(method)~='function' then return end
         local ok,id,second=pcall(method,name,callback)
-        if not ok or id==false or ((kind=='hook' or kind=='preHook') and
-            (type(id)~='number' or id%1~=0 or type(second)~='number' or second%1~=0)) then
+        if not ok or type(id)~='number' or id%1~=0 or type(second)~='number' or second%1~=0 then
             log.warn('lifecycle ',kind,' registration failed: ',name,': ',id)
-        elseif kind=='hook' or kind=='preHook' then
+        else
             registrations[#registrations+1]={id=id,second=second,name=name}
+            if registered then registered() end
         end
     end
     -- Updates indicators on the next game-thread turn, once the current change
@@ -969,39 +1124,44 @@ function M.new(queue,log,service,environment)
             end)
     end
     if e.hook then
-        for _,name in ipairs({
-            '/Script/EnhancedInput.EnhancedInputSubsystemInterface:AddMappingContext',
-            '/Script/EnhancedInput.EnhancedInputSubsystemInterface:RemoveMappingContext',
-            '/Script/EnhancedInput.EnhancedInputSubsystemInterface:ClearAllMappings',
-            '/Script/Engine.PlayerController:ClientRestart',
-            '/Script/Engine.PlayerController:ClientRetryClientRestart',
-            '/Script/Engine.Controller:OnRep_Pawn',
-            '/Script/RebelInput.RebelInputMappingSubsystem:ApplyPendingKeyboardMappings',
-        }) do
-            local source=name:find('EnhancedInputSubsystemInterface',1,true)
-                and 'mapping' or 'external'
-            local keysChanged=name:find('ApplyPendingKeyboardMappings',1,true)~=nil
-            register('hook',name,function()
-                if keysChanged then keysStale=true end
-                wake(source)
-            end)
+        -- The game adding one of its gameplay mapping contexts is when its input is set
+        -- up: after starting or loading a game and after a death, seconds before the
+        -- loading screen fades out. It is the only signal for a new player; the player's
+        -- keys and override actions are read again for it. Other contexts (focus mode,
+        -- menus) are ignored, and so is an add while MCC owns the live player's current
+        -- input component: the pre-rebuild sync covers context changes. The hook only
+        -- reads the context it was given; the owner check runs after the call.
+        local gameplayContexts={}
+        for _,name in pairs(Context.native) do gameplayContexts[name]=true end
+        local function inputSetUp(name)
+            if api.phase=='stopped' or not api.enabled then return end
+            local live=api.ready and not ownerStale and liveOwner()
+            if live and e.path(currentComponent(live.controller))==api.componentPath then return end
+            log.debug('woken: game added ',name)
+            keysStale,overridesStale,ownerStale=true,true,true
+            api.retryStep=0
+            wake()
         end
-    end
-    if e.notify then
-        for _,name in ipairs({
-            '/Script/Engine.PlayerController',
-            '/Script/EnhancedInput.EnhancedInputLocalPlayerSubsystem',
-            '/Script/EnhancedInput.EnhancedInputComponent',
-            '/Game/_Dawnwalker/UI/_Unified/HUD/WBP_GameHUD.WBP_GameHUD_C',
-            '/Game/_Dawnwalker/UI/_Unified/ActiveAbilities/WBP_AA_Quickslots.WBP_AA_Quickslots_C',
-            '/Game/_Dawnwalker/UI/_Unified/HUD/Quickslots/WBP_HUD_Quickslots.WBP_HUD_Quickslots_C',
-        }) do register('notify',name,wake) end
-        -- Each Bindings widget owns its wheel's four key indicators, which exist
-        -- once its construction has returned.
-        for _,name in ipairs({
-            '/Game/_Dawnwalker/UI/_Unified/ActiveAbilities/WBP_AA_Quickslots_Bindings.WBP_AA_Quickslots_Bindings_C',
-            '/Game/_Dawnwalker/UI/_Unified/HUD/Quickslots/WBP_HUD_Quickslots_Bindings.WBP_HUD_Quickslots_Bindings_C',
-        }) do register('notify',name,queueIndicators) end
+        register('hook','/Script/DogwoodSystem.DWSystemBlueprintFunctionLibrary:AddInputMappingContext',
+            function(_,_,mappingContext)
+                local context=e.unwrap(mappingContext)
+                local name=context and (e.full(context) or ''):match('([^%.]+)$')
+                if not gameplayContexts[name] then return end
+                local ok,why=pcall(queue,function() inputSetUp(name) end)
+                if not ok or why==false then log.error('input setup wake failed: ',why) end
+            end,function() setupHooked=true end)
+        -- Possession without a loading screen gives the player a new input component.
+        register('hook','/Script/Engine.PlayerController:ClientRestart',function()
+            log.debug('woken: player controller restarted')
+            ownerStale=true
+            wake()
+        end)
+        -- New keys from the game's settings.
+        register('hook','/Script/RebelInput.RebelInputMappingSubsystem:ApplyPendingKeyboardMappings',function()
+            log.debug('woken: game key mappings applied')
+            keysStale=true
+            wake()
+        end)
     end
     function api:stop()
         return operate(function()

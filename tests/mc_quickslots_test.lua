@@ -53,6 +53,12 @@ Quickslots.deliver(state,hold,'Canceled',service)
 assert(state.selectedGroup==1 and calls[#calls]=='group:1')
 assert(events[3].payload.group.from==1 and events[3].payload.group.to==2
     and events[4].payload.group.from==2 and events[4].payload.group.to==1)
+-- Hold: press shows the key's wheel and release returns to Default.
+Quickslots.deliver(state,hold,'Started',service)
+assert(state.selectedGroup==2)
+Quickslots.deliver(state,hold,'Completed',service)
+assert(state.selectedGroup==1 and calls[#calls]=='group:1','release returns to Default')
+table.remove(events);table.remove(events)
 local failing={
     select=function()return false end,
     activate=function()return true end,
@@ -77,7 +83,7 @@ state.defaultGroup=2
 local published=#events
 assert(Quickslots.cancel(state,service))
 assert(state.selectedGroup==2 and calls[#calls]=='group:2'
-    and next(state.gestures)==nil and next(state.held)==nil)
+    and next(state.gestures)==nil)
 assert(#events==published+1 and events[#events].payload.group.from==1
     and events[#events].payload.group.to==2,'cancel must publish its reset to Default')
 
@@ -105,13 +111,15 @@ assert(Quickslots.reconcile(stuck,freshService) and stuck.selectedGroup==2
 local function object()
     local value={valid=true}
     function value:IsValid()return self.valid end
+    -- WBP_GameHUD's own wheel setter; other objects never receive it.
+    value['Set AA Quickslots Showed']=function(self,show,userInput)
+        assert(userInput==false,'MCC swaps are not reported as user input')
+        self.showsAbilities=show
+    end
     return value
 end
 local stale,owned=object(),object()
 for _,hud in ipairs({stale,owned}) do
-    hud.QuickslotsSwitcher=object()
-    function hud.QuickslotsSwitcher:GetChildrenCount()return 2 end
-    function hud.QuickslotsSwitcher:SetActiveWidgetIndex(index)self.index=index end
     hud.WBP_AA_Quickslots={Left=object()}
     function hud.WBP_AA_Quickslots.Left:BP_OnClicked()self.clicks=(self.clicks or 0)+1 end
 end
@@ -120,100 +128,55 @@ local bound=Quickslots.new()
 assert(bound:bind({hud=owned},10))
 assert(bound:activate('ability',1))
 assert(owned.WBP_AA_Quickslots.Left.clicks==1 and not stale.WBP_AA_Quickslots.Left.clicks)
-assert(bound:reset(1) and owned.QuickslotsSwitcher.index==1)
-assert(bound:select(2) and owned.QuickslotsSwitcher.index==0)
-owned.QuickslotsSwitcher.GetChildrenCount=function()return 1 end
-assert(bound:select(2),'separate-wheel presentation has no second switcher child')
-
-local separated=object()
-separated.QuickslotsSwitcher=object()
-function separated.QuickslotsSwitcher:GetChildrenCount()return 2 end
-function separated.QuickslotsSwitcher:SetActiveWidgetIndex(index)self.index=index end
-local outside=object()
-separated.WBP_AA_Quickslots=object()
-separated.WBP_HUD_Quickslots=object()
-function separated.WBP_AA_Quickslots:GetParent()return outside end
-function separated.WBP_HUD_Quickslots:GetParent()return outside end
-for _,wheel in ipairs({separated.WBP_AA_Quickslots,separated.WBP_HUD_Quickslots}) do
-    wheel.enabled=true
-    function wheel:SetIsEnabled(value)self.enabled=value end
-end
-assert(bound:bind({hud=separated},10))
-assert(bound:select(2),'reparented wheels should accept logical focus')
-assert(separated.QuickslotsSwitcher.index==nil,
-    'reparented wheels must not activate the native switcher')
-assert(separated.WBP_AA_Quickslots.enabled==false and separated.WBP_HUD_Quickslots.enabled==true,
-    'native slot keys must route to the focused wheel only')
-assert(bound:select(1) and separated.WBP_AA_Quickslots.enabled==true
-    and separated.WBP_HUD_Quickslots.enabled==false)
-assert(bound:invalidate(10) and separated.WBP_AA_Quickslots.enabled==true
-    and separated.WBP_HUD_Quickslots.enabled==true,
-    'invalidation must leave both wheels enabled')
-assert(bound:bind({hud=separated},10))
+assert(bound:reset(1) and owned.showsAbilities==true)
+assert(bound:select(2) and owned.showsAbilities==false,'select sets the game\'s active wheel')
 
 assert(bound:invalidate(10) and not bound:activate('ability',1))
 assert(bound:bind({hud=owned},11))
 owned.valid=false
 assert(bound:hud()==nil and not bound:select(2))
-local pending={selectedGroup=2,defaultGroup=2,held={[2]=1}}
+local pending={selectedGroup=2,defaultGroup=2}
 assert(not Quickslots.cancel(pending,bound))
 assert(pending.selectedGroup==2 and pending.pendingGroup==2)
 local replacement=object()
-replacement.QuickslotsSwitcher=object()
-function replacement.QuickslotsSwitcher:GetChildrenCount()return 2 end
-function replacement.QuickslotsSwitcher:SetActiveWidgetIndex(index)self.index=index end
 assert(bound:bind({hud=replacement},12))
 assert(Quickslots.reconcile(pending,bound))
-assert(pending.pendingGroup==nil and replacement.QuickslotsSwitcher.index==0)
-replacement.QuickslotsSwitcher.index=1
+assert(pending.pendingGroup==nil and replacement.showsAbilities==false)
+replacement.showsAbilities=true
 local recreated=object()
-recreated.QuickslotsSwitcher=object()
-function recreated.QuickslotsSwitcher:GetChildrenCount()return 2 end
-function recreated.QuickslotsSwitcher:SetActiveWidgetIndex(index)self.index=index end
 local live={hud=replacement}
 assert(bound:bind(live,13))
 assert(Quickslots.reconcile(pending,bound))
 -- The host binds every sync; the service keeps handles, not the owner table.
 assert(bound:bind({hud=recreated},13))
 assert(Quickslots.reconcile(pending,bound))
-assert(recreated.QuickslotsSwitcher.index==0,'recreated HUD needs focus presentation')
+assert(recreated.showsAbilities==false,'recreated HUD needs focus presentation')
 
-local edgeState={selectedGroup=1}
-local edgeService={}
-function edgeService:select(group) self.selected=group;return true end
-function edgeService:emit() return true end
-local press={mode=3,holdSwapEdge='press',action={type='focus',group=2}}
-local release={mode=4,holdSwapEdge='release',action={type='focus',group=2}}
-assert(Quickslots.deliver(edgeState,press,'Triggered',edgeService))
-assert(edgeState.selectedGroup==2 and edgeState.holdSwapPrevious==1 and edgeState.holdSwapActive)
-assert(Quickslots.deliver(edgeState,release,'Triggered',edgeService))
-assert(edgeState.selectedGroup==1 and edgeState.holdSwapPrevious==nil
-    and edgeState.holdSwapActive==nil,'Hold Swap release must restore the group active on press')
+-- Hold to Swap is a sustained Hold: press shows the other wheel, release Default.
+local swapState={selectedGroup=1,defaultGroup=1}
+local swapService={}
+function swapService:select(group) self.selected=group;return true end
+function swapService:emit() return true end
+local swapHold={mode=2,swap=true,sustained=true,action={type='focus',group=2}}
+assert(Quickslots.deliver(swapState,swapHold,'Started',swapService) and swapState.selectedGroup==2)
+assert(Quickslots.deliver(swapState,swapHold,'Completed',swapService) and swapState.selectedGroup==1,
+    'Hold to Swap release must return to Default')
 print('PASS quickslot callback routing and wheel focus')
 
--- UE4SS returns a new wrapper for every lookup: a wheel whose GetParent wrapper is
--- not the switcher wrapper, but the same switcher object, is still native.
+-- Focus is the game's own active wheel, wherever the wheels sit; MCC never touches
+-- the wheels or the switcher.
 do
-    local function named(name)
-        local value=object()
-        function value:GetFullName()return name end
-        return value
-    end
-    local native=named('HUD')
-    native.QuickslotsSwitcher=named('WidgetSwitcher HUD.QuickslotsSwitcher')
-    function native.QuickslotsSwitcher:GetChildrenCount()return 2 end
-    function native.QuickslotsSwitcher:SetActiveWidgetIndex(index)self.index=index end
-    native.WBP_AA_Quickslots=named('Abilities')
-    native.WBP_HUD_Quickslots=named('Consumables')
-    for _,wheel in ipairs({native.WBP_AA_Quickslots,native.WBP_HUD_Quickslots}) do
-        function wheel:GetParent()return named('WidgetSwitcher HUD.QuickslotsSwitcher') end
-        function wheel:SetIsEnabled(value)self.enabled=value end
-    end
+    local hud=object()
+    hud.WBP_AA_Quickslots=setmetatable({},{__index=function(_,key)error('wheel read: '..key)end})
+    hud.WBP_HUD_Quickslots=hud.WBP_AA_Quickslots
+    hud.QuickslotsSwitcher=setmetatable({},{__index=function(_,key)error('switcher read: '..key)end})
     local service=Quickslots.new()
-    assert(service:bind({hud=native},11))
-    assert(service:select(2) and native.QuickslotsSwitcher.index==0,
-        'wheels in the native switcher must select through the switcher')
-    assert(native.WBP_AA_Quickslots.enabled==nil and native.WBP_HUD_Quickslots.enabled==nil,
-        'wheels in the native switcher must not be disabled')
+    assert(service:bind({hud=hud},11))
+    assert(service:select(2) and hud.showsAbilities==false)
+    assert(service:select(1) and hud.showsAbilities==true)
+    -- Without the game's setter the wheel cannot change: Default stays pending.
+    hud['Set AA Quickslots Showed']=function() error('unavailable') end
+    assert(not service:select(2) and hud.showsAbilities==true)
+    assert(service:invalidate(11))
 end
-print('PASS a fresh wrapper of the native switcher still selects natively')
+print('PASS focus selects through the game\'s setter only')

@@ -15,10 +15,7 @@ local methods={
     IsValid=function(self) return states[self].alive end,
     GetFullName=function(self) return states[self].full end,
     GetOuter=function(self) return states[self].Outer end,
-    GetParent=function(self) return states[self].parent end,
-    GetChildrenCount=function() return 2 end,
-    SetActiveWidgetIndex=function(self,index) states[self].index=index end,
-    SetIsEnabled=function(self,value) states[self].enabled=value end,
+    ['Set AA Quickslots Showed']=function(self,show) states[self].showsAbilities=show end,
     IsA=function() return true end,
     HasAnyInternalFlags=function() return true end,
     MapKey=function(self,action,key)
@@ -66,7 +63,7 @@ local function free()
 end
 
 -- One world's player stack, its applied game context, the overridden native
--- action and the HUD with separately parented wheels.
+-- action and the HUD's quickslot switcher.
 local world
 local function newWorld(n)
     local player=object('LocalPlayer','/Engine/Transient.LocalPlayer_'..n)
@@ -82,14 +79,9 @@ local function newWorld(n)
     local subsystem=object('EnhancedInputLocalPlayerSubsystem','/Engine/Transient.Subsystem_'..n,
         {Outer=player})
     local action=object('InputAction','/Game/Input_'..n..'.IA_Test')
-    local outside=object('CanvasPanel','/Engine/Transient.HUD_'..n..'.Outside')
-    local switcher=object('WidgetSwitcher','/Engine/Transient.HUD_'..n..'.Switcher')
-    local ability=object('Wheel','/Engine/Transient.HUD_'..n..'.Ability',{parent=outside,enabled=true})
-    local consumable=object('Wheel','/Engine/Transient.HUD_'..n..'.Consumable',{parent=outside,enabled=true})
-    local hud=object('WBP_GameHUD_C','/Engine/Transient.HUD_'..n,{QuickslotsSwitcher=switcher,
-        WBP_AA_Quickslots=ability,WBP_HUD_Quickslots=consumable})
+    local hud=object('WBP_GameHUD_C','/Engine/Transient.HUD_'..n)
     world={controller=controller,subsystem=subsystem,input=input,native=native,action=action,
-        hud=hud,ability=ability,consumable=consumable}
+        hud=hud}
     return world
 end
 
@@ -198,27 +190,22 @@ assert(host:apply(plan))
 drain()
 assert(host.ready and #states[first.native].Mappings==1, 'MCC maps its key into the game context')
 assert(states[first.action].Triggers[1]==gate, 'the override chord is installed')
-assert(states[first.ability].enabled==true and states[first.consumable].enabled==false,
-    'the quickslot wheels are routed to the default group')
+assert(states[first.hud].showsAbilities==true,'the game shows the default group (abilities)')
 
--- The save loads: the old world, its input assets and its HUD are collected,
--- and the game clears and rebuilds its mappings.
+-- The save loads: the old world, its input assets and its HUD are collected.
+-- Nothing wakes MCC yet, and its weak handles keep it from reading the old world.
 free()
-hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:ClearAllMappings']()
-hooks['/Script/Engine.PlayerController:ClientRestart']()
-drain()
-assert(#reads==0,'freed objects read: '..table.concat(reads,', '))
-assert(not host.ready and host.phase=='pending','MCC retires from the collected world')
-
--- The new world's player arrives.
+local generation=host.generation
+-- The new world's player arrives, and the game adds its gameplay context.
 local second=newWorld(2)
-preHooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:RequestRebuildControlMappings'](second.subsystem)
-hooks['/Script/Engine.PlayerController:ClientRestart']()
+hooks['/Script/DogwoodSystem.DWSystemBlueprintFunctionLibrary:AddInputMappingContext'](nil,nil,object('InputMappingContext','/Game/Input/IMC_OW.IMC_OW'))
 drain()
+assert(host.generation>generation,'the game input setup retires MCC from the collected world')
 assert(#reads==0,'freed objects read: '..table.concat(reads,', '))
 assert(host.ready and #states[second.native].Mappings==1,'MCC attaches to the new player')
 assert(states[second.action].Triggers[1]==gate,'the new native action is overridden')
-assert(states[second.ability].enabled==true and states[second.consumable].enabled==false)
+assert(states[second.hud].showsAbilities==true,
+    'the new HUD shows the default group')
 -- Default was already the focus before the load, yet the new player is told again.
 local last=doorbells[#doorbells]
 assert(last and last.viewport==states[second.controller].Player.ViewportClient

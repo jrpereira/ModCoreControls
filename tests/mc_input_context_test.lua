@@ -93,18 +93,15 @@ for name in pairs(created) do
     assert(not name:find('InputMappingContext',1,true),'MCC created a mapping context: '..name)
 end
 
--- Hold Swap's edges map into every context they declare, beyond the plan's own.
+-- Hold Swap's binding maps into every context it declares, beyond the plan's own.
 local holdPlan={contexts={'exploration'},holdSwap={enabled=true},bindings={
-    {id='press',keyName='LeftAlt',mode=3,consume=true,contexts={'exploration','combat'}},
-    {id='release',keyName='LeftAlt',mode=4,consume=true,contexts={'exploration','combat'}},
+    {id='hold',keyName='LeftAlt',mode=2,sustained=true,consume=true,contexts={'exploration','combat'}},
 }}
 actions=context:configure(holdPlan)
-assert(actions.press.bConsumeInput and actions.release.bConsumeInput)
-assert(actions.press.Triggers[1].path=='InputTriggerPressed')
-assert(actions.release.Triggers[1].path=='InputTriggerReleased')
+assert(actions.hold.bConsumeInput and #actions.hold.Triggers==0,'a sustained Hold has no trigger')
 context:attach('exploration',world)
 context:attach('combat',combat)
-assert(#world.Mappings==3 and #combat.Mappings==2,'global edges must map into each attached context')
+assert(#world.Mappings==2 and #combat.Mappings==1,'a global binding must map into each attached context')
 context:detachAll()
 assert(#world.Mappings==1 and #combat.Mappings==0)
 -- Keys usable in every gameplay context live in IMC_Base, which stays applied

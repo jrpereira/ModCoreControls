@@ -53,6 +53,10 @@ function bridge.OpenInputComponent(path)return path end
 function bridge.BindAction(_,_,phase,callback)callbacks[#callbacks+1]={phase=phase,callback=callback};return #callbacks end
 function bridge.CloseInputComponent()closeCount=closeCount+1;return true end
 local hooks={}
+-- The game adding a gameplay mapping context: MCC's signal that its input is set up.
+local SETUP='/Script/DogwoodSystem.DWSystemBlueprintFunctionLibrary:AddInputMappingContext'
+local gameplayContext={full='InputMappingContext /Game/Input/IMC_OW.IMC_OW'}
+local function gameSetsUpInput() hooks[SETUP](nil,nil,gameplayContext) end
 local hookIds,nextHookId,unhooked={},0,{}
 local failUnhook=true
 local availableBridge
@@ -161,35 +165,36 @@ local changed={contexts={'exploration','combat'},bindings={{id='global.slot1',ke
 assert(host:apply(changed))
 assert(indicatorSets==5,'Apply must reassign the action so CommonUI refreshes its key glyph')
 assert(#mccKeys()==1 and mccKeys()[1]=='Two','Apply must replace the mapped key, not add one')
+-- The game lifting every gameplay context for a moment, as during some skills, keeps
+-- MCC's input: its keys stay in the game's context and apply again when it returns.
+local generation,closes=host.generation,closeCount
 input.AppliedInputContexts[native]=nil
-hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:RemoveMappingContext']()
-assert(not host.ready and closeCount==3,'native context detach must retire MCC input')
-assert(#mccKeys()==0,'native context detach must unmap MCC keys')
-assert(#nativeOverride.Triggers==0,'native context detach must remove the override chord')
-assert(indicator.EnhancedInputAction==originalIndicator and indicatorSets==6,
-    'native context detach must restore the original indicator action')
+assert(host:sync())
+assert(host.ready and host.generation==generation and closeCount==closes,'a lifted context must not retire MCC input')
+assert(#mccKeys()==1 and nativeOverride.Triggers[1]==overrideGate and indicatorSets==5)
 input.AppliedInputContexts[native]=5
-hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:AddMappingContext']()
-assert(host.ready and indicatorSets==7,'native context reattach must restore MCC indicators')
-assert(nativeOverride.Triggers[1]==overrideGate,'reattach must reuse the root-captured chord')
+assert(host:sync())
+assert(host.ready and host.generation==generation and closeCount==closes and indicatorSets==5,
+    'its return needs no work')
+assert(#mccKeys()==1)
 rejectOverrideRebuild=true
 local removed=host:deactivate()
 assert(not removed and host.ready and nativeOverride.Triggers[1]==overrideGate,
     'failed override restoration must leave active replacement input intact')
 rejectOverrideRebuild=false
-assert(host:deactivate() and closeCount==4)
+assert(host:deactivate() and closeCount==closes+1)
 assert(#nativeOverride.Triggers==0 and overrideRebuilds>0)
-assert(indicator.EnhancedInputAction==originalIndicator and indicatorSets==8)
+assert(indicator.EnhancedInputAction==originalIndicator and indicatorSets==6)
 callbacks[2].callback({})
 assert(#calls==2,'deactivated callback generation must not deliver')
 print('PASS Enhanced Input host attach, replacement, and stale callback rejection')
 local stopped,stopReason=host:stop()
 assert(not stopped and tostring(stopReason):find('temporary removal failure',1,true))
-assert(host.phase=='stopped' and #unhooked==6)
-assert(host:stop() and #unhooked==7 and next(hookIds)==nil)
+assert(host.phase=='stopped' and #unhooked==2)
+assert(host:stop() and #unhooked==3 and next(hookIds)==nil)
 local secondHost=require('mc_input_host').new(function(callback)callback();return true end,
     function()end,service,environment)
-assert(secondHost:stop() and #unhooked==14 and next(hookIds)==nil)
+assert(secondHost:stop() and #unhooked==6 and next(hookIds)==nil)
 print('PASS named hook removal retries failures and releases each successful hook once')
 
 local togglePath='/Game/_Dawnwalker/Player/Input/Actions/Combat/'
@@ -342,9 +347,10 @@ do
     assert(readHost:apply({contexts={'exploration','combat'},bindings={swap},overrides={}}))
     local attached=reads
     assert(attached>=1,'attaching reads the keys')
-    hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:AddMappingContext']()
-    hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:RemoveMappingContext']()
-    assert(readHost:sync() and reads==attached,'context changes and plain syncs read no keys')
+    hooks['/Script/Engine.PlayerController:ClientRestart']()
+    assert(readHost:sync() and reads==attached,'possession and plain syncs read no keys')
+    gameSetsUpInput()
+    assert(reads==attached,'a gameplay context added while MCC owns the live player reads no keys')
     environment.profile=function() reads=reads+1;return keyProfile({'Q'}) end
     hooks['/Script/RebelInput.RebelInputMappingSubsystem:ApplyPendingKeyboardMappings']()
     assert(reads==attached+1 and swap.keyNames[1]=='Q','new keyboard mappings are read once')
@@ -521,8 +527,8 @@ do
 end
 print('PASS an Apply during a running operation is queued, not dropped')
 
--- While enabled but not attached, retries back off to a steady interval rather than
--- stopping, one at a time, and end once input attaches.
+-- While enabled but not attached, retries back off and end; the next loading-screen
+-- game input setup starts them again. One retry is scheduled at a time.
 do
     local scheduled={}
     environment.delay=function(ms,callback) scheduled[#scheduled+1]={ms=ms,callback=callback};return true end
@@ -535,25 +541,141 @@ do
     assert(#scheduled==1 and scheduled[1].ms==100)
     retryHost:sync()
     assert(#scheduled==1,'only one retry is scheduled at a time')
-    local intervals={}
-    for _=1,6 do
-        local next=table.remove(scheduled,1)
-        intervals[#intervals+1]=next.ms
-        next.callback()
+    local function run()
+        local intervals={}
+        while #scheduled>0 do
+            local next=table.remove(scheduled,1)
+            intervals[#intervals+1]=next.ms
+            next.callback()
+        end
+        return table.concat(intervals,',')
     end
-    assert(table.concat(intervals,',')=='100,500,3000,6000,12000,12000','retries continue: '..table.concat(intervals,','))
-    assert(#scheduled==1 and not retryHost.ready)
+    local intervals=run()
+    assert(intervals=='100,500,3000,6000,12000','retries end: '..intervals)
+    assert(not retryHost.ready)
+    gameSetsUpInput()
+    intervals=run()
+    assert(intervals=='100,500,3000,6000,12000','a game input setup starts them again: '..intervals)
     input.AppliedInputContexts[native]=5
-    table.remove(scheduled,1).callback()
-    assert(retryHost.ready and #mccKeys()==1,'the retry attaches once gameplay is ready')
+    gameSetsUpInput()
+    assert(retryHost.ready and #mccKeys()==1,'the game input setup attaches once gameplay is ready')
     assert(#scheduled==0,'no retry once attached')
     assert(retryHost:stop() and #mccKeys()==0)
     environment.delay=nil
 end
-print('PASS sync retries continue while not attached')
+print('PASS sync retries end and restart on each game input setup')
 
--- A failed attach, as when a save load's last hook finds the new player half built,
--- is retried like a pending one: no later hook is guaranteed to wake input.
+-- Without the input setup hook nothing else wakes input, so the retries continue.
+do
+    local scheduled={}
+    environment.delay=function(ms,callback) scheduled[#scheduled+1]={ms=ms,callback=callback};return true end
+    local hook=environment.hook
+    environment.hook=function(name,callback)
+        if name==SETUP then error('no UFunction found') end
+        return hook(name,callback)
+    end
+    input.AppliedInputContexts[native]=nil
+    local fallbackHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,service,environment)
+    environment.hook=hook
+    assert(not fallbackHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=74,
+        keyName='J',mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={}}))
+    local intervals={}
+    for _=1,7 do
+        local next=table.remove(scheduled,1)
+        intervals[#intervals+1]=next.ms
+        next.callback()
+    end
+    assert(table.concat(intervals,',')=='100,500,3000,6000,12000,12000,12000',
+        'retries continue: '..table.concat(intervals,','))
+    input.AppliedInputContexts[native]=5
+    table.remove(scheduled,1).callback()
+    assert(fallbackHost.ready and #scheduled==0)
+    assert(fallbackHost:stop() and #mccKeys()==0)
+    environment.delay=nil
+end
+print('PASS without the input setup hook, retries continue while not attached')
+
+-- Rebuild requests come during play, as on every skill: while the kept player lives
+-- and owns its input, a sync or a gameplay context added scans for no object. A
+-- possession scans.
+do
+    local all,scans=environment.all,{}
+    environment.all=function(class)
+        scans[class]=(scans[class] or 0)+1
+        return all(class)
+    end
+    environment.preHook=function(name,callback)
+        nextHookId=nextHookId+2
+        hooks[name]=callback;hookIds[name]={nextHookId-1,nextHookId}
+        return nextHookId-1,nextHookId
+    end
+    local quietHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,service,environment)
+    assert(quietHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=74,
+        keyName='J',mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={}}))
+    local function scanned()
+        local total=0
+        for _,class in ipairs({'BP_PlayerController_C','EnhancedInputLocalPlayerSubsystem','WBP_GameHUD_C'}) do
+            total=total+(scans[class] or 0)
+        end
+        return total
+    end
+    scans={}
+    local rebuild=hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:RequestRebuildControlMappings']
+    for _=1,3 do rebuild(subsystem) end
+    assert(quietHost:sync())
+    assert(scanned()==0,'a sync on the kept player scans for no object')
+    gameSetsUpInput()
+    assert(scanned()==0,'a gameplay context added for the kept player scans for no object')
+    hooks['/Script/Engine.PlayerController:ClientRestart']()
+    assert(scanned()>0,'a possession without a known local player scans for the player')
+    assert(quietHost:stop())
+    environment.all,environment.preHook=all,nil
+end
+print('PASS syncs on the kept player scan for no object')
+
+-- The local player and its subsystem outlive a load: a new controller and pawn are
+-- read from the kept player, with no scan. A dead local player scans again.
+do
+    local all,scans=environment.all,{}
+    environment.all=function(class)
+        scans[class]=(scans[class] or 0)+1
+        return all(class)
+    end
+    local function scanned(class) return scans[class] or 0 end
+    player.PlayerController=controller
+    local loadingHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,service,environment)
+    assert(loadingHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=74,
+        keyName='J',mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={}}))
+    assert(scanned('EnhancedInputLocalPlayerSubsystem')==1,'the first attach scans for the subsystem')
+    -- A load: a new controller, pawn and component for the same local player.
+    local nextComponent=object('EnhancedInputComponent','/Engine/Transient.Component_9')
+    local nextPawn=object('Pawn','/Engine/Transient.Pawn_9');nextPawn.InputComponent=nextComponent
+    local nextController=object('BP_PlayerController_C','/Engine/Transient.BP_PlayerController_C_9')
+    nextController.PlayerInput,nextController.AcknowledgedPawn,nextController.Player=input,nextPawn,player
+    player.PlayerController=nextController
+    scans={}
+    hooks['/Script/Engine.PlayerController:ClientRestart']()
+    assert(scanned('BP_PlayerController_C')==0 and scanned('EnhancedInputLocalPlayerSubsystem')==0,
+        'a load with the kept local player scans for neither controller nor subsystem')
+    assert(loadingHost.componentPath=='/Engine/Transient.Component_9','the new component is attached')
+    -- A controller the player no longer names is not taken.
+    player.PlayerController=object('BP_PlayerController_C','/Engine/Transient.Other')
+    player.PlayerController.Player=object('LocalPlayer','/Engine/Transient.LocalPlayer_1')
+    player.valid=false
+    scans={}
+    hooks['/Script/Engine.PlayerController:ClientRestart']()
+    assert(scanned('BP_PlayerController_C')>0,'a dead local player falls back to the scans')
+    player.valid=true;player.PlayerController=nil
+    assert(loadingHost:stop())
+    environment.all=all
+end
+print('PASS a load reads the new controller from the kept local player')
+
+-- A failed attach, as when the game sets up its input a moment before the new player
+-- is complete, is retried like a pending one.
 do
     local scheduled={}
     environment.delay=function(ms,callback) scheduled[#scheduled+1]={ms=ms,callback=callback};return true end
@@ -573,6 +695,101 @@ do
     environment.delay=nil
 end
 print('PASS a failed attach is retried')
+
+-- The wheel is presented once the player is found, before input attaches: a display
+-- waiting for the focus event is not held up by the slower attach.
+do
+    local selected={}
+    local early={select=function(_,group) selected[#selected+1]=group;return true end}
+    local open=bridge.OpenInputComponent
+    bridge.OpenInputComponent=function() return nil,'component not ready' end
+    local earlyHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,early,environment)
+    local active=earlyHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=74,
+        keyName='J',mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={},defaultGroup=2})
+    assert(not active,'the input attach fails')
+    assert(selected[1]==2,'Default was presented before the attach was tried')
+    bridge.OpenInputComponent=open
+    assert(earlyHost:stop())
+end
+print('PASS the wheel is presented before input attaches')
+
+-- After a load the player can be found before the game creates its HUD: only the
+-- presentation is tried again, shortly after, until the wheel is shown.
+do
+    local scheduled,selected={},{}
+    environment.delay=function(ms,callback) scheduled[#scheduled+1]={ms=ms,callback=callback};return true end
+    local hudReady=false
+    local late={select=function(_,group)
+        if not hudReady then return false end
+        selected[#selected+1]=group;return true
+    end}
+    local lateHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,late,environment)
+    assert(lateHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=74,
+        keyName='J',mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={},defaultGroup=2}))
+    assert(#selected==0 and lateHost.state.pendingGroup==2,'no HUD yet: Default stays pending')
+    assert(#scheduled==1 and scheduled[1].ms==100,'a presentation retry is scheduled')
+    table.remove(scheduled,1).callback()
+    assert(#selected==0 and #scheduled==1 and scheduled[1].ms==250,'still no HUD: tried again later')
+    hudReady=true
+    local lookups=0
+    local hud=environment.hud
+    environment.hud=function() lookups=lookups+1 end
+    table.remove(scheduled,1).callback()
+    environment.hud=hud
+    assert(selected[1]==2 and lateHost.state.pendingGroup==nil,'the HUD appeared: Default is presented')
+    assert(lookups>0,'and the new HUD\'s key indicators are refreshed')
+    assert(#scheduled==0,'and the retries stop')
+    assert(lateHost:stop())
+    environment.delay=nil
+end
+print('PASS the wheel presentation is retried until the HUD exists')
+
+-- A load that replaces the player while MCC is attached: the game input setup finds the new
+-- input component and reattaches to it.
+do
+    local fadeHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,service,environment)
+    assert(fadeHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=74,
+        keyName='J',mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={}}))
+    local generation,component=fadeHost.generation,fadeHost.componentPath
+    local pawn=controller.AcknowledgedPawn
+    local previous=pawn.InputComponent
+    pawn.InputComponent=object('EnhancedInputComponent','/Engine/Transient.Pawn.ReplacementInput')
+    gameSetsUpInput()
+    assert(fadeHost.ready and fadeHost.generation>generation and fadeHost.componentPath~=component,
+        'the game input setup reattaches to the replaced component')
+    assert(#mccKeys()==1)
+    pawn.InputComponent=previous
+    assert(fadeHost:stop() and #mccKeys()==0)
+end
+print('PASS a game input setup reattaches to a replaced player')
+
+-- An attach that left an inherited key unresolved keeps retrying until it resolves,
+-- without waiting for a game hook.
+do
+    local scheduled={}
+    environment.delay=function(ms,callback) scheduled[#scheduled+1]={ms=ms,callback=callback};return true end
+    local names={}
+    environment.profile=function() return keyProfile(names) end
+    local swap={id='default.swap.toggle',key=0,swap=true,mode=3,phases={'Triggered'},consume=true,
+        contexts={'exploration','combat'},standardAction='IA_Combat_ToggleQuickslots',action={type='flip'}}
+    local incompleteHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,service,environment)
+    assert(incompleteHost:apply({contexts={'exploration','combat'},bindings={swap},overrides={}}))
+    assert(swap.unresolved and incompleteHost.incomplete)
+    for _=1,4 do table.remove(scheduled,1).callback() end
+    assert(#scheduled==1 and scheduled[1].ms==12000 and swap.unresolved)
+    names={'LeftAlt'}
+    table.remove(scheduled,1).callback()
+    assert(not swap.unresolved and swap.keyNames[1]=='LeftAlt' and not incompleteHost.incomplete,
+        'the retry binds the key once it resolves')
+    assert(#scheduled==0,'and retries stop')
+    assert(incompleteHost:stop())
+    environment.profile,environment.delay=nil,nil
+end
+print('PASS an incomplete attach is retried until its keys resolve')
 
 -- On the game thread a wheel change applies inside the input callback, so a native slot
 -- action on the same key sees the new focus; other callbacks still wait for the queue.
@@ -645,17 +862,12 @@ do
     rebuild(subsystem)
     assert(#pending==before+2,'a later rebuild queues another update')
     pending[#pending]()
-    -- A newly constructed Bindings widget gets its indicators on the next turn.
-    local bindingsClass='/Game/_Dawnwalker/UI/_Unified/HUD/Quickslots/WBP_HUD_Quickslots_Bindings.'
-        ..'WBP_HUD_Quickslots_Bindings_C'
-    assert(hooks[bindingsClass],'Bindings construction must be observed')
-    indicator.EnhancedInputAction=originalIndicator
-    hooks[bindingsClass]({})
-    hooks[bindingsClass]({})
-    assert(#pending==before+3,'Bindings constructed in one turn share one update')
-    assert(indicator.EnhancedInputAction==originalIndicator,'the update waits for construction to return')
+    -- A gameplay context added for the kept player is checked after the call and
+    -- changes nothing: no sync and no indicator update.
+    gameSetsUpInput()
+    assert(#pending==before+3,'the input setup check runs after the hooked call')
     pending[#pending]()
-    assert(indicator.EnhancedInputAction==mccAction,'the queued update assigns the new indicators')
+    assert(#pending==before+3,'a context added for the kept player wakes no sync')
     rebuild(subsystem)
     assert(#pending==before+4)
     environment.preHook=nil

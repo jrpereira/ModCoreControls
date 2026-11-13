@@ -49,7 +49,6 @@ function M.new(e,log)
         if mode==2 then target.Triggers={}; return end
         local className=mode==1 and 'InputTriggerHold'
             or mode==3 and 'InputTriggerPressed'
-            or mode==4 and 'InputTriggerReleased'
             or mode==0 and 'InputTriggerTap' or nil
         assert(className,'unsupported input trigger mode: '..tostring(mode))
         local result=e.trigger(target,className)

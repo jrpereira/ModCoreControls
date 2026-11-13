@@ -23,7 +23,7 @@ assert(table.concat(default.maps,',')=='default,grouped,global' and default.nati
 assert(table.concat(default.contexts,',')=='exploration,combat')
 assert(default.holdSwap.enabled and default.holdSwap.defaultGroup==2 and default.defaultGroup==2)
 assert(default.overrides.IA_Combat_ToggleQuickslots,'Default must suppress the native toggle')
-assert(#default.bindings==2,'Default swap press and release only')
+assert(#default.bindings==1,'Default swap hold only')
 assert(not default.overrides.IA_Quickslot_Left,'unbound slot keys must not override native slots')
 for slot=1,4 do
     assert(not find(default,'grouped.QuickSlot'..slot),
@@ -33,10 +33,11 @@ assert(not find(default,'grouped.GroupFocus2'),
     'Group 2 on its default control must not share the swap key')
 assert(not find(default,'grouped.ActivateAbilities') and not find(default,'grouped.ActivateConsumables'),
     'explicit activation keys are unbound by default')
-local defaultPress,defaultRelease=default.bindings[1],default.bindings[2]
-assert(defaultPress.holdSwapEdge=='press' and defaultPress.mode==3 and defaultPress.action.group==1
-    and defaultRelease.holdSwapEdge=='release' and defaultRelease.mode==4
-    and defaultRelease.action.group==2,'default hold swap must show Abilities and return to Consumables')
+local defaultHold=default.bindings[1]
+assert(defaultHold.swap and defaultHold.mode==2 and defaultHold.sustained and defaultHold.action.type=='focus'
+    and defaultHold.action.group==1 and defaultHold.standardAction=='IA_Combat_ToggleQuickslots'
+    and table.concat(defaultHold.phases,',')=='Started,Completed,Canceled',
+    'Hold to Swap is Swap to set to Hold on the inherited key: show Abilities while held')
 model:set(defaultMap.holdSwap.enabled.id,0)
 local tapDefault=Plan.build(definition,model.values)
 assert(not tapDefault.holdSwap.enabled and #tapDefault.bindings==1,'saved Off must retain tap swapping')
@@ -54,12 +55,11 @@ model:set(defaultMap.holdSwap.outsideCombat.id,1)
 model:set(defaultMap.holdSwap.enabled.id,1)
 model:set(defaultMap.holdSwap.defaultWheel.id,1)
 local changedDefault=Plan.build(definition,model.values)
-assert(#changedDefault.bindings==2 and changedDefault.holdSwap.defaultGroup==1
+assert(#changedDefault.bindings==1 and changedDefault.holdSwap.defaultGroup==1
     and changedDefault.defaultGroup==1,'the plan must activate the chosen Default wheel')
-local press,release=changedDefault.bindings[1],changedDefault.bindings[2]
-assert(press.holdSwapEdge=='press' and press.mode==3 and press.action.group==2,
+local hold=changedDefault.bindings[1]
+assert(hold.mode==2 and hold.sustained and hold.action.group==2,
     'holding must show the wheel other than the default')
-assert(release.holdSwapEdge=='release' and release.mode==4,'releasing must return')
 assert(changedDefault.holdSwap.sourceAction=='IA_Combat_ToggleQuickslots'
     and changedDefault.overrides.IA_Combat_ToggleQuickslots)
 model:set(defaultMap.holdSwap.enabled.id,0)
