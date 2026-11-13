@@ -41,8 +41,11 @@ M.addSectionMap('module', {
             {id='DefaultWheel',name='Default wheel',type='picker',default=2,
                 params={values={1,2},labels={'Abilities','Consumables'}}},
             {id='HoldThreshold',name='Hold threshold',type='range',default='100|350',
-                description='A Hold key\'s rim fills from the low mark and the key acts at the high mark.'
-                    ..' A Tap on the same key acts on any release before the high mark.',
+                description='A key bound only as Tap fires on press and its outline flashes until Low.'
+                    ..' A key bound only as Hold fires at High; its outline fills from Low to High.'
+                    ..' When a key has both, pressing lights the Tap; at Low the Tap goes dark and the'
+                    ..' Hold starts filling; at High the Hold fires. Releasing before High fires the Tap,'
+                    ..' so a quick press never shows the Hold filling.',
                 params={min=100,max=500,step=10,gap=50,suffix=' ms'}},
             {id='KeyOutline',name='Show key outline',type='picker',default=2,
                 description='The rim on HUD key hints: a Hold key\'s fills while held, a Tap key\'s is'
