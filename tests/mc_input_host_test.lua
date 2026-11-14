@@ -1168,7 +1168,12 @@ do
     assert(tapHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',keyName='One',
         mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={},holdLow=.1,holdHigh=.4,keyOutline=1}))
     assert(displays[#displays]==false,'the Tap rim is turned off')
+    -- Retiring releases a rim still forced on, though it clears the player the HUD is
+    -- found through.
+    assert(tapHost:apply({contexts={'exploration','combat'},bindings={tapKey},overrides={},holdLow=.1,holdHigh=.4}))
+    assert(displays[#displays]==true)
     assert(tapHost:deactivate())
+    assert(displays[#displays]==false,'deactivating releases the Tap rim')
     assert(tapHost:stop())
     environment.setIndicatorProgress,environment.setIndicatorHoldDisplay=nil,nil
 end

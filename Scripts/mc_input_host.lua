@@ -717,6 +717,9 @@ function M.new(queue,log,service,environment)
             if not ok then return false,'override restoration failed: ' .. tostring(why),
                 {status='failure',original=why} end
         end
+        -- The HUD is read before invalidate clears the owner it is found through, so
+        -- a HUD that lives on gets its rims and marks back.
+        local found,retiringHud=pcall(currentHud)
         invalidate()
         api.phase='retiring'
         local errors={}
@@ -727,8 +730,10 @@ function M.new(queue,log,service,environment)
         local detached,detachWhy=pcall(function() return internal(function() return context:detachAll() end) end)
         if not detached then errors[#errors+1]='mapping detach: ' .. tostring(detachWhy)
         elseif detachWhy==false then errors[#errors+1]='mapping detach incomplete' end
+        passHud={found and retiringHud or nil}
         refreshMarks(nil)
         local restored,complete=pcall(indicators.restoreAll,indicators)
+        passHud=nil
         if not restored then errors[#errors+1]='indicator restoration: ' .. tostring(complete)
         elseif complete==false then errors[#errors+1]='indicator restoration incomplete' end
         if callbacks then
