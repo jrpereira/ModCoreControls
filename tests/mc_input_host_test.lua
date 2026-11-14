@@ -88,6 +88,7 @@ local environment={
         return value and (not predicate or predicate(value)) and value or nil
     end,
     all=function(class)
+        if class=='BP_PlayerController_C' then return {controller} end
         if class=='EnhancedInputLocalPlayerSubsystem' then return {subsystem} end
         if class=='InputAction' then return {nativeOverride} end
         return {}

@@ -476,12 +476,6 @@ function M.new(queue,log,service,environment)
     end
     scanStack=function()
         local controllers=e.all and e.all('BP_PlayerController_C') or {}
-        if #controllers==0 and e.find then
-            local found=e.find('BP_PlayerController_C',function(item)
-                return not (e.full(item) or ''):find('Default__',1,true)
-            end)
-            if found then controllers={found} end
-        end
         for _,controller in ipairs(controllers) do
             if e.valid(controller) and not (e.full(controller) or ''):find('Default__',1,true) then
                 local playerInput=property(controller,'PlayerInput')
@@ -491,10 +485,6 @@ function M.new(queue,log,service,environment)
                 if e.valid(playerInput) and e.valid(component) and e.valid(player) then
                     local playerPath=e.path(player)
                     local subsystems=e.all and e.all('EnhancedInputLocalPlayerSubsystem') or {}
-                    if #subsystems==0 and e.find then
-                        local found=e.find('EnhancedInputLocalPlayerSubsystem')
-                        if found then subsystems={found} end
-                    end
                     local match,unknown,count=nil,nil,0
                     for _,candidate in ipairs(subsystems) do
                         if e.valid(candidate) then
