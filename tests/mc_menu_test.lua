@@ -93,6 +93,8 @@ assert(not pcall(declaration,function(_,key) key.params.values={1} end),'params 
 assert(not pcall(declaration,function(map) map.settings[1].type='keybind' end),'map settings are pickers')
 assert(not pcall(declaration,function(map) map.settings[1].values={1,2} end),'picker arguments belong in params')
 assert(not pcall(declaration,function(map) map.map[1].keys={} end),'groups list settings only')
+assert(not pcall(declaration,function(map) map.holdTreshold='Wheel' end),'a misspelt map field is rejected')
+assert(declaration(function(map) map.keyOutline='Wheel' end),'a map field names one of its settings')
 -- A group's rows follow its declared order: a mirror may sit between keybinds.
 local ordered=declaration(function(map,key)
     local two={id='Two',name='Two',type='keybind',default='Two',params={trigger='Tap',action={type='selected',slot=2}}}

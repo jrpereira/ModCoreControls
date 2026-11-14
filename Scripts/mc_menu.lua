@@ -12,6 +12,9 @@ end
 -- cannot be silently ignored.
 -- heading (map settings only) starts a titled block of the map's settings on the page.
 local common={id=true,name=true,type=true,default=true,params=true,description=true,heading=true}
+-- A map's fields; holdThreshold, keyOutline, instantTap and holdSwap name its settings.
+local mapFields={id=true,name=true,value=true,contexts=true,map=true,settings=true,override=true,
+    holdThreshold=true,keyOutline=true,instantTap=true,holdSwap=true}
 local paramFields={
     -- tab=true shows the choices as tabs instead of a left/right picker; cycle=true
     -- shows only the current choice, in the keybind key column, advancing on click.
@@ -85,6 +88,10 @@ function M.define(registry, mapRegistry)
         local maps = mapRegistry.maps[id] or {}
         for _, mapId in ipairs(mapRegistry.order[id] or {}) do
             local declaration = assert(maps[mapId], 'missing ordered map: ' .. mapId)
+            -- A misspelt field would silently drop its feature.
+            for field in pairs(declaration) do
+                assert(mapFields[field],'unknown map field in ' .. mapId .. ': ' .. tostring(field))
+            end
             assert(type(declaration.name)=='string' and declaration.name:match('%S'),
                 'map needs a name: ' .. mapId)
             assert(type(declaration.value)=='number' and declaration.value%1==0,

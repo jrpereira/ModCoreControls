@@ -43,13 +43,23 @@ own Lua state and seal the registry when they build their definition; a later
 
 | Location | Required fields | Optional fields |
 | --- | --- | --- |
-| Map | `id`, `name`, unique section-local numeric `value`, `contexts`, `map` | `settings`, `override`, wheel-swap metadata used by Default |
+| Map | `id`, `name`, unique section-local numeric `value`, `contexts`, `map` | `settings`, `override`, and the setting fields below |
 | Group inside `map` | `name`, `settings` | `description` |
 | Setting | `id`, `name`, `type` | `default`, `description`, `params` |
 
+Some map fields name one of the map's own `settings` by `id`; MCC reads that
+setting's value for the feature. Default declares all four.
+
+| Map field | Names | Setting type |
+| --- | --- | --- |
+| `holdThreshold` | Tap vs Hold Threshold: the Low and High ends of the Hold window | `range` |
+| `keyOutline` | Show key outline: which HUD key hints show a rim | `picker` |
+| `instantTap` | Instant Tap when no Hold for same key | `picker` |
+| `holdSwap` | A table: `enabled` (Hold to Swap), `defaultWheel` (Default wheel), optional `outsideCombat` (Allow Swap outside of combat), and `action`, the native action name whose key the swap inherits | `picker` each |
+
 Type-specific options belong inside `params`. A map setting may also carry `heading`:
 it starts a titled block of the map's settings on the page, holding it and the ones
-after it. Unknown setting and parameter
+after it. Unknown map, setting and parameter
 fields are rejected. Descriptions must be one line, at most 4096 bytes.
 
 | Type | Placement | `params` |
