@@ -69,9 +69,14 @@ function M.new(e,log)
         assert(className,'unsupported input trigger mode: '..tostring(mode))
         target.Triggers={build(className)}
     end
+    -- Context paths already purged: an earlier state's keys are removed the first time
+    -- MCC maps into a context, and none can appear later in the same Lua state.
+    local purged={}
     -- MCC keys an earlier Lua state mapped into this context (before a mod restart or
     -- hot reload) are still there under the same actions; remove them too.
     local function purge(context)
+        local contextPath=e.path(context)
+        if contextPath and purged[contextPath] then return end
         local stale={}
         e.each(context.Mappings or {},function(entry)
             entry=e.unwrap(entry)
@@ -85,7 +90,8 @@ function M.new(e,log)
         for _,entry in ipairs(stale) do
             if pcall(function() context:UnmapKey(entry[1],{KeyName=entry[2]}) end) then removed=removed+1 end
         end
-        if removed>0 then log.info('removed ',removed,' stale MCC key mapping(s) from ',e.path(context)) end
+        if removed>0 then log.info('removed ',removed,' stale MCC key mapping(s) from ',contextPath) end
+        if contextPath then purged[contextPath]=true end
     end
     -- A context that died took MCC's mappings with it.
     local function unmap(record)
@@ -269,10 +275,17 @@ function M.new(e,log)
         if not applied then return false end
         -- Each action and key pair must still be there. Only MCC's own entries have their
         -- key names read; where those cannot be read, the action alone is checked.
-        local ours={}
-        for _,entry in ipairs(record.entries) do ours[identity(entry[1])]=true end
+        local ours,wanted,remaining={},{},0
+        for _,entry in ipairs(record.entries) do
+            local id=identity(entry[1])
+            ours[id]=true
+            local pair=tostring(id)..'\0'..keyId(entry[2])
+            if not wanted[pair] then wanted[pair]=true;remaining=remaining+1 end
+        end
         local present,pairsPresent,keysRead={},{},false
         e.each(context.Mappings or {},function(entry)
+            -- Every MCC pair found: the rest of the context is not read.
+            if remaining==0 then return end
             entry=e.unwrap(entry)
             local target=entry and e.unwrap(entry.Action)
             if e.valid(target) then
@@ -286,7 +299,9 @@ function M.new(e,log)
                     end)
                     if read and name~=nil then
                         keysRead=true
-                        pairsPresent[tostring(id)..'\0'..keyId(name)]=true
+                        local pair=tostring(id)..'\0'..keyId(name)
+                        if wanted[pair] and not pairsPresent[pair] then remaining=remaining-1 end
+                        pairsPresent[pair]=true
                     end
                 end
             end

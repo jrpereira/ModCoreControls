@@ -207,6 +207,40 @@ restarted:detachAll()
 assert(#shared.Mappings==1 and shared.Mappings[1]==native,'detach leaves only native keys')
 print('PASS a new Lua state removes MCC keys left by the previous one')
 
+-- The earlier state's keys are removed once per context; later maps, as on each
+-- changed configure, do not walk the context for them again. An attachment check
+-- stops reading once each MCC key is found.
+do
+    local walked=game('/Game/IMC_OW.IMC_OW')
+    for index=1,10 do
+        walked.Mappings[index]={Action=object('/Game/Input/IA_Native'..index..'.IA_Native'..index),Key={KeyName='One'}}
+    end
+    -- Reads of the game's own entries, as purge and the attachment check make them.
+    local reads=0
+    local counted=setmetatable({path=function(value)
+        if value.path:find('IA_Native',1,true) then reads=reads+1 end
+        return value.path
+    end,address=function(value)
+        if value.path:find('IA_Native',1,true) then reads=reads+1 end
+        return nil
+    end},{__index=e})
+    local once=require('mc_input_context').new(counted)
+    once:configure({contexts={'exploration'},bindings={{id='a',keyName='J',mode=0}}})
+    once:attach('exploration',walked)
+    assert(reads==10,'the first map walks the context once: '..reads)
+    once:configure({contexts={'exploration'},bindings={{id='a',keyName='K',mode=0}}})
+    once:configure({contexts={'exploration'},bindings={{id='a',keyName='L',mode=0}}})
+    assert(reads==10,'later maps do not purge again: '..reads)
+    -- MCC's key sits first: nothing after it is read.
+    table.insert(walked.Mappings,1,table.remove(walked.Mappings))
+    local applied={AppliedInputContexts={[walked]=5}}
+    function applied:IsValid() return true end
+    reads=0
+    assert(once:attached('exploration',applied) and reads==0,'reading stops at the last MCC key: '..reads)
+    once:detachAll()
+end
+print('PASS a context is purged once and its attachment check stops early')
+
 -- A key removed from a multi-key binding counts as detached, even though its
 -- action still has another key mapped.
 do
