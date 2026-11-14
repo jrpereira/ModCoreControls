@@ -12,7 +12,7 @@ local captured
 local Context=require('mc_input_context')
 local new=Context.new
 Context.new=function(e,...) captured=e;return new(e,...) end
-require('mc_input_host').new(function() return true end,function() end,{})
+require('mc_input_host').new(function() return true end,function() end)
 Context.new=new
 local env=assert(captured)
 answers={SpaceBar=true,J=true,Bogus=false}

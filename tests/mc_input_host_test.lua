@@ -131,11 +131,20 @@ local environment={
     end,
     notify=function(name,callback)hooks[name]=callback;return true end,
 }
+-- A quickslot service with every member the host uses: bound to the player it attaches,
+-- showing the test HUD until invalidated, as Quickslots.new does.
+local function quickslots(methods)
+    local bound
+    methods.bind=methods.bind or function(_,live) bound=live;return true end
+    methods.invalidate=methods.invalidate or function() bound=nil;return true end
+    methods.hud=methods.hud or function() return bound and hud or nil end
+    return methods
+end
 local calls={}
-local service={
+local service=quickslots({
     activate=function(_,kind,slot)calls[#calls+1]=kind..':'..slot;return true end,
     select=function()return true end,
-}
+})
 local host=require('mc_input_host').new(function(callback)callback();return true end,function()end,service,environment)
 local plan={contexts={'exploration','combat'},bindings={{id='global.slot1',keyName='One',mode=0,
     phases={'Triggered'},action={type='ability',slot=1}}},overrides={IA_Test=true}}
@@ -750,7 +759,7 @@ print('PASS a failed attach is retried')
 -- waiting for the focus event is not held up by the slower attach.
 do
     local selected={}
-    local early={select=function(_,group) selected[#selected+1]=group;return true end}
+    local early=quickslots({select=function(_,group) selected[#selected+1]=group;return true end})
     local open=bridge.OpenInputComponent
     bridge.OpenInputComponent=function() return nil,'component not ready' end
     local earlyHost=require('mc_input_host').new(function(callback)callback();return true end,
@@ -767,15 +776,18 @@ print('PASS the wheel is presented before input attaches')
 -- One indicator update reads the HUD once, though indicators, rims and marks each use it.
 do
     environment.setIndicatorHoldDisplay=function() return true end
+    local lookups,counting=0,false
     local plainHost=require('mc_input_host').new(function(callback)callback();return true end,
-        function()end,{},environment)
+        function()end,quickslots({hud=function()
+            if counting then lookups=lookups+1 end
+            return hud
+        end}),environment)
     environment.setIndicatorHoldDisplay=nil
     assert(plainHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=74,
         keyName='J',mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={}}))
-    local lookups=0
-    environment.hud=function() lookups=lookups+1;return hud end
+    counting=true
     plainHost:updateIndicators(true)
-    environment.hud=nil
+    counting=false
     assert(lookups==1,'one HUD lookup per indicator update, got '..lookups)
     assert(plainHost:stop())
 end
@@ -787,10 +799,10 @@ do
     local scheduled,selected={},{}
     environment.delay=function(ms,callback) scheduled[#scheduled+1]={ms=ms,callback=callback};return true end
     local hudReady=false
-    local late={select=function(_,group)
+    local late=quickslots({select=function(_,group)
         if not hudReady then return false end
         selected[#selected+1]=group;return true
-    end}
+    end})
     local lateHost=require('mc_input_host').new(function(callback)callback();return true end,
         function()end,late,environment)
     assert(lateHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=74,
@@ -801,12 +813,13 @@ do
     assert(#selected==0 and #scheduled==1 and scheduled[1].ms==250,'still no HUD: tried again later')
     hudReady=true
     local lookups=0
-    local hud=environment.hud
-    environment.hud=function() lookups=lookups+1 end
+    local boundHud=late.hud
+    late.hud=function(...) lookups=lookups+1;return boundHud(...) end
     table.remove(scheduled,1).callback()
-    environment.hud=hud
+    late.hud=boundHud
     assert(selected[1]==2 and lateHost.state.pendingGroup==nil,'the HUD appeared: Default is presented')
-    assert(lookups>0,'and the new HUD\'s key indicators are refreshed')
+    -- One lookup binds the player; the other is the indicator update.
+    assert(lookups==2,'and the new HUD\'s key indicators are refreshed')
     assert(#scheduled==0,'and the retries stop')
     assert(lateHost:stop())
     environment.delay=nil
@@ -862,10 +875,10 @@ print('PASS an incomplete attach is retried until its keys resolve')
 -- action on the same key sees the new focus; other callbacks still wait for the queue.
 do
     local pending,selected,activated={},{},{}
-    local syncService={
+    local syncService=quickslots({
         activate=function(_,kind,slot) activated[#activated+1]=kind..':'..slot;return true end,
         select=function(_,group) selected[#selected+1]=group;return true end,
-    }
+    })
     local onThread=true
     environment.inGameThread=function() return onThread end
     local deferred=require('mc_input_host').new(function(callback) pending[#pending+1]=callback;return true end,
@@ -1021,8 +1034,8 @@ print('PASS Hold keys are underlined and follow layout passes')
 -- the rim phases are not delivered as input.
 do
     local rims,activated={},{}
-    local rimService={activate=function(_,kind,slot) activated[#activated+1]=kind..':'..slot;return true end,
-        select=function() return true end}
+    local rimService=quickslots({activate=function(_,kind,slot) activated[#activated+1]=kind..':'..slot;return true end,
+        select=function() return true end})
     environment.inGameThread=function() return true end
     environment.setIndicatorProgress=function(widget,value) rims[#rims+1]={widget=widget,value=value} end
     local rimHost=require('mc_input_host').new(function(callback) callback();return true end,
@@ -1081,8 +1094,8 @@ print('PASS a lone Hold key fills from press')
 -- released, or is held past the threshold.
 do
     local rims,displays,activated={},{},{}
-    local rimService={activate=function(_,kind,slot) activated[#activated+1]=kind..':'..slot;return true end,
-        select=function() return true end}
+    local rimService=quickslots({activate=function(_,kind,slot) activated[#activated+1]=kind..':'..slot;return true end,
+        select=function() return true end})
     environment.inGameThread=function() return true end
     environment.setIndicatorProgress=function(widget,value) rims[#rims+1]=value end
     environment.setIndicatorHoldDisplay=function(widget,on) displays[#displays+1]=on end

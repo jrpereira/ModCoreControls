@@ -299,8 +299,7 @@ function M.new(queue,log,service,environment)
     local passHud
     local function currentHud()
         if passHud then return passHud[1] end
-        if type(service.hud)=='function' then return service:hud() end
-        return type(e.hud)=='function' and e.hud() or e.find('WBP_GameHUD_C')
+        return service:hud()
     end
     local indicators=KeyIndicators.new({
         valid=e.valid,path=e.path,property=property,
@@ -697,10 +696,8 @@ function M.new(queue,log,service,environment)
         api.generation=api.generation+1
         api.ready=false
         api.retryStep=0
-        if type(Quickslots.cancel)=='function' then
-            pcall(Quickslots.cancel,api.state,service)
-        else api.state={selectedGroup=api.state.selectedGroup} end
-        if type(service.invalidate)=='function' then pcall(service.invalidate,service) end
+        pcall(Quickslots.cancel,api.state,service)
+        pcall(service.invalidate,service)
         -- The next attach activates Default as a first activation, so its focus
         -- event is published to the new player even when Default was already the
         -- focus. A reset published while retiring can miss its doorbell: the old
@@ -784,12 +781,10 @@ function M.new(queue,log,service,environment)
         return targets,selected,missing
     end
     local function bindOwner(live)
-        if type(service.bind)=='function' then
-            -- The kept HUD while it lives; scanning for it reads every live object.
-            live.hud=type(service.hud)=='function' and service:hud() or ownerHud(live)
-            local ok,why=service:bind(live,api.generation)
-            if ok==false then log.debug('quickslot HUD pending: ',why) end
-        end
+        -- The kept HUD while it lives; scanning for it reads every live object.
+        live.hud=service:hud() or ownerHud(live)
+        local ok,why=service:bind(live,api.generation)
+        if ok==false then log.debug('quickslot HUD pending: ',why) end
     end
     -- Indicators are updated at the points where MCC knows they may be stale,
     -- never from widget hooks.
@@ -889,11 +884,9 @@ function M.new(queue,log,service,environment)
         -- generation here, so the quickslot service is bound to it only once.
         if not api.ready then api.generation=api.generation+1 end
         bindOwner(live)
-        if type(Quickslots.reconcile)=='function' then
-            presenting=live
-            pcall(Quickslots.reconcile,api.state,service)
-            presenting=nil
-        end
+        presenting=live
+        pcall(Quickslots.reconcile,api.state,service)
+        presenting=nil
         -- After a load the player is often found before the game has created its HUD.
         if api.state.pendingGroup~=nil and retryPresentation then retryPresentation() end
         local desired,natives=wanted(live.playerInput,api.plan.contexts)
@@ -1216,7 +1209,7 @@ function M.new(queue,log,service,environment)
     local PRESENT_RETRIES={100,250,500,1000,2000}
     local presentStep,presentArmed=0,false
     retryPresentation=function()
-        if presentArmed or type(e.delay)~='function' or type(Quickslots.reconcile)~='function' then return end
+        if presentArmed or type(e.delay)~='function' then return end
         presentStep=0
         local function arm()
             presentStep=presentStep+1
