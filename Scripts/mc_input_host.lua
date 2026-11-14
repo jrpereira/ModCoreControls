@@ -1022,7 +1022,8 @@ function M.new(queue,log,service,environment)
         -- Attached with an inherited key or an override action still missing: retried
         -- until it resolves, as an attach is.
         api.incomplete=api.unresolved~=nil or api.missingOverride==true or nil
-        timed('indicators',updateIndicators,force)
+        -- Before a rebuild the indicators are updated on the next turn, once it has run.
+        if not beforeRebuild then timed('indicators',updateIndicators,force) end
         return true
     end
     -- Rebuilt triggers reach a player only through a new instance of the action:

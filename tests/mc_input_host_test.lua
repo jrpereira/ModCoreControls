@@ -965,9 +965,14 @@ do
     assert(indicator.EnhancedInputAction==mccAction)
     local before=#pending
     local rebuild=hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:RequestRebuildControlMappings']
+    local lookups,serviceHud=0,service.hud
+    service.hud=function(...) lookups=lookups+1;return serviceHud(...) end
     rebuild(subsystem)
     rebuild(subsystem)
+    service.hud=serviceHud
     assert(#pending==before+1,'one indicator update is queued per pending rebuild')
+    -- Each sync reads the HUD once to bind the player; no indicator pass reads it.
+    assert(lookups==2,'the pre-rebuild sync leaves the indicators to the queued update: '..lookups)
     -- The rebuild resets the indicator before the queued update runs.
     indicator.EnhancedInputAction=originalIndicator
     pending[#pending]()
