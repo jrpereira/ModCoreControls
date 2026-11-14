@@ -56,13 +56,17 @@ local function defaultEnvironment()
     local function cls(name)
         return assert(StaticFindObject('/Script/EnhancedInput.' .. name),'missing Enhanced Input class: ' .. name)
     end
-    local retained={}
+    local retained,transient={},nil
     local function retain(kind,name)
         local cached=retained[kind .. ':' .. name]
         if valid(cached) then return cached end
         -- MCC's actions live in the transient package; MCC owns no mapping context.
-        local engine=assert(find('Engine'),'Engine unavailable')
-        local outer=assert(engine:GetOuter(),'Transient outer unavailable')
+        -- The package lives as long as the process, so it is looked up once.
+        if not valid(transient) then
+            local engine=assert(find('Engine'),'Engine unavailable')
+            transient=assert(engine:GetOuter(),'Transient outer unavailable')
+        end
+        local outer=transient
         local objectPath=path(outer) .. '.' .. name
         local object=StaticFindObject(objectPath)
         if not valid(object) then object=StaticConstructObject(cls(kind),outer,FName(name),0xC0) end
