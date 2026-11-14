@@ -1,6 +1,6 @@
 package.path='Scripts/?.lua;Scripts/vendor/?.lua;'..package.path
-dofile('tests/support/lifetimes.lua').install()
-local registry,created={},{}
+local lifetimes=dofile('tests/support/lifetimes.lua').install()
+local registry,created,constructs={},{},0
 local function object(kind,path)
     local value={kind=kind,path=path,valid=true,Triggers={}}
     function value:IsValid()return self.valid end
@@ -19,6 +19,7 @@ local manager=require('mc_overrides').new({
     each=function(values,callback)for i,value in ipairs(values)do callback(value,i)end;return true end,
     actions=function()return {first,second}end,inactive=function()return inactive end,
     construct=function(action,marker)
+        constructs=constructs+1
         local path=action.path..':'..marker
         if registry[path] then return registry[path] end
         local gate=object('InputTriggerChordAction',path);gate.rooted=true
@@ -32,8 +33,11 @@ local manager=require('mc_overrides').new({
 assert(manager:apply({[first.path]=true,[second.path]=true},{}))
 assert(#created==2 and rebuilds==1 and #first.Triggers==2 and first.Triggers[1]==foreign)
 assert(created[1].ChordAction==inactive and created[2].ChordAction==inactive)
+local constructed,held=constructs,lifetimes.held
 assert(manager:apply({[first.path]=true,[second.path]=true},{}))
 assert(#created==2 and rebuilds==1,'existing override chords must be reused without a rebuild')
+assert(constructs==constructed and lifetimes.held==held,
+    'owned actions carrying their gate are neither looked up nor kept again')
 assert(manager:apply({[second.path]=true},{}))
 assert(#first.Triggers==1 and first.Triggers[1]==foreign and #second.Triggers==1)
 assert(manager:restoreAll({}))

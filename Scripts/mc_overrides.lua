@@ -49,7 +49,8 @@ function M.new(e)
                                 else changed=true end
                             else after[#after+1]=trigger end
                         end
-                        if wanted[actionPath] then
+                        -- An owned action that still carries its gate needs no lookup.
+                        if wanted[actionPath] and not (gate and ownedActions[actionPath]) then
                             local retained=e.construct(action,marker)
                             assert(e.valid(retained),'override chord construction failed: ' .. actionPath)
                             if gate then
@@ -57,6 +58,8 @@ function M.new(e)
                             else
                                 gate=retained;after[#after+1]=gate;changed=true
                             end
+                        end
+                        if wanted[actionPath] then
                             local previous=e.chord(gate)
                             if not e.same(previous,inactive) then
                                 chords[gate]=previous;e.setChord(gate,inactive);changed=true
@@ -64,7 +67,8 @@ function M.new(e)
                         end
                         if changed then e.setTriggers(action,after);changes[#changes+1]=action end
                         if wanted[actionPath] then
-                            ownedActions[actionPath]=assert(keep(action),
+                            -- Its handle is still live: the pruning above dropped dead ones.
+                            ownedActions[actionPath]=ownedActions[actionPath] or assert(keep(action),
                                 'override action cannot be kept: '..actionPath)
                         elseif ownedActions[actionPath] then ownedActions[actionPath]=nil end
                     end
