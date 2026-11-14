@@ -118,3 +118,44 @@ journalFail=false
 assert(journalMonitor:refresh(groupedActions,groupedPlan))
 assert(journalMonitor:restoreAll())
 print('PASS MCC key indicator update and restoration')
+
+-- A rim's indicators are resolved when its key is pressed, never kept from an
+-- earlier press: a new HUD (a save load) gets the first press's rim.
+do
+    local function newHud(id)
+        local value=object('/Engine/Transient.HUD'..id)
+        local wheel=object(value.path..'.Wheel')
+        local bindings=object(value.path..'.Bindings')
+        value.WBP_AA_Quickslots=wheel;wheel.WBP_AA_Quickslots_Bindings=bindings
+        bindings.Left=object(value.path..'.Left')
+        return value
+    end
+    local current=newHud(1)
+    local asked,filled={},{}
+    local rims=require('mc_key_indicators').new({
+        valid=function(value) asked[#asked+1]=value;return value and value.valid end,
+        path=function(value)return value.path end,
+        property=function(value,name)return value and value[name] or nil end,
+        setProgress=function(widget,value) filled[#filled+1]={widget=widget,value=value} end,
+        hud=function() return current end,
+    })
+    local tapPlan={bindings={{id='global.AbilitySlot1',keyName='One',mode=0,action={type='ability',slot=1}}}}
+    assert(rims:progress(tapPlan,'global.AbilitySlot1',1,nil,true))
+    assert(rims:progress(tapPlan,'global.AbilitySlot1',0))
+    local old=current.WBP_AA_Quickslots.WBP_AA_Quickslots_Bindings.Left
+    current=newHud(2)
+    old.valid=false
+    asked={}
+    assert(rims:progress(tapPlan,'global.AbilitySlot1',1,nil,true),'the first press after a new HUD shows its rim')
+    assert(filled[#filled].widget==current.WBP_AA_Quickslots.WBP_AA_Quickslots_Bindings.Left and filled[#filled].value==1)
+    for _,value in ipairs(asked) do assert(value~=old,'the old HUD\'s widget is never asked') end
+    -- A refresh or a restore drops the targets of a key still held.
+    local held=current.WBP_AA_Quickslots.WBP_AA_Quickslots_Bindings.Left
+    current=newHud(3)
+    held.valid=false
+    rims:refresh({},{bindings={}})
+    asked={}
+    assert(rims:progress(tapPlan,'global.AbilitySlot1',0),'a rim emptied after a refresh reaches the live HUD')
+    for _,value in ipairs(asked) do assert(value~=held,'a widget from before the refresh is never asked') end
+end
+print('PASS rim indicators are resolved per press')

@@ -65,6 +65,12 @@ indicator.EnhancedInputAction=originalIndicator
 local bindings=object('Bindings','/Engine/Transient.AbilityBindings');bindings.Left=indicator
 local wheel=object('Wheel','/Engine/Transient.AbilityWheel');wheel.WBP_AA_Quickslots_Bindings=bindings
 local hud=object('WBP_GameHUD_C','/Engine/Transient.HUD');hud.WBP_AA_Quickslots=wheel
+-- What the default quickslot service (service=nil) uses: the slot button it clicks and
+-- the wheel setter it focuses with.
+local clicked={}
+local abilityButton=object('Button','/Engine/Transient.AbilityLeftButton');wheel.Left=abilityButton
+function abilityButton:BP_OnClicked() clicked[#clicked+1]='ability:1' end
+hud['Set AA Quickslots Showed']=function(self,abilities) self.showsAbilities=abilities end
 local resolved={[indicator.path]=indicator,[originalIndicator.path]=originalIndicator}
 local indicatorState,indicatorSets=nil,0
 local overrideGate,overrideRebuilds,rejectOverrideRebuild=nil,0,false
@@ -983,6 +989,9 @@ do
 end
 print('PASS a fresh wrapper of the same player stack keeps MCC attached')
 
+-- The rim and mark blocks below run with the default quickslot service, as
+-- production does: it finds the player's HUD through hudForOwner while bound.
+environment.hudForOwner=function() return hud end
 -- Hold keys get an underline mark, placed again after a ModCore Templates layout
 -- pass and removed when controls are disabled.
 do
@@ -1009,7 +1018,7 @@ do
         subscribeLayout=function(callback) layout=callback;return function() layout=nil end end,
     },{__index=environment})
     local markHost=require('mc_input_host').new(function(callback)callback();return true end,
-        function()end,service,env)
+        function()end,nil,env)
     assert(layout,'the host listens for layout passes')
     local holdPlan={contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',keyName='One',mode=1,
         phases={'Triggered'},action={type='ability',slot=1}}},overrides={}}
@@ -1033,13 +1042,12 @@ print('PASS Hold keys are underlined and follow layout passes')
 -- A Hold key's rim fills from press to the Hold threshold and empties on release;
 -- the rim phases are not delivered as input.
 do
-    local rims,activated={},{}
-    local rimService=quickslots({activate=function(_,kind,slot) activated[#activated+1]=kind..':'..slot;return true end,
-        select=function() return true end})
+    local rims={}
+    local activated=clicked;for index=#clicked,1,-1 do clicked[index]=nil end
     environment.inGameThread=function() return true end
     environment.setIndicatorProgress=function(widget,value) rims[#rims+1]={widget=widget,value=value} end
     local rimHost=require('mc_input_host').new(function(callback) callback();return true end,
-        function() end,rimService,environment)
+        function() end,nil,environment)
     local first=#callbacks
     local holdKey={id='global.AbilitySlot1',keyName='One',mode=1,phases={'Triggered'},sharesTap=true,
         progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
@@ -1075,7 +1083,7 @@ do
     environment.inGameThread=function() return true end
     environment.setIndicatorProgress=function(widget,value) rims[#rims+1]=value end
     local loneHost=require('mc_input_host').new(function(callback) callback();return true end,
-        function() end,service,environment)
+        function() end,nil,environment)
     local first=#callbacks
     local key={id='global.AbilitySlot1',keyName='One',mode=1,phases={'Triggered'},
         progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
@@ -1093,14 +1101,13 @@ print('PASS a lone Hold key fills from press')
 -- A Tap key's rim is shown, full while pressed, and empties when it fires, is
 -- released, or is held past the threshold.
 do
-    local rims,displays,activated={},{},{}
-    local rimService=quickslots({activate=function(_,kind,slot) activated[#activated+1]=kind..':'..slot;return true end,
-        select=function() return true end})
+    local rims,displays={},{}
+    local activated=clicked;for index=#clicked,1,-1 do clicked[index]=nil end
     environment.inGameThread=function() return true end
     environment.setIndicatorProgress=function(widget,value) rims[#rims+1]=value end
     environment.setIndicatorHoldDisplay=function(widget,on) displays[#displays+1]=on end
     local tapHost=require('mc_input_host').new(function(callback) callback();return true end,
-        function() end,rimService,environment)
+        function() end,nil,environment)
     local first=#callbacks
     local tapKey={id='global.AbilitySlot1',keyName='One',mode=0,phases={'Triggered'},
         progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
@@ -1159,7 +1166,7 @@ do
     environment.inGameThread=function() return true end
     environment.setIndicatorProgress=function(widget,value) rims[#rims+1]=value end
     local pressHost=require('mc_input_host').new(function(callback) callback();return true end,
-        function() end,service,environment)
+        function() end,nil,environment)
     local first=#callbacks
     local key={id='global.AbilitySlot1',keyName='One',mode=3,phases={'Triggered'},
         progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
@@ -1201,7 +1208,7 @@ do
     environment.setIndicatorProgress=function() end
     environment.delay=function(ms,callback) timers[#timers+1]=ms;return true end
     local capHost=require('mc_input_host').new(function(callback) callback();return true end,
-        function() end,service,environment)
+        function() end,nil,environment)
     local first=#callbacks
     local key={id='global.AbilitySlot1',keyName='One',mode=3,phases={'Triggered'},
         progressPhases={'Started','Triggered','Completed','Canceled'},action={type='ability',slot=1}}
@@ -1222,7 +1229,7 @@ do
     environment.inGameThread=function() return true end
     environment.setIndicatorProgress=function(widget,value) rims[#rims+1]={widget=widget,value=value} end
     local groupHost=require('mc_input_host').new(function(callback) callback();return true end,
-        function() end,service,environment)
+        function() end,nil,environment)
     local function run(defaultGroup)
         local first=#callbacks
         local key={id='grouped.QuickSlot1',keyName='One',mode=1,phases={'Started','Triggered','Completed','Canceled'},
@@ -1241,5 +1248,6 @@ do
     assert(groupHost:stop())
     environment.setIndicatorProgress=nil
 end
+environment.hudForOwner=nil
 print('PASS a Groups key fills only the focused wheel')
 

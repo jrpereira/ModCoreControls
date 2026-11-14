@@ -107,15 +107,17 @@ function M.new(e)
             end
         end
     end
-    -- The indicators showing a binding, resolved when its hold starts.
+    -- The indicators showing a binding, resolved when its key is pressed and dropped
+    -- once its rim empties: widgets are never kept from one press to the next, as a
+    -- save load or a new HUD can collect them in between.
     local progressTargets={}
     -- Fills the Hold rim of every indicator showing bindingId: value from 0 to 1.
     -- group (1 abilities, 2 consumables), when given, limits the fill to that wheel:
-    -- a Groups key acts on the focused wheel only.
-    function api:progress(plan,bindingId,value,group)
+    -- a Groups key acts on the focused wheel only. press is true when the key goes down.
+    function api:progress(plan,bindingId,value,group,press)
         if type(e.setProgress)~='function' or type(plan)~='table' then return false end
-        local targets=progressTargets[bindingId]
-        if not targets or value==0 then
+        local targets=not press and progressTargets[bindingId] or nil
+        if not targets then
             targets={}
             local hud=e.hud()
             if e.valid(hud) then
@@ -139,10 +141,14 @@ function M.new(e)
             if (group==nil or target.group==nil or target.group==group)
                 and e.valid(widget) and pcall(e.setProgress,widget,value) then done=true end
         end
+        -- An empty rim ends the press; a Hold's rim starts empty at press.
+        if value==0 and not press then progressTargets[bindingId]=nil end
         return done
     end
     function api:refresh(actions,plan,opts)
         if type(actions)~='table' or type(plan)~='table' then return false,0,0 end
+        -- The HUD can have changed: a held key resolves its indicators again.
+        progressTargets={}
         opts=opts or {}
         local mapped={ability={},consumable={}}
         for kind,ids in pairs(M.slots(plan)) do
@@ -225,6 +231,7 @@ function M.new(e)
         return complete and completed==expected,completed,expected
     end
     function api:restoreAll()
+        progressTargets={}
         -- Released indicators show the game's own rim display again.
         pcall(displayRims,{bindings={}})
         local remaining={}

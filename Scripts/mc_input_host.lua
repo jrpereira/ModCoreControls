@@ -1043,10 +1043,10 @@ function M.new(queue,log,service,environment)
     end
     -- The focused wheel when each key was pressed; a swap while held keeps its hint.
     local pressGroup={}
-    local function setRim(binding,value)
+    local function setRim(binding,value,press)
         -- A Groups key fills the hint of the wheel it acts on: the focused one at press.
         local group=binding.action and binding.action.type=='selected' and pressGroup[binding.id] or nil
-        local ok,why=pcall(indicators.progress,indicators,api.plan,binding.id,value,group)
+        local ok,why=pcall(indicators.progress,indicators,api.plan,binding.id,value,group,press)
         if not ok then log.debug('rim progress failed: ',binding.id,': ',why) end
     end
     -- The rim value each binding last showed, so a Tap's every-frame Ongoing sets it once.
@@ -1091,11 +1091,12 @@ function M.new(queue,log,service,environment)
         local unchanged=phase~='Started' and rims[binding.id]==value
         rims[binding.id]=value
         if unchanged then return not delivers(binding,phase) and 'rim only' or nil end
+        local press=phase=='Started'
         local onThread,current=false,nil
         if type(e.inGameThread)=='function' then onThread,current=pcall(e.inGameThread) end
-        if onThread and current==true then setRim(binding,value)
+        if onThread and current==true then setRim(binding,value,press)
         else pcall(queue,function()
-            if api.phase=='ready' then setRim(binding,value) end
+            if api.phase=='ready' then setRim(binding,value,press) end
         end) end
         return not delivers(binding,phase) and 'rim only' or nil
     end
