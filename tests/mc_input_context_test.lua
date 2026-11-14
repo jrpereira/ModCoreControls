@@ -255,13 +255,19 @@ do
         info=function()end,debug=function()end,trace=function()end,error=function()end})
     e.validKey=function(name) if name=='Bogus' then return false end return true end
     local target=game('/Game/IMC_OW.IMC_OW')
-    checkedKeys:configure({contexts={'exploration'},bindings={{id='good',keyName='J',mode=0},
-        {id='bad',keyName='Bogus',mode=0}}})
+    local function bogusPlan() return {contexts={'exploration'},bindings={{id='good',keyName='J',mode=0},
+        {id='bad',keyName='Bogus',mode=0}}} end
+    checkedKeys:configure(bogusPlan())
     checkedKeys:attach('exploration',target)
     e.validKey=nil
     assert(#target.Mappings==1 and target.Mappings[1].Key.KeyName=='J')
     assert(#warned==1 and warned[1]:find('bad Bogus',1,true) and warned[1]:find('unknown key name',1,true),
         tostring(warned[1]))
+    -- An unknown key stays unknown, so the same plan again is settled: nothing is rebuilt.
+    local mapping=target.Mappings[1]
+    checkedKeys:configure(bogusPlan())
+    assert(checkedKeys.rebuilt==nil,'an unknown key name must not force a rebuild')
+    assert(#target.Mappings==1 and target.Mappings[1]==mapping and #warned==1)
     checkedKeys:detachAll()
 end
-print('PASS unknown key names are skipped and reported')
+print('PASS unknown key names are skipped and reported, and settle')

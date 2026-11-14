@@ -27,16 +27,17 @@ function M.new(e,log)
     -- attached[logical]={context=<weak handle of the native IMC>,entries={{action,keyName},...}}
     local attached={}
     local plan,current
-    -- Bindings or keys that failed, keyed by binding id or 'id key'; each is
-    -- reported once, and again only when its reason changes.
+    -- Bindings or keys that failed, keyed by binding id or 'id key', as {why,settled};
+    -- each is reported once, and again only when its reason changes. A settled failure
+    -- cannot succeed later in the session, so it is not retried.
     local failed={}
     -- Whether the engine knows a key name, once asked.
     local knownKeys={}
     -- What the last configure built, so a repeat with the same bindings does no work.
     local configured
-    local function report(id,why)
-        if failed[id]~=why then log.warn('skipping input ',id,': ',why) end
-        failed[id]=why
+    local function report(id,why,settled)
+        if not failed[id] or failed[id].why~=why then log.warn('skipping input ',id,': ',why) end
+        failed[id]={why=why,settled=settled==true}
     end
     local api={}
     local function action(binding)
@@ -140,7 +141,8 @@ function M.new(e,log)
                             if failed[id] then log.info('input key mapped: ',id) end
                             failed[id]=nil
                         else
-                            report(id,'key could not be mapped: '..tostring(why))
+                            -- An unknown key name stays unknown for the session.
+                            report(id,'key could not be mapped: '..tostring(why),knownKeys[keyName]==false)
                         end
                     end
                 end
@@ -162,9 +164,12 @@ function M.new(e,log)
         return table.concat(parts,'\2')
     end
     -- Bindings already built and mapped need nothing again, as before every control
-    -- mapping rebuild; a binding or key that failed is tried again.
+    -- mapping rebuild; a binding or key that failed is tried again unless it is settled.
     local function unchanged(nextPlan,nextSignature)
-        if configured~=nextSignature or next(failed)~=nil then return false end
+        if configured~=nextSignature then return false end
+        for _,failure in pairs(failed) do
+            if not failure.settled then return false end
+        end
         for _,binding in ipairs(nextPlan.bindings) do
             if not e.valid(current[binding.id]) then return false end
         end
