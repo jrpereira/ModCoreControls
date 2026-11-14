@@ -271,3 +271,25 @@ do
     checkedKeys:detachAll()
 end
 print('PASS unknown key names are skipped and reported, and settle')
+
+-- A key that failed to map and then left the plan stops forcing rebuilds.
+do
+    local quiet=require('mc_input_context').new(e,{warn=function()end,info=function()end,
+        debug=function()end,trace=function()end,error=function()end})
+    local target=game('/Game/IMC_OW.IMC_OW')
+    local mapKey=target.MapKey
+    function target:MapKey(action,key)
+        if key.KeyName=='Broken' then error('mapping refused') end
+        return mapKey(self,action,key)
+    end
+    quiet:configure({contexts={'exploration'},bindings={{id='bad',keyName='Broken',mode=0}}})
+    quiet:attach('exploration',target)
+    assert(#target.Mappings==0,'the refused key is not mapped')
+    local function fixed() return {contexts={'exploration'},bindings={{id='bad',keyName='J',mode=0}}} end
+    quiet:configure(fixed())
+    assert(#target.Mappings==1 and target.Mappings[1].Key.KeyName=='J','the replaced key maps')
+    quiet:configure(fixed())
+    assert(quiet.rebuilt==nil,'a failure that left the plan must not force a rebuild')
+    quiet:detachAll()
+end
+print('PASS a failure that left the plan is forgotten')

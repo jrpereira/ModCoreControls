@@ -182,6 +182,18 @@ function M.new(e,log)
             return current
         end
         configured=nil
+        -- A binding or key that left the plan cannot succeed any more: its failure is
+        -- forgotten, so it does not keep every later configure rebuilding.
+        local planned={}
+        for _,binding in ipairs(nextPlan.bindings) do
+            planned[binding.id]=true
+            for _,keyName in ipairs(binding.keyNames or {binding.keyName}) do
+                if not (binding.suppressed and binding.suppressed[keyName]) then
+                    planned[binding.id..' '..tostring(keyName)]=true
+                end
+            end
+        end
+        for id in pairs(failed) do if not planned[id] then failed[id]=nil end end
         plan=nextPlan
         current={}
         -- A binding whose action or trigger cannot be built is left out; the
