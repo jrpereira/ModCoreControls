@@ -1328,7 +1328,9 @@ function M.new(queue,log,service,environment)
                 -- covered by the outer operation and must not schedule another.
                 if busy or internalDepth>0 or not api.enabled or api.phase=='stopped' then return end
                 local subsystem=e.unwrap(caller)
-                local live=liveOwner() or stack()
+                -- Never scan here: a new player is signalled by the setup hooks
+                -- and the retry schedule, which may scan.
+                local live=liveOwner() or knownStack()
                 if not live or not e.valid(subsystem) or not e.valid(live.subsystem)
                     or e.path(subsystem)~=e.path(live.subsystem) then return end
                 local active,why=operate(function() return doSync(false,true) end)
