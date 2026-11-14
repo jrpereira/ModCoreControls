@@ -321,7 +321,7 @@ function M.define(registry, mapRegistry)
                 for _, binding in ipairs(group.keys) do reserve(map.id .. '.' .. binding.id) end
             end
             if map.holdSwap then
-                for _, edge in ipairs({ 'press', 'release', 'toggle' }) do reserve(map.id .. '.swap.' .. edge) end
+                for _, edge in ipairs({ 'hold', 'toggle' }) do reserve(map.id .. '.swap.' .. edge) end
             end
             map.declaration = nil
         end

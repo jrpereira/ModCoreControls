@@ -128,5 +128,16 @@ do
     assert(not ok and tostring(why):find('would share the Input Action IA_MCC_a_b_c',1,true),tostring(why))
     maps.maps.actions.a_b=map('a_b',2,'d')
     assert(Menu.define(registry,maps),'distinct names are accepted')
+    -- Hold Swap generates '<map>.swap.hold' or '<map>.swap.toggle'.
+    for _,edge in ipairs({'hold','toggle'}) do
+        local swapping=map('s',1,'swap_'..edge)
+        local function picker(id) return {id=id,name=id,type='picker',default=1,
+            params={values={1,2},labels={'One','Two'}}} end
+        swapping.settings={picker('On'),picker('Wheel')}
+        swapping.holdSwap={enabled='On',defaultWheel='Wheel',action='IA_Toggle'}
+        ok,why=pcall(Menu.define,{order={'actions'},sections={}},
+            {maps={actions={s=swapping}},order={actions={'s'}}})
+        assert(not ok and tostring(why):find('IA_MCC_s_swap_'..edge,1,true),tostring(why))
+    end
 end
 print('PASS colliding generated Input Action names are rejected')
