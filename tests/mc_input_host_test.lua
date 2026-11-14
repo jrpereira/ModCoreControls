@@ -34,7 +34,6 @@ local function mccKeys()
 end
 function subsystem:AddMappingContext()error('MCC must not add a mapping context')end
 local nativeOverride=object('InputAction','/Game/Input.IA_Test');nativeOverride.Triggers={}
-function subsystem:AddMappingContext(mapping,priority)input.AppliedInputContexts[mapping]=priority end
 function subsystem:RemoveMappingContext(mapping)input.AppliedInputContexts[mapping]=nil end
 
 local retained={}
