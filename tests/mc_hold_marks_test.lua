@@ -1,5 +1,7 @@
 package.path='Scripts/?.lua;Scripts/vendor/?.lua;'..package.path
 local HoldMarks=require('mc_hold_marks')
+-- Weak handles whose native lifetime is a widget's alive flag.
+local lifetimes=dofile('tests/support/lifetimes.lua').service(function(value) return value.alive==true end)
 
 -- A HUD with both wheels; each key sits in its wheel's overlay.
 local function widget(path,fields)
@@ -47,6 +49,11 @@ local e={
     end,
     apply=function(mark,placement) applied=applied+1;mark.placement=placement end,
     remove=function(mark) removed=removed+1;mark.alive=false end,
+    keep=function(object) return lifetimes.weak(object) end,
+    live=function(handle)
+        local object=handle and handle:get()
+        return object and object.alive and object or nil
+    end,
 }
 local marks=HoldMarks.new(e)
 local function mark(kind,position)
@@ -113,6 +120,21 @@ hud=newHud(2)
 again:refresh(plan)
 assert(mark('consumable','Bottom') and mark('consumable','Bottom')~=old,'the new HUD is marked')
 assert(not old.alive,'the old HUD mark is dropped')
+
+-- A save load collects the HUD with its marks: they are forgotten without being touched.
+local collected=mark('consumable','Bottom')
+local touched=false
+local valid,remove=e.valid,e.remove
+e.valid=function(value) if value==collected then touched=true end;return valid(value) end
+e.remove=function(value) if value==collected then touched=true end;return remove(value) end
+collected.alive=false
+hud=nil
+again:refresh(nil)
+assert(not touched,'a collected mark is never asked anything')
+hud=newHud(2.5)
+again:refresh(plan)
+assert(not touched and mark('consumable','Bottom'),'the next HUD is marked again')
+e.valid,e.remove=valid,remove
 
 -- A mark that cannot be created skips only itself.
 hud=newHud(3)

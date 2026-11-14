@@ -8,6 +8,7 @@
 -- Templates reports a layout pass (place). Marks found by name from an earlier Lua
 -- state are reused or removed.
 local KeyIndicators=require('mc_key_indicators')
+local Lifetimes=require('mc_lifetimes')
 local M={}
 -- Layout units of the key's 85x85 box: the bar is 51 wide, centred, 11 thick, black at full
 -- opacity, and its bottom edge sits 15 above the box's bottom.
@@ -18,10 +19,13 @@ M.prefix='MCC_HoldMark_'
 function M.name(kind,position) return M.prefix..kind..'_'..position end
 
 -- e: valid, path, property(object,name), hud(), parent(widget), find(parent,name),
--- create(parent,name), placement(key), apply(mark,placement), remove(mark), log
+-- create(parent,name), placement(key), apply(mark,placement), remove(mark), keep, live, log
 function M.new(e)
     local log=e.log or {debug=function() end,warn=function() end}
-    -- name -> {mark=,keyPath=,applied=<placement signature>}
+    local keep,live=e.keep or Lifetimes.keep,e.live or Lifetimes.live
+    -- name -> {mark=<weak handle>,keyPath=,applied=<placement signature>}
+    -- Tracked marks are weak handles: a save load frees the HUD with its marks, and
+    -- asking a freed widget anything reads freed memory. A dead one is forgotten.
     local marks={}
     -- The HUD whose overlays were last searched for marks left by an earlier state.
     local swept
@@ -34,6 +38,8 @@ function M.new(e)
         return table.concat(parts,' ')
     end
     local function place(record,key)
+        local mark=live(record.mark)
+        if not mark then return false end
         local ok,placement=pcall(e.placement,key)
         if not ok or type(placement)~='table' then
             log.debug('hold mark placement unreadable: ',placement)
@@ -41,7 +47,7 @@ function M.new(e)
         end
         local value=signature(placement)
         if value==record.applied then return true end
-        local applied,why=pcall(e.apply,record.mark,placement)
+        local applied,why=pcall(e.apply,mark,placement)
         if not applied then log.debug('hold mark placement failed: ',why);record.applied=nil;return false end
         record.applied=value
         return true
@@ -81,8 +87,9 @@ function M.new(e)
                 local id=M.name(entry.kind,entry.position)
                 local keyPath=e.path(entry.key)
                 local record=marks[id]
-                if record and not (e.valid(record.mark) and record.keyPath==keyPath) then
-                    remove(record.mark);marks[id]=nil;record=nil
+                local tracked=record and live(record.mark)
+                if record and not (tracked and record.keyPath==keyPath) then
+                    remove(tracked);marks[id]=nil;record=nil;tracked=nil
                 end
                 local wanted=hold[entry.kind][entry.slot]
                 -- An overlay is searched for a mark by name only when one is needed
@@ -96,25 +103,27 @@ function M.new(e)
                             local ok,result=pcall(e.create,parent,id)
                             if ok then mark=result else log.warn('hold mark unavailable: ',id,': ',result) end
                         end
-                        if e.valid(mark) then
-                            record={mark=mark,keyPath=keyPath}
+                        local handle,why
+                        if e.valid(mark) then handle,why=keep(mark) end
+                        if handle then
+                            record={mark=handle,keyPath=keyPath}
                             marks[id]=record
-                        end
+                        elseif mark then log.debug('hold mark cannot be kept: ',id,': ',why) end
                     end
                     if record then
                         seen[id]=true
                         place(record,entry.key)
                     end
                 else
-                    if record then remove(record.mark);marks[id]=nil end
-                    if existing and not (record and existing==record.mark) then remove(existing) end
+                    if record then remove(tracked);marks[id]=nil end
+                    if existing and not (tracked and e.path(existing)==e.path(tracked)) then remove(existing) end
                 end
             end
             swept=hudPath
         end
         -- Marks of keys no longer on the HUD.
         for id,record in pairs(marks) do
-            if not seen[id] then remove(record.mark);marks[id]=nil end
+            if not seen[id] then remove(live(record.mark));marks[id]=nil end
         end
         return true
     end
@@ -124,7 +133,7 @@ function M.new(e)
         if not e.valid(hud) then return false end
         for _,entry in ipairs(keys(hud)) do
             local record=marks[M.name(entry.kind,entry.position)]
-            if record and e.valid(record.mark) and record.keyPath==e.path(entry.key) then
+            if record and record.keyPath==e.path(entry.key) then
                 place(record,entry.key)
             end
         end

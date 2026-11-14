@@ -313,7 +313,8 @@ function M.new(queue,log,service,environment)
     -- Underlines on Hold keys; without the engine functions (tests) there are none.
     local marks=type(e.holdMark)=='table' and HoldMarks.new({valid=e.valid,path=e.path,property=property,
         hud=currentHud,parent=e.holdMark.parent,find=e.holdMark.find,create=e.holdMark.create,
-        placement=e.holdMark.placement,apply=e.holdMark.apply,remove=e.holdMark.remove,log=log}) or nil
+        placement=e.holdMark.placement,apply=e.holdMark.apply,remove=e.holdMark.remove,
+        keep=e.keep,live=e.live,log=log}) or nil
     local function refreshMarks(plan)
         if not marks then return end
         local ok,why=pcall(marks.refresh,marks,plan)

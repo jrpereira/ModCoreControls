@@ -80,8 +80,24 @@ local function newWorld(n)
         {Outer=player})
     local action=object('InputAction','/Game/Input_'..n..'.IA_Test')
     local hud=object('WBP_GameHUD_C','/Engine/Transient.HUD_'..n)
+    -- Both wheels' four key widgets, each in its wheel's overlay.
+    local keys={}
+    for kind,fields in pairs({ability={'WBP_AA_Quickslots','WBP_AA_Quickslots_Bindings'},
+        consumable={'WBP_HUD_Quickslots','WBP_HUD_Quickslots_Bindings'}}) do
+        local base='/Engine/Transient.HUD_'..n..'.'..fields[1]
+        local overlay=object('Overlay',base..'.Overlay',{Children={}})
+        local bindings=object('Bindings',base..'.'..fields[2])
+        for index,position in ipairs({'Left','Top','Right','Bottom'}) do
+            local key=object('RebelInputWidget',base..'.'..position,{Parent=overlay,X=index})
+            states[bindings][position]=key
+            local children=states[overlay].Children
+            children[#children+1]=key
+            keys[kind..position]=key
+        end
+        states[hud][fields[1]]=object('Wheel',base,{[fields[2]]=bindings})
+    end
     world={controller=controller,subsystem=subsystem,input=input,native=native,action=action,
-        hud=hud}
+        hud=hud,keys=keys}
     return world
 end
 
@@ -95,7 +111,9 @@ local callbacks,closed={},0
 local bridge={}
 function bridge.GetCapabilities() return {api=6,enhanced_input=true,explicit_target=true,weak_handles=true} end
 function bridge.OpenInputComponent(path) return path end
-function bridge.BindAction(_,_,phase,callback) callbacks[#callbacks+1]={phase=phase,callback=callback};return #callbacks end
+function bridge.BindAction(_,path,phase,callback)
+    callbacks[#callbacks+1]={path=path,phase=phase,callback=callback};return #callbacks
+end
 function bridge.CloseInputComponent() closed=closed+1;return true end
 local shared={}
 _G.ModRef={GetSharedVariable=function(_,key) return shared[key] end,
@@ -154,6 +172,27 @@ environment={
         end
     end,
     setIndicatorAction=function() return true end,
+    setIndicatorProgress=function(widget,value)
+        widget.Progress=value;widget.Filled=math.max(widget.Filled or 0,value)
+    end,
+    -- Hold underlines: a mark is a sibling of its key in the wheel's overlay.
+    holdMark={
+        parent=function(widget) return widget.Parent end,
+        find=function(parent,name)
+            for _,child in ipairs(parent.Children) do
+                if environment.valid(child) and child.Name==name then return child end
+            end
+        end,
+        create=function(parent,name)
+            local mark=object('SizeBox',environment.path(parent)..'.'..name,{Name=name})
+            local children=parent.Children
+            children[#children+1]=mark
+            return mark
+        end,
+        placement=function(key) return {x=key.X} end,
+        apply=function(mark,placement) mark.X=placement.x end,
+        remove=function(mark) mark.Removed=true end,
+    },
     constructOverride=function(action,marker)
         if not gate then
             gate=object('InputTriggerChordAction',environment.path(action)..':'..marker)
@@ -181,16 +220,41 @@ end
 local warnings={}
 local host=require('mc_input_host').new(function(callback) jobs[#jobs+1]=callback;return true end,
     function(message) warnings[#warnings+1]=message end,nil,environment)
+-- Ability slot 2 is a Hold key: it has an underline and fills its rim while pressed.
 local plan={contexts={'exploration','combat'},defaultGroup=1,overrides={IA_Test=true},
     bindings={{id='global.slot1',keyName='One',mode=0,phases={'Triggered'},
-        action={type='ability',slot=1}}}}
+        action={type='ability',slot=1}},
+        {id='global.slot2',keyName='Two',mode=1,phases={'Triggered'},
+        progressPhases={'Started','Ongoing','Triggered','Completed','Canceled'},
+        action={type='ability',slot=2}}}}
+-- Presses the Hold key through the newest callbacks installed for it.
+local function holdKey(phases)
+    for _,step in ipairs(phases) do
+        for index=#callbacks,1,-1 do
+            local entry=callbacks[index]
+            if entry.phase==step[1] and tostring(entry.path):find('IA_MCC_global_slot2',1,true) then
+                entry.callback({elapsed_processed=step[2]});break
+            end
+        end
+    end
+end
+local press={{'Started',0},{'Ongoing',.2},{'Completed',.25}}
+local function markOf(hud)
+    for _,child in ipairs(states[states[states[hud].WBP_AA_Quickslots].WBP_AA_Quickslots_Bindings].Top.Parent.Children) do
+        if child.Name=='MCC_HoldMark_ability_Top' and not child.Removed then return child end
+    end
+end
 
 local first=newWorld(1)
 assert(host:apply(plan))
 drain()
-assert(host.ready and #states[first.native].Mappings==1, 'MCC maps its key into the game context')
+assert(host.ready and #states[first.native].Mappings==2, 'MCC maps its keys into the game context')
 assert(states[first.action].Triggers[1]==gate, 'the override chord is installed')
 assert(states[first.hud].showsAbilities==true,'the game shows the default group (abilities)')
+assert(markOf(first.hud),'the Hold key is underlined')
+holdKey(press)
+assert(states[first.keys.abilityTop].Filled>0 and states[first.keys.abilityTop].Progress==0 and #reads==0,
+    'its rim fills and empties')
 
 -- The save loads: the old world, its input assets and its HUD are collected.
 -- Nothing wakes MCC yet, and its weak handles keep it from reading the old world.
@@ -202,7 +266,11 @@ hooks['/Script/DogwoodSystem.DWSystemBlueprintFunctionLibrary:AddInputMappingCon
 drain()
 assert(host.generation>generation,'the game input setup retires MCC from the collected world')
 assert(#reads==0,'freed objects read: '..table.concat(reads,', '))
-assert(host.ready and #states[second.native].Mappings==1,'MCC attaches to the new player')
+assert(host.ready and #states[second.native].Mappings==2,'MCC attaches to the new player')
+assert(markOf(second.hud),'the new HUD\'s Hold key is underlined')
+holdKey(press)
+assert(states[second.keys.abilityTop].Filled>0 and states[second.keys.abilityTop].Progress==0,'the new HUD\'s rim fills and empties')
+assert(#reads==0,'freed objects read: '..table.concat(reads,', '))
 assert(states[second.action].Triggers[1]==gate,'the new native action is overridden')
 assert(states[second.hud].showsAbilities==true,
     'the new HUD shows the default group')
@@ -220,8 +288,8 @@ assert(last and last.viewport==states[second.controller].Player.ViewportClient,
 last=rang('MCC_Controls_SlotsGlobal_v1')
 assert(last and last.viewport==states[second.controller].Player.ViewportClient,
     'the new player receives the global slots event')
-assert(shared['MCC.Controls.SlotsGlobal.v1.data']:match(' 10000000$'),
-    'ability slot 1 has a Global key: '..tostring(shared['MCC.Controls.SlotsGlobal.v1.data']))
+assert(shared['MCC.Controls.SlotsGlobal.v1.data']:match(' 11000000$'),
+    'ability slots 1 and 2 have a Global key: '..tostring(shared['MCC.Controls.SlotsGlobal.v1.data']))
 assert(shared['MCC.Controls.GroupFocus.v1.data']:match(' %- 1$'),
     'the attach publishes Default as a first activation: '..tostring(shared['MCC.Controls.GroupFocus.v1.data']))
 -- Disabling controls leaves no Global key, and the player is told.
