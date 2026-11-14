@@ -636,6 +636,44 @@ do
 end
 print('PASS syncs on the kept player scan for no object')
 
+-- A binding whose action could not be built at attach gets its callback once a later
+-- configure builds it, not only its key mapping.
+do
+    environment.preHook=function(name,callback)
+        nextHookId=nextHookId+2
+        hooks[name]=callback;hookIds[name]={nextHookId-1,nextHookId}
+        return nextHookId-1,nextHookId
+    end
+    local retainAction,bind=environment.retain,bridge.BindAction
+    local broken=true
+    environment.retain=function(kind,name)
+        if broken and name=='IA_MCC_global_Late' then error('not ready') end
+        return retainAction(kind,name)
+    end
+    local boundPaths={}
+    bridge.BindAction=function(target,path,phase,callback)
+        boundPaths[path]=(boundPaths[path] or 0)+1
+        return bind(target,path,phase,callback)
+    end
+    local lateHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,service,environment)
+    assert(lateHost:apply({contexts={'exploration','combat'},bindings={
+        {id='global.AbilitySlot1',key=74,keyName='J',mode=0,phases={'Triggered'},action={type='ability',slot=1}},
+        {id='global.Late',key=75,keyName='K',mode=0,phases={'Triggered'},action={type='ability',slot=2}}},
+        overrides={}}))
+    local function bound(name) return boundPaths['/Engine/Transient.'..name] or 0 end
+    assert(bound('IA_MCC_global_AbilitySlot1')==1 and bound('IA_MCC_global_Late')==0)
+    broken=false
+    hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:RequestRebuildControlMappings'](subsystem)
+    assert(bound('IA_MCC_global_Late')==1,'the late action gets its callback')
+    assert(bound('IA_MCC_global_AbilitySlot1')==2,'callbacks are installed again together')
+    hooks['/Script/EnhancedInput.EnhancedInputSubsystemInterface:RequestRebuildControlMappings'](subsystem)
+    assert(bound('IA_MCC_global_Late')==1,'once every action has its callback, nothing is installed again')
+    assert(lateHost:stop())
+    environment.retain,bridge.BindAction,environment.preHook=retainAction,bind,nil
+end
+print('PASS an action built after attach gets its callback')
+
 -- The local player and its subsystem outlive a load: a new controller and pawn are
 -- read from the kept player, with no scan. A dead local player scans again.
 do

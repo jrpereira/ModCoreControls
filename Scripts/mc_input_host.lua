@@ -831,6 +831,48 @@ function M.new(queue,log,service,environment)
         log.debug('key indicators updated partially: ',count,'/',expected)
         return false
     end
+    -- Subscribe the bridge to every configured action on the player's input
+    -- component. installedIds holds the bindings that got callbacks.
+    local installedIds
+    local function installCallbacks(callbackOwner,componentPath,actions)
+        local generation=api.generation
+        local installStarted=os.clock()
+        local installed,why=callbackOwner:install(componentPath,actions,api.plan,function(binding,phase,event)
+            if api.phase~='ready' or api.generation~=generation then return end
+            -- A Hold key's rim fills from press to its threshold, then empties.
+            if binding.progressPhases and fillRim(binding,phase,event)=='rim only' then return end
+            local function deliver()
+                if api.phase=='ready' and api.generation==generation then
+                    local ok,result=pcall(Quickslots.deliver,api.state,binding,phase,service)
+                    if not ok or result==false then
+                        log.warn('input callback failed: ',binding.id,' ',phase,': ',ok and 'not handled' or result)
+                    end
+                end
+            end
+            -- A wheel change applies within the input frame, so a native slot action
+            -- on the same key sees the new focus. Other work waits for the queue.
+            local kind=binding.action and binding.action.type
+            if (kind=='focus' or kind=='flip') and type(e.inGameThread)=='function' then
+                local onThread,current=pcall(e.inGameThread)
+                if onThread and current==true then return deliver() end
+            end
+            local queued,queueWhy=pcall(queue,deliver)
+            if not queued or queueWhy==false then
+                log.error('input callback queue failed: ',queueWhy)
+            end
+        end)
+        local installElapsed=(os.clock()-installStarted)*1000
+        if installElapsed>=4 then log.debug('callbacks took ',string.format('%.1f',installElapsed),' ms') end
+        installedIds={}
+        if installed then for id in pairs(actions or {}) do installedIds[id]=true end end
+        return installed,why
+    end
+    -- A binding whose action could not be built at attach and was built since has
+    -- its key mapped but no callback yet.
+    local function missingCallbacks(actions)
+        for id in pairs(actions or {}) do if not (installedIds and installedIds[id]) then return true end end
+        return false
+    end
     local resolvedForApply
     local function doSync(force,beforeRebuild)
         if api.phase=='stopped' then return false,'controls stopped',{status='failure'} end
@@ -960,34 +1002,7 @@ function M.new(queue,log,service,environment)
             api.phase='attaching';api.owner=kept
             local actions=timed('configure',context.configure,context,api.plan)
             forgetInstances(live.playerInput)
-            local generation=api.generation
-            local installStarted=os.clock()
-            local installed,why=callbackOwner:install(live.componentPath,actions,api.plan,function(binding,phase,event)
-                if api.phase~='ready' or api.generation~=generation then return end
-                -- A Hold key's rim fills from press to its threshold, then empties.
-                if binding.progressPhases and fillRim(binding,phase,event)=='rim only' then return end
-                local function deliver()
-                    if api.phase=='ready' and api.generation==generation then
-                        local ok,result=pcall(Quickslots.deliver,api.state,binding,phase,service)
-                        if not ok or result==false then
-                            log.warn('input callback failed: ',binding.id,' ',phase,': ',ok and 'not handled' or result)
-                        end
-                    end
-                end
-                -- A wheel change applies within the input frame, so a native slot action
-                -- on the same key sees the new focus. Other work waits for the queue.
-                local kind=binding.action and binding.action.type
-                if (kind=='focus' or kind=='flip') and type(e.inGameThread)=='function' then
-                    local onThread,current=pcall(e.inGameThread)
-                    if onThread and current==true then return deliver() end
-                end
-                local queued,queueWhy=pcall(queue,deliver)
-                if not queued or queueWhy==false then
-                    log.error('input callback queue failed: ',queueWhy)
-                end
-            end)
-            local installElapsed=(os.clock()-installStarted)*1000
-            if installElapsed>=4 then log.debug('callbacks took ',string.format('%.1f',installElapsed),' ms') end
+            local installed,why=installCallbacks(callbackOwner,live.componentPath,actions)
             if not installed then
                 local cleared,cleanupWhy=retire(false,true)
                 return false,cleared and why or tostring(why) .. '; cleanup: ' .. tostring(cleanupWhy),
@@ -997,6 +1012,15 @@ function M.new(queue,log,service,environment)
         elseif standardKeyChanged or beforeRebuild then
             api.actions=context:configure(api.plan)
             forgetInstances(live.playerInput)
+            if missingCallbacks(api.actions) then
+                local installed,why=installCallbacks(callbackOwner,api.componentPath,api.actions)
+                if not installed then
+                    local cleared,cleanupWhy=retire(false,true)
+                    return false,cleared and why or tostring(why) .. '; cleanup: ' .. tostring(cleanupWhy),
+                        {status='failure',original=why,cleanup=cleanupWhy}
+                end
+                log.info('input callbacks installed again for a binding configured after attach')
+            end
             if not beforeRebuild and type(e.rebuild)=='function' then e.rebuild(live.playerInput) end
         end
         local remapped=false
