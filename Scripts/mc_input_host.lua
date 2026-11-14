@@ -587,8 +587,9 @@ function M.new(queue,log,service,environment)
         local keys,keysWhy=Keys.keys(keysEnvironment,profile,nativeAction)
         if not keys then return nil,keysWhy..': '..actionName end
         log.trace('Profile keys: ',actionName,' -> ',#keys>0 and table.concat(keys,', ') or '<none>')
-        -- Every keyboard key the player bound to the action is attached.
-        if #keys==0 then return nil,'standard control unavailable: '..actionName end
+        -- Every keyboard key the player bound to the action is attached. A readable
+        -- profile with none is an answer, kept until the keys can have changed: the
+        -- binding maps no key, and the attach is not incomplete.
         return keys,nil,nativeAction
     end
     -- The player's keys are read again only when they can have changed: before attaching,
@@ -621,6 +622,9 @@ function M.new(queue,log,service,environment)
                     resolved[actionName]=false;unresolved[actionName]=tostring(why)
                     knownKeys[actionName]=nil
                 else
+                    if #keyNames==0 and not (knownKeys[actionName] and #knownKeys[actionName]==0) then
+                        log.info('inherited action has no keyboard key: ',actionName)
+                    end
                     resolved[actionName]=keyNames
                     resolvedActions[actionName]=action
                     knownKeys[actionName]=keyNames

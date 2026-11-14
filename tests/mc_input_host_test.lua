@@ -322,9 +322,9 @@ environment.profile=nil
 print('PASS swap steps aside for a player key on its inherited key')
 
 -- An inherited key that cannot be resolved skips only its own bindings: the rest
--- attach, a warning is written once, and the key attaches once the player binds it.
-local profileNames={}
-environment.profile=function() return keyProfile(profileNames) end
+-- attach, a warning is written once, and the key attaches once it can be read.
+local profileNames=nil
+environment.profile=function() return profileNames and keyProfile(profileNames) or nil end
 local warnings={}
 local partialHost=require('mc_input_host').new(function(callback)callback();return true end,
     function(message) warnings[#warnings+1]=message end,service,environment)
@@ -333,7 +333,7 @@ local unboundSwap={id='default.swap.toggle',key=0,swap=true,mode=3,phases={'Trig
 local slot={id='global.AbilitySlot1',key=74,keyName='J',mode=0,phases={'Triggered'},
     action={type='ability',slot=1}}
 assert(partialHost:apply({contexts={'exploration','combat'},bindings={unboundSwap,slot},overrides={}}),
-    'an unbound inherited key must not keep other bindings from attaching')
+    'an unresolved inherited key must not keep other bindings from attaching')
 assert(#mccKeys()==1 and mccKeys()[1]=='J' and unboundSwap.keyNames==nil and unboundSwap.unresolved)
 local function count(text)
     local found=0
@@ -857,8 +857,9 @@ print('PASS a game input setup reattaches to a replaced player')
 do
     local scheduled={}
     environment.delay=function(ms,callback) scheduled[#scheduled+1]={ms=ms,callback=callback};return true end
-    local names={}
-    environment.profile=function() return keyProfile(names) end
+    -- The key profile is not readable yet.
+    local names
+    environment.profile=function() return names and keyProfile(names) or nil end
     local swap={id='default.swap.toggle',key=0,swap=true,mode=3,phases={'Triggered'},consume=true,
         contexts={'exploration','combat'},standardAction='IA_Combat_ToggleQuickslots',action={type='flip'}}
     local incompleteHost=require('mc_input_host').new(function(callback)callback();return true end,
@@ -876,6 +877,32 @@ do
     environment.profile,environment.delay=nil,nil
 end
 print('PASS an incomplete attach is retried until its keys resolve')
+
+-- An inherited action the player left without a keyboard key is an answer: it is read
+-- once, maps nothing and leaves the attach complete, until the keys can have changed.
+do
+    local scheduled,reads,names={},0,{}
+    environment.delay=function(ms,callback) scheduled[#scheduled+1]={ms=ms,callback=callback};return true end
+    environment.profile=function() reads=reads+1;return keyProfile(names) end
+    local swap={id='default.swap.toggle',key=0,swap=true,mode=3,phases={'Triggered'},consume=true,
+        contexts={'exploration','combat'},standardAction='IA_Combat_ToggleQuickslots',action={type='flip'}}
+    local emptyHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,service,environment)
+    assert(emptyHost:apply({contexts={'exploration','combat'},bindings={swap},overrides={}}))
+    assert(not swap.unresolved and not emptyHost.incomplete and #swap.keyNames==0 and #mccKeys()==0,
+        'no key bound: nothing mapped, nothing missing')
+    assert(#scheduled==0,'and no retry is scheduled')
+    local before=reads
+    for _=1,5 do assert(emptyHost:sync()) end
+    assert(reads==before,'the empty profile is not read again on every sync: '..reads-before)
+    -- The game applies new keyboard mappings: the keys are read again.
+    names={'LeftAlt'}
+    hooks['/Script/RebelInput.RebelInputMappingSubsystem:ApplyPendingKeyboardMappings']()
+    assert(reads==before+1 and swap.keyNames[1]=='LeftAlt' and #mccKeys()==1,'a rebind is picked up')
+    assert(emptyHost:stop())
+    environment.profile,environment.delay=nil,nil
+end
+print('PASS an inherited action without a keyboard key is resolved as empty')
 
 -- On the game thread a wheel change applies inside the input callback, so a native slot
 -- action on the same key sees the new focus; other callbacks still wait for the queue.
