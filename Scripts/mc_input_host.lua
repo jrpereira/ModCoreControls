@@ -301,7 +301,11 @@ function M.new(queue,log,service,environment)
         local ok,result=pcall(function() return value:ToString() end)
         return ok and tostring(result) or tostring(value)
     end
+    -- One indicator update reads the HUD once, though indicators, rims and marks
+    -- each ask for it.
+    local passHud
     local function currentHud()
+        if passHud then return passHud[1] end
         if type(service.hud)=='function' then return service:hud() end
         return type(e.hud)=='function' and e.hud() or e.find('WBP_GameHUD_C')
     end
@@ -816,10 +820,13 @@ function M.new(queue,log,service,environment)
     -- Indicators are updated at the points where MCC knows they may be stale,
     -- never from widget hooks.
     local function updateIndicators(force)
+        local found,hud=pcall(currentHud)
+        passHud={found and hud or nil}
         local ok,complete,count,expected=pcall(indicators.refresh,indicators,api.actions,api.plan,
             {revision=api.generation,force=force==true})
+        if ok then refreshMarks(api.enabled and api.plan or nil) end
+        passHud=nil
         if not ok then log.warn('key indicator update failed: ',complete);return false end
-        refreshMarks(api.enabled and api.plan or nil)
         if complete or (expected or count or 0)==0 then return true end
         log.debug('key indicators updated partially: ',count,'/',expected)
         return false

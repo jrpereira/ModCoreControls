@@ -715,6 +715,23 @@ do
 end
 print('PASS the wheel is presented before input attaches')
 
+-- One indicator update reads the HUD once, though indicators, rims and marks each use it.
+do
+    environment.setIndicatorHoldDisplay=function() return true end
+    local plainHost=require('mc_input_host').new(function(callback)callback();return true end,
+        function()end,{},environment)
+    environment.setIndicatorHoldDisplay=nil
+    assert(plainHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=74,
+        keyName='J',mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={}}))
+    local lookups=0
+    environment.hud=function() lookups=lookups+1;return hud end
+    plainHost:updateIndicators(true)
+    environment.hud=nil
+    assert(lookups==1,'one HUD lookup per indicator update, got '..lookups)
+    assert(plainHost:stop())
+end
+print('PASS an indicator update reads the HUD once')
+
 -- After a load the player can be found before the game creates its HUD: only the
 -- presentation is tried again, shortly after, until the wheel is shown.
 do

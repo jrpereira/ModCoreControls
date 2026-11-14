@@ -44,10 +44,10 @@ function M.new(environment)
                 if not sameObject(live(owner[field]),get(nextOwner[field])) then same=false;break end
             end
         end
-        if not same then
-            cached=nil
-            presentationNeeded=true
-        end
+        -- The same owner keeps its handles: nothing to keep again.
+        if same then return true end
+        cached=nil
+        presentationNeeded=true
         local kept={}
         for _,field in ipairs(fields) do
             if nextOwner[field]~=nil then

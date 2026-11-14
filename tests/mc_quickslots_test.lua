@@ -180,3 +180,16 @@ do
     assert(service:invalidate(11))
 end
 print('PASS focus selects through the game\'s setter only')
+
+-- Binding the same owner again, as every sync does, keeps no new handles.
+do
+    local Lifetimes=require('mc_lifetimes')
+    local kept=0
+    local service=Quickslots.new({keep=function(value) kept=kept+1;return Lifetimes.keep(value) end})
+    local hud,controller=object(),object()
+    assert(service:bind({hud=hud,controller=controller},20) and kept==2)
+    assert(service:bind({hud=hud,controller=controller},20) and kept==2,'same owner keeps no new handles')
+    assert(service:bind({hud=hud,controller=controller},21) and kept==4,'a new generation keeps again')
+    assert(service:bind({hud=object(),controller=controller},21) and kept==6,'a new HUD keeps again')
+end
+print('PASS rebinding the same owner keeps no new handles')
