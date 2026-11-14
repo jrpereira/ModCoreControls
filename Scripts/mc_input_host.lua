@@ -435,7 +435,7 @@ function M.new(queue,log,service,environment)
         end
         local ok,caps=pcall(candidate.GetCapabilities)
         if not ok or type(caps)~='table' or tonumber(caps.api or 0)<6
-            or caps.enhanced_input~=true or caps.explicit_target~=true then
+            or caps.enhanced_input~=true or caps.explicit_target~=true or caps.weak_handles~=true then
             return nil,'UE4SSLuaEventBridge API 6 or newer required (Enhanced Input and weak handles)'
         end
         if callbacks and api.ready then return nil,'input bridge changed; retiring previous owner' end

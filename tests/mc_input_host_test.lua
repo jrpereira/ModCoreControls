@@ -47,7 +47,7 @@ local function retain(kind,name)
 end
 local callbacks,closeCount={},0
 local bridge={API_VERSION=5}
-function bridge.GetCapabilities()return {api=6,enhanced_input=true,explicit_target=true}end
+function bridge.GetCapabilities()return {api=6,enhanced_input=true,explicit_target=true,weak_handles=true}end
 function bridge.OpenInputComponent(path)return path end
 function bridge.BindAction(_,_,phase,callback)callbacks[#callbacks+1]={phase=phase,callback=callback};return #callbacks end
 function bridge.CloseInputComponent()closeCount=closeCount+1;return true end
@@ -141,6 +141,18 @@ local plan={contexts={'exploration','combat'},bindings={{id='global.slot1',keyNa
     phases={'Triggered'},action={type='ability',slot=1}}},overrides={IA_Test=true}}
 local active,why=host:apply(plan)
 assert(not active and why=='UE4SSLuaEventBridge input API unavailable')
+-- A bridge without weak handles waits before any attach work: nothing could be kept.
+local weakless=setmetatable({GetCapabilities=function()
+    return {api=6,enhanced_input=true,explicit_target=true,weak_handles=false}
+end},{__index=bridge})
+availableBridge=weakless
+local scans,allScans=0,environment.all
+environment.all=function(class) scans=scans+1;return allScans(class) end
+local waiting,waitWhy,waitDetail=host:sync()
+environment.all=allScans
+assert(not waiting and tostring(waitWhy):find('weak handles',1,true) and waitDetail.status=='pending',
+    'a bridge without weak handles leaves controls pending')
+assert(scans==0 and #callbacks==0 and #mccKeys()==0,'no attach work runs without weak handles')
 availableBridge=bridge
 assert(host:sync())
 assert(next(hooks) and #callbacks==1)

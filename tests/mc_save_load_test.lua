@@ -93,7 +93,7 @@ end
 local hooks,preHooks={}, {}
 local callbacks,closed={},0
 local bridge={}
-function bridge.GetCapabilities() return {api=6,enhanced_input=true,explicit_target=true} end
+function bridge.GetCapabilities() return {api=6,enhanced_input=true,explicit_target=true,weak_handles=true} end
 function bridge.OpenInputComponent(path) return path end
 function bridge.BindAction(_,_,phase,callback) callbacks[#callbacks+1]={phase=phase,callback=callback};return #callbacks end
 function bridge.CloseInputComponent() closed=closed+1;return true end
