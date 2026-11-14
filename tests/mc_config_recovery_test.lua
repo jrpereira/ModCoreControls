@@ -133,6 +133,16 @@ local saved='[' .. bomSlot.configSection .. ']\nglobal.AbilitySlot1=J|Hold\n'
 local plain=Config.decode(saved,definition)[bomSlot.id]
 assert(plain~=nil,'fixture value must decode')
 assert(Config.decode('\239\187\191' .. saved,definition)[bomSlot.id]==plain,'BOM must not drop the first section')
-assert(not Config.encode('\239\187\191' .. saved,definition,Menu.new(definition,{}).values):find('\239\187\191',1,true),
-    'saving drops the BOM')
+local bomSaved=Config.encode('\239\187\191' .. saved,definition,Menu.new(definition,{}).values)
+assert(bomSaved:sub(1,3)=='\239\187\191' and select(2,bomSaved:gsub('\239\187\191',''))==1,'saving keeps the one BOM')
+assert(Config.decode(bomSaved,definition)[bomSlot.id]~=nil,'a saved BOM file reads back')
 print('PASS config ignores a UTF-8 byte order mark')
+
+-- Saving changes only setting values: line endings, spacing and comments survive.
+local crlf='; player notes\r\n[' .. bomSlot.configSection .. ']\r\n  global.AbilitySlot1 = J|Hold   ; mine\r\n'
+local crlfSaved=Config.encode(crlf,definition,Menu.new(definition,{}).values)
+assert(not crlfSaved:find('[^\r]\n'),'CRLF stays CRLF')
+assert(crlfSaved:find('; player notes\r\n',1,true) and crlfSaved:find('  global.AbilitySlot1 = ',1,true)
+    and crlfSaved:find('   ; mine\r\n',1,true),'spacing and comments survive')
+assert(Config.encode(crlfSaved,definition,Menu.new(definition,{}).values)==crlfSaved,'saving twice changes nothing')
+print('PASS saving preserves the file around values')

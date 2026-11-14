@@ -1,90 +1,52 @@
 -- Shared persistence: [ModCoreControls.<section>], numeric keys/triggers.
+local Ini=require('mc_ini')
 local M = {}
-local function lines(content)
-    local out={}
-    -- A UTF-8 byte order mark would hide the first section heading.
-    content=content:gsub('^\239\187\191','')
-    for line in (content:gsub('\r\n','\n'):gsub('\r','\n') .. '\n'):gmatch('(.-)\n') do out[#out+1]=line end
-    if out[#out]=='' then table.remove(out) end
-    return out
-end
-local function index(definition)
-    local sections,order={},{}
+local function check(definition)
+    local seen={}
     for _,item in ipairs(definition.settings) do
-        if not sections[item.configSection] then sections[item.configSection]={}; order[#order+1]=item.configSection end
-        assert(not sections[item.configSection][item.configKey],'duplicate config address')
-        sections[item.configSection][item.configKey]=item
+        local address=item.configSection .. '\0' .. item.configKey
+        assert(not seen[address],'duplicate config address')
+        seen[address]=true
     end
-    return sections,order
 end
 -- Configuration never prevents startup: an unreadable or invalid value is left out,
 -- so its default applies, and a repeated key keeps its first value.
 function M.decode(content,definition)
-    local sections=index(definition)
-    local values,section={},nil
-    for _,line in ipairs(lines(content)) do
-        local heading=line:match('^%s*%[([^%]]+)%]%s*$')
-        if heading then
-            section=heading
-        elseif sections[section] then
-            local key,raw=line:match('^%s*([^=;#]-)%s*=%s*([^;#]*)')
-            local item=key and sections[section][key]
-            if item and values[item.id]==nil then
-                raw=raw:match('^%s*(.-)%s*$')
-                local value
-                if item.kind=='keybind' then
-                    -- 'default' reads as the declared binding.
-                    value=raw:lower()=='default' and item.default or require('mc_menu').keybind(item,raw)
-                elseif item.kind=='range' then
-                    value=require('mc_menu').valid(item,raw) and raw or nil
-                else
-                    value=tonumber(raw)
-                    if not require('mc_menu').valid(item,value) then value=nil end
-                end
-                values[item.id]=value
+    check(definition)
+    local doc,values=Ini.parse(content),{}
+    for _,item in ipairs(definition.settings) do
+        local entry=Ini.entries(doc,item.configSection,item.configKey)[1]
+        if entry then
+            local raw,value=entry.value,nil
+            if item.kind=='keybind' then
+                -- 'default' reads as the declared binding.
+                value=raw:lower()=='default' and item.default or require('mc_menu').keybind(item,raw)
+            elseif item.kind=='range' then
+                value=require('mc_menu').valid(item,raw) and raw or nil
+            else
+                value=tonumber(raw)
+                if not require('mc_menu').valid(item,value) then value=nil end
             end
+            values[item.id]=value
         end
     end
     return values
 end
--- Numbers are written as integers; keybinds as their text.
+-- Numbers are written as integers; keybinds as their text. Every other byte of the
+-- file (line endings, spacing, comments, other sections) is kept as it was.
 local function text(value)
     return type(value)=='number' and tostring(math.tointeger(value) or value) or value
 end
 function M.encode(content,definition,values)
-    local sections,order=index(definition)
-    local output,seen,written,section={},{},{},nil
+    check(definition)
     for _,item in ipairs(definition.settings) do
         assert(require('mc_menu').valid(item,values[item.id]),'invalid setting: ' .. item.id)
     end
-    local function missing(name)
-        for _,item in ipairs(definition.settings) do
-            if item.configSection==name and not written[item.id] then
-                output[#output+1]=item.configKey .. '=' .. text(values[item.id]); written[item.id]=true
-            end
-        end
+    for _,item in ipairs(definition.settings) do
+        content=Ini.set(content,item.configSection,item.configKey,text(values[item.id]))
     end
-    for _,line in ipairs(lines(content)) do
-        local heading=line:match('^%s*%[([^%]]+)%]%s*$')
-        if heading then
-            if sections[section] then missing(section) end
-            section=heading; seen[section]=true
-        elseif sections[section] then
-            local key=line:match('^%s*([^=;#]-)%s*=')
-            local item=key and sections[section][key]
-            if item then
-                local comment=line:match('([;#].*)$')
-                line=key .. '=' .. text(values[item.id]) .. (comment and ' ' .. comment or '')
-                written[item.id]=true
-            end
-        end
-        output[#output+1]=line
-    end
-    if sections[section] then missing(section) end
-    for _,name in ipairs(order) do
-        if not seen[name] then output[#output+1]='[' .. name .. ']'; missing(name) end
-    end
-    return table.concat(output,'\n') .. '\n'
+    if content~='' and not content:find('\n$') then content=content .. Ini.parse(content).newline end
+    return content
 end
 function M.open(path,definition)
     local function read(filePath)
