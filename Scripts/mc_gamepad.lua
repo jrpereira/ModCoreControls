@@ -120,11 +120,15 @@ function M.read(e)
         playerInput=e.first('EnhancedPlayerInput')
     end
     if not subsystem and not playerInput then return nil end
+    -- Only the listed buttons are shown, so other keys never have their action named.
+    local shown={}
+    for _,button in ipairs(M.buttons) do shown[button[1]]=true end
     local assigned={}
     local function add(key,action)
         local keyName=key and text(key.KeyName)
+        if not (keyName and shown[keyName]) then return end
         local name=actionName(e,action)
-        if not keyName or not name then return end
+        if not name then return end
         local list=assigned[keyName] or {}
         assigned[keyName]=list
         for _,existing in ipairs(list) do if existing==name then return end end

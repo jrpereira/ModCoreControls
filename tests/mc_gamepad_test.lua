@@ -16,10 +16,15 @@ local function key(name) return {KeyName=text(name)} end
 
 local quickslot=action('IA_Quickslot_Left','Quickslot Left')
 local dodge=action('IA_Dodge')
+-- A keyboard key's action is never named: only gamepad buttons are shown.
+local keyboardOnly=action('IA_Keyboard')
+local keyboardNamed=0
+keyboardOnly.ActionDescription={ToString=function() keyboardNamed=keyboardNamed+1;return 'Keyboard' end}
 local context={IsValid=function() return true end,Mappings=list({
     {Key=key('Gamepad_DPad_Left'),Action=quickslot},
     {Key=key('Gamepad_FaceButton_Right'),Action=dodge},
     {Key=key('One'),Action=quickslot},
+    {Key=key('Two'),Action=keyboardOnly},
 })}
 local profile={IsValid=function() return true end,PlayerMappedKeys=map({{'row',{Mappings=list({
     {CurrentKey=key('Gamepad_DPad_Left'),AssociatedInputAction=quickslot},
@@ -48,6 +53,7 @@ assert(table.concat(byKey.Gamepad_DPad_Left.actions,',')=='Map Zoom,Quickslot Le
     'actions from contexts and profile, deduplicated, sorted and menu-safe')
 assert(byKey.Gamepad_FaceButton_Right.actions[1]=='Dodge','IA_ prefix dropped without a description')
 assert(#byKey.Gamepad_DPad_Up.actions==0 and byKey.Gamepad_DPad_Up.label=='D-Pad Up')
+assert(keyboardNamed==0,'a keyboard key\'s action is never named')
 assert(Gamepad.read({first=function() return nil end})==nil,'no player input: nothing to read')
 print('PASS gamepad button assignments')
 
