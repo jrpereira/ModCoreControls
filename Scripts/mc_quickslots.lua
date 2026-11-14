@@ -202,8 +202,9 @@ function M.deliver(state,binding,phase,service)
         return phase~='Triggered' or M.flip(state,service)
     end
     assert(action.type=='focus','unsupported runtime action: ' .. tostring(action.type))
-    -- Tap: a group key set to Tap fires on press (mode 3) or, declared directly, on release.
-    if binding.mode==0 or binding.mode==3 then
+    -- Tap: a group key set to Tap fires on press (mode 3), on release (mode 0), or with
+    -- Instant Tap off on release or at High (mode 4).
+    if binding.mode==0 or binding.mode==3 or binding.mode==4 then
         if phase~='Triggered' then return true end
         -- With a key on each wheel, each key focuses its own wheel.
         if binding.direct then return present(state,action.group,service) end

@@ -45,6 +45,10 @@ do
     local swapping={action={type='focus',group=2},mode=3}
     Quickslots.deliver(direct,swapping,'Triggered',directService)
     assert(direct.selectedGroup==1,'a single pressed group key still swaps back')
+    -- With Instant Tap off, an Explicit Activation key set to Tap (mode 4) acts too.
+    local explicit={action={type='focus',group=2},mode=4,direct=true}
+    assert(Quickslots.deliver(direct,explicit,'Triggered',directService) and direct.selectedGroup==2,
+        'a lone Tap with Instant Tap off focuses its wheel')
 end
 local hold={action={type='focus',group=2},mode=2}
 Quickslots.deliver(state,hold,'Started',service)
