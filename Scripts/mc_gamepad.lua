@@ -1,5 +1,6 @@
 -- Read the actions currently assigned to each gamepad button, for display only.
 -- Sources are the player's applied mapping contexts and Settings key profile.
+local Objects=require('mc_objects')
 local M={}
 
 M.buttons={
@@ -24,15 +25,7 @@ M.buttons={
 }
 
 local function environment()
-    local function unwrap(value)
-        if value==nil then return nil end
-        local ok,result=pcall(function() return value:get() end)
-        return ok and result or value
-    end
-    local function valid(value)
-        local ok,result=pcall(function() return value~=nil and value:IsValid() end)
-        return ok and result==true
-    end
+    local unwrap,valid=Objects.unwrap,Objects.valid
     local function each(values,callback)
         if values==nil then return end
         pcall(function()
@@ -69,22 +62,11 @@ local function player(e)
         local left,right=e.full and e.full(a),e.full and e.full(b)
         return left~=nil and left==right
     end
-    for _,controller in ipairs(e.all('BP_PlayerController_C')) do
-        local name=e.full and e.full(controller) or ''
-        if e.valid(controller) and not name:find('Default__',1,true) then
-            local playerInput,owner=property(controller,'PlayerInput'),property(controller,'Player')
-            if e.valid(playerInput) and e.valid(owner) then
-                local match,count,only=nil,0,nil
-                for _,candidate in ipairs(e.all('EnhancedInputLocalPlayerSubsystem')) do
-                    if e.valid(candidate) then
-                        count=count+1;only=candidate
-                        local ok,outer=pcall(function() return e.unwrap(candidate:GetOuter()) end)
-                        if ok and e.valid(outer) and same(outer,owner) then match=candidate end
-                    end
-                end
-                local subsystem=match or (count==1 and only or nil)
-                if subsystem then return subsystem,playerInput end
-            end
+    for _,controller in ipairs(Objects.controllers(e)) do
+        local playerInput,owner=property(controller,'PlayerInput'),property(controller,'Player')
+        if e.valid(playerInput) and e.valid(owner) then
+            local subsystem=Objects.subsystem(e,owner,{same=same})
+            if subsystem then return subsystem,playerInput end
         end
     end
 end

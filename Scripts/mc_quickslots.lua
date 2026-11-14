@@ -1,18 +1,10 @@
 -- Dawnwalker quickslot output used by MCC input callbacks.
 local Events=require('mc_events')
 local Lifetimes=require('mc_lifetimes')
+local Objects=require('mc_objects')
 local M={}
 local positions={'Left','Top','Right','Bottom'}
-
-local function unwrap(value)
-    if value==nil then return nil end
-    local ok,result=pcall(function() return value:get() end)
-    return ok and result or value
-end
-local function valid(value)
-    local ok,result=pcall(function() return value~=nil and value:IsValid() end)
-    return ok and result==true
-end
+local unwrap,valid=Objects.unwrap,Objects.valid
 
 -- The owner and its HUD outlive the call that found them,
 -- so they are kept as weak handles: a save load frees them while bound.

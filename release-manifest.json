@@ -23,6 +23,7 @@
     "Scripts/mc_maps.lua": "Scripts/mc_maps.lua",
     "Scripts/mc_menu.lua": "Scripts/mc_menu.lua",
     "Scripts/mc_native_callbacks.lua": "Scripts/mc_native_callbacks.lua",
+    "Scripts/mc_objects.lua": "Scripts/mc_objects.lua",
     "Scripts/mc_overrides.lua": "Scripts/mc_overrides.lua",
     "Scripts/mc_quickslots.lua": "Scripts/mc_quickslots.lua",
     "Scripts/mc_sections.lua": "Scripts/mc_sections.lua",

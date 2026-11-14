@@ -8,20 +8,13 @@ local Overrides=require('mc_overrides')
 local Events=require('mc_events')
 local Log=require('mc_log')
 local Lifetimes=require('mc_lifetimes')
+local Objects=require('mc_objects')
 -- The key rule ModCoreSettings' key editor shows inherited keys with.
 local Keys=require('standard_keys')
 local M={}
 
 local function defaultEnvironment()
-    local function unwrap(value)
-        if value==nil then return nil end
-        local ok,result=pcall(function() return value:get() end)
-        return ok and result or value
-    end
-    local function valid(value)
-        local ok,result=pcall(function() return value~=nil and value:IsValid() end)
-        return ok and result==true
-    end
+    local unwrap,valid=Objects.unwrap,Objects.valid
     local function full(value)
         local ok,result=pcall(function() return value:GetFullName() end)
         return ok and tostring(result) or nil
@@ -483,35 +476,17 @@ function M.new(queue,log,service,environment)
         return found and remember(found) or nil
     end
     scanStack=function()
-        local controllers=e.all and e.all('BP_PlayerController_C') or {}
-        for _,controller in ipairs(controllers) do
-            if e.valid(controller) and not (e.full(controller) or ''):find('Default__',1,true) then
-                local playerInput=property(controller,'PlayerInput')
-                local pawn=property(controller,'AcknowledgedPawn') or property(controller,'Pawn')
-                local component=pawn and property(pawn,'InputComponent') or nil
-                local player=property(controller,'Player')
-                if e.valid(playerInput) and e.valid(component) and e.valid(player) then
-                    local playerPath=e.path(player)
-                    local subsystems=e.all and e.all('EnhancedInputLocalPlayerSubsystem') or {}
-                    local match,unknown,count=nil,nil,0
-                    for _,candidate in ipairs(subsystems) do
-                        if e.valid(candidate) then
-                            count=count+1
-                            local outer=property(candidate,'Outer')
-                            if not e.valid(outer) then
-                                local ok,value=pcall(function() return candidate:GetOuter() end)
-                                if ok then outer=e.unwrap(value) end
-                            end
-                            if e.valid(outer) then
-                                if outer==player or e.path(outer)==playerPath then match=candidate end
-                            else unknown=candidate end
-                        end
-                    end
-                    local subsystem=match or (count==1 and unknown or nil)
-                    if e.valid(subsystem) then
-                        return {controller=controller,player=player,playerInput=playerInput,
-                            component=component,subsystem=subsystem,componentPath=e.path(component)}
-                    end
+        for _,controller in ipairs(Objects.controllers(e)) do
+            local playerInput=property(controller,'PlayerInput')
+            local component=currentComponent(controller)
+            local player=property(controller,'Player')
+            if e.valid(playerInput) and e.valid(component) and e.valid(player) then
+                local playerPath=e.path(player)
+                local subsystem=Objects.subsystem(e,player,{property=property,onlyUnknown=true,
+                    same=function(outer) return outer==player or e.path(outer)==playerPath end})
+                if e.valid(subsystem) then
+                    return {controller=controller,player=player,playerInput=playerInput,
+                        component=component,subsystem=subsystem,componentPath=e.path(component)}
                 end
             end
         end

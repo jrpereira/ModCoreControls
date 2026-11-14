@@ -4,10 +4,7 @@
 -- checks the native lifetime first. Without weak handles nothing is kept.
 local M={}
 
-local function valid(value)
-    local ok,result=pcall(function() return value~=nil and value:IsValid() end)
-    return ok and result==true
-end
+local valid=require('mc_objects').valid
 
 local function service()
     local bridge=rawget(_G,'UE4SSLuaEventBridge')
