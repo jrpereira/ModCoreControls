@@ -204,19 +204,21 @@ assert(host:sync())
 assert(host.ready and host.generation==generation and closeCount==closes and indicatorSets==5,
     'its return needs no work')
 assert(#mccKeys()==1)
+-- An Apply first restores the overrides; when that fails, the active input stays.
 rejectOverrideRebuild=true
-local removed=host:deactivate()
+local removed=host:apply(changed)
 assert(not removed and host.ready and nativeOverride.Triggers[1]==overrideGate,
     'failed override restoration must leave active replacement input intact')
 rejectOverrideRebuild=false
-assert(host:deactivate() and closeCount==closes+1)
+-- Stopping retires the input even though one hook removal fails for now.
+local stopped,stopReason=host:stop()
+assert(not stopped and tostring(stopReason):find('temporary removal failure',1,true))
+assert(closeCount==closes+1)
 assert(#nativeOverride.Triggers==0 and overrideRebuilds>0)
 assert(indicator.EnhancedInputAction==originalIndicator and indicatorSets==6)
 callbacks[2].callback({})
-assert(#calls==2,'deactivated callback generation must not deliver')
+assert(#calls==2,'a stopped callback generation must not deliver')
 print('PASS Enhanced Input host attach, replacement, and stale callback rejection')
-local stopped,stopReason=host:stop()
-assert(not stopped and tostring(stopReason):find('temporary removal failure',1,true))
 assert(host.phase=='stopped' and #unhooked==2)
 assert(host:stop() and #unhooked==3 and next(hookIds)==nil)
 local secondHost=require('mc_input_host').new(function(callback)callback();return true end,
@@ -1025,7 +1027,7 @@ print('PASS a fresh wrapper of the same player stack keeps MCC attached')
 -- production does: it finds the player's HUD through hudForOwner while bound.
 environment.hudForOwner=function() return hud end
 -- Hold keys get an underline mark, placed again after a ModCore Templates layout
--- pass and removed when controls are disabled.
+-- pass and removed on stop.
 do
     local overlay={children={}}
     indicator.parent=overlay
@@ -1064,9 +1066,9 @@ do
     local before=placed
     layout({name='templates.layout.changed',category='other.category'})
     assert(placed==before,'other categories are ignored')
-    assert(markHost:deactivate())
-    assert(not mark.valid and removed==1,'disabling controls removes the mark')
-    assert(markHost:stop() and layout==nil,'stopping ends the layout subscription')
+    assert(markHost:stop())
+    assert(not mark.valid and removed==1,'stopping removes the mark')
+    assert(layout==nil,'stopping ends the layout subscription')
     indicator.parent,indicator.Slot,indicator.placement=nil,nil,nil
 end
 print('PASS Hold keys are underlined and follow layout passes')
@@ -1172,9 +1174,8 @@ do
     -- found through.
     assert(tapHost:apply({contexts={'exploration','combat'},bindings={tapKey},overrides={},holdLow=.1,holdHigh=.4}))
     assert(displays[#displays]==true)
-    assert(tapHost:deactivate())
-    assert(displays[#displays]==false,'deactivating releases the Tap rim')
     assert(tapHost:stop())
+    assert(displays[#displays]==false,'stopping releases the Tap rim')
     environment.setIndicatorProgress,environment.setIndicatorHoldDisplay=nil,nil
 end
 print('PASS a Tap key shows a full rim while pressed')

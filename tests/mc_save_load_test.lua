@@ -292,12 +292,6 @@ assert(shared['MCC.Controls.SlotsGlobal.v1.data']:match(' 11000000$'),
     'ability slots 1 and 2 have a Global key: '..tostring(shared['MCC.Controls.SlotsGlobal.v1.data']))
 assert(shared['MCC.Controls.GroupFocus.v1.data']:match(' %- 1$'),
     'the attach publishes Default as a first activation: '..tostring(shared['MCC.Controls.GroupFocus.v1.data']))
--- Disabling controls leaves no Global key, and the player is told.
-local bells=#doorbells
-assert(host:deactivate())
-assert(shared['MCC.Controls.SlotsGlobal.v1.data']:match(' 00000000$'),
-    'no slot has a Global key once controls are off')
-assert(#doorbells>bells and doorbells[#doorbells].command=='MCC_Controls_SlotsGlobal_v1')
 assert(host:stop())
 assert(#reads==0,'freed objects read: '..table.concat(reads,', '))
 print('PASS: a save load reads no collected object')

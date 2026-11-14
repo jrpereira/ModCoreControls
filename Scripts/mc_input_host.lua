@@ -267,10 +267,10 @@ function M.new(queue,log,service,environment)
     end})
     -- The quickslots whose Global key (actions section, Global map) is in the plan,
     -- bound and not skipped as a duplicate. Published on every attach, so a new
-    -- player hears it, and on deactivate, when no key is left.
+    -- player hears it.
     local function publishGlobal(plan,owner)
         local global={{false,false,false,false},{false,false,false,false}}
-        for _,binding in ipairs(plan and plan.bindings or {}) do
+        for _,binding in ipairs(plan.bindings) do
             local action=binding.action
             local wheel=action and (action.type=='ability' and 1 or action.type=='consumable' and 2)
             if wheel and binding.keyName and binding.id:match('^global%.') and global[wheel][action.slot]~=nil then
@@ -1193,16 +1193,6 @@ function M.new(queue,log,service,environment)
             return table.unpack(results,2,results.n)
         end)
     end
-    -- Deactivating or stopping supersedes an Apply still queued.
-    function api:deactivate()
-        return operate(function()
-            queuedPlan=nil
-            local owner=api.ready and liveOwner() or nil
-            local results=table.pack(retire(true,false))
-            if results[1] then publishGlobal(nil,owner) end
-            return table.unpack(results,1,results.n)
-        end)
-    end
     function api:updateIndicators(force)
         if busy or api.phase~='ready' then return false end
         return updateIndicators(force)
@@ -1388,6 +1378,7 @@ function M.new(queue,log,service,environment)
             wake()
         end)
     end
+    -- Stopping supersedes an Apply still queued.
     function api:stop()
         return operate(function()
             queuedPlan=nil

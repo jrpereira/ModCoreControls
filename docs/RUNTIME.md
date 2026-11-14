@@ -107,7 +107,7 @@ continue every 12 s. Bridge resolution follows the same schedule.
 are ready. Detach removes MCC gates from native trigger arrays and preserves
 foreign triggers. The bounded set of named gate objects remains rooted for reuse.
 `mc_key_indicators.lua` updates HUD actions and restores originals on detach,
-replacement or deactivation.
+replacement or stop.
 
 Stopping unregisters named UE4SS function hooks with both callback IDs; failed
 removals remain owned for retry. Use a full game restart after Lua changes.
@@ -143,8 +143,7 @@ whichever wheel has focus.
 
 Slots run Left, Top, Right, Bottom, as in `mc_maps.lua`. The shared value is
 `'<revision> <8 bits>'`, wheel 1 first. MCC publishes it on every attach (startup,
-Apply, save load), so each new player hears it even when the set is unchanged, and
-publishes all `false` when controls are disabled.
+Apply, save load), so each new player hears it even when the set is unchanged.
 
 A sync presents the wheel as soon as it has found the player and its HUD, before
 it attaches input, so Default shows without waiting for the attach. After a load
@@ -169,6 +168,5 @@ fades with the key under any layout.
 Placement is copied on every indicator refresh (attach, Apply, a new HUD) and on
 each `templates.layout.changed` event for `player.quickslots`, which ModCore
 Templates publishes once per layout pass. Only changed placements are written.
-Marks are removed when their key stops being Hold, when controls are disabled and
-on stop; marks left by an earlier Lua state are found by name and reused or removed.
+Marks are removed when their key stops being Hold and on stop; marks left by an earlier Lua state are found by name and reused or removed.
 
