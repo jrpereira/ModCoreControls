@@ -553,11 +553,10 @@ function M.new(queue,log,service,environment)
                 end
             end
         end)
-        -- MCC maps its keys into these applied game contexts.
-        api.nativeContexts=natives
         -- Keys exist only inside an applied game context; without one MCC waits.
-        if walked==false then return {} end
-        return result
+        if walked==false then return {},natives end
+        -- MCC maps its keys into the applied game contexts in natives.
+        return result,natives
     end
     -- Lookups follow the shared key rule (vendor/standard_keys.lua).
     local keysEnvironment={valid=e.valid,full=e.full,path=e.path,each=e.each,property=property,
@@ -922,7 +921,7 @@ function M.new(queue,log,service,environment)
         end
         -- After a load the player is often found before the game has created its HUD.
         if api.state.pendingGroup~=nil and retryPresentation then retryPresentation() end
-        local desired=wanted(live.playerInput,api.plan.contexts)
+        local desired,natives=wanted(live.playerInput,api.plan.contexts)
         -- The game can lift every gameplay context for a moment, as during some skills.
         -- MCC's keys stay in the game's contexts and apply again when they return, so
         -- the same player keeps its input rather than detaching and attaching again.
@@ -1033,7 +1032,7 @@ function M.new(queue,log,service,environment)
         end
         for logical,priority in pairs(desired) do
             if api.active[logical]==nil then
-                local native=api.nativeContexts and api.nativeContexts[logical]
+                local native=natives[logical]
                 internal(function() context:attach(logical,native) end)
                 api.active[logical]=priority;remapped=true
             end

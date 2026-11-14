@@ -86,7 +86,6 @@ function M.new(e)
         for _,handle in pairs(ownedActions) do targets[#targets+1]=live(handle) end
         return self:apply({},playerInput,targets)
     end
-    function api:hasOwners() return next(ownedActions)~=nil end
     return api
 end
 

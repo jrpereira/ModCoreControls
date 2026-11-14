@@ -24,15 +24,6 @@ function M.slots(plan)
             mapped[target.type][target.slot]=binding.id
         end
     end
-    -- Display aliases intentionally reuse the source action.  Besides the
-    -- glyph this preserves its trigger mode, unlike synthesising a text
-    -- label for each grouped slot.
-    for _,display in ipairs(plan.displays or {}) do
-        local target=display.action or {}
-        if target.slot and (target.type=='ability' or target.type=='consumable') then
-            mapped[target.type][target.slot]=display.source
-        end
-    end
     return mapped
 end
 

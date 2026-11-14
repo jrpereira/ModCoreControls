@@ -82,11 +82,9 @@ assert(declaration())
 assert(not pcall(declaration,function(map) map.contexts={'unknown'} end))
 assert(not pcall(declaration,function(_,key) key.default=3 end))
 assert(not pcall(declaration,function(_,key) key.params.action={type='selected',slot=5} end))
--- Focus group 3 has no runtime target yet: only an inactive key may name it.
+-- Focus group 3 has no runtime target.
 assert(not pcall(declaration,function(_,key) key.params.action={type='focus',group=3} end),
-    'an active key cannot focus group 3')
-assert(declaration(function(_,key) key.params.action={type='focus',group=3};key.params.inactive=true end),
-    'an inactive key may declare group 3')
+    'a key cannot focus group 3')
 assert(not pcall(declaration,function(map,key) map.map[1].settings[2]=key end))
 -- Every setting has a type; a type's own arguments sit in params, nowhere else.
 assert(not pcall(declaration,function(_,key) key.type=nil end),'type is required')

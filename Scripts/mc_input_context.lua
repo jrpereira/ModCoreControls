@@ -304,7 +304,6 @@ function M.new(e,log)
         end
         return #failed==0,table.concat(failed,'; ')
     end
-    function api:hasOwners() return next(attached)~=nil end
     return api
 end
 

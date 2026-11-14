@@ -120,7 +120,7 @@ for name in pairs(created) do
 end
 
 -- Hold Swap's binding maps into every context it declares, beyond the plan's own.
-local holdPlan={contexts={'exploration'},holdSwap={enabled=true},bindings={
+local holdPlan={contexts={'exploration'},bindings={
     {id='hold',keyName='LeftAlt',mode=2,sustained=true,consume=true,contexts={'exploration','combat'}},
 }}
 actions=context:configure(holdPlan)

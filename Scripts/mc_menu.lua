@@ -21,7 +21,7 @@ local paramFields={
     range={min=true,max=true,step=true,gap=true,suffix=true},
     mirror={section=true,map=true,setting=true,tab=true,cycle=true},
     keybind={trigger=true,action=true,optional=true,defaultControl=true,override=true,
-        sustained=true,inactive=true,groupedBy=true,displayAlias=true},
+        sustained=true},
 }
 -- Descriptions pass through to DMM, or nil when empty. DMM takes a value to the end of
 -- its line, so any text fits except line breaks and other control characters, and
@@ -238,18 +238,11 @@ function M.define(registry, mapRegistry)
                         assert(type(key.trigger)=='string','binding needs triggers: ' .. key.id)
                         assert(key.sustained==nil or type(key.sustained)=='boolean',
                             'invalid sustained flag: ' .. key.id)
-                        assert(key.inactive==nil or type(key.inactive)=='boolean',
-                            'invalid inactive flag: ' .. key.id)
                         assert(key.defaultControl==nil or type(key.defaultControl)=='string'
                             and key.defaultControl:match('%S'),
                             'invalid default control: ' .. key.id)
                         assert(key.defaultControl==nil or key.optional==true,
                             'default control requires an optional key: ' .. key.id)
-                        assert(key.groupedBy==nil or type(key.groupedBy)=='string' and key.groupedBy:match('%S'),
-                            'invalid groupedBy: ' .. key.id)
-                        assert(key.displayAlias==nil or type(key.displayAlias)=='number'
-                            and key.displayAlias%1==0 and key.displayAlias>=0xC1 and key.displayAlias<=0xC8,
-                            'invalid displayAlias: ' .. key.id)
                         local action=key.action
                         assert(type(action)=='table' and
                             (action.type=='ability' or action.type=='consumable' or action.type=='selected' or action.type=='focus'),
@@ -262,10 +255,7 @@ function M.define(registry, mapRegistry)
                             assert(action.wheel=='default' or action.wheel=='other',
                                 'invalid action wheel: ' .. key.id)
                         else
-                            -- Group 3 is configuration-only until the game exposes a
-                            -- third quickslot target: only an inactive binding, which
-                            -- never enters the runtime plan, may name it.
-                            local limit=action.type=='focus' and (key.inactive and 3 or 2) or 4
+                            local limit=action.type=='focus' and 2 or 4
                             local value=action[field]
                             assert(type(value)=='number' and value%1==0 and value>=1 and value<=limit,
                                 'invalid action ' .. field .. ': ' .. key.id)
@@ -303,9 +293,6 @@ function M.define(registry, mapRegistry)
                             setting=bind,
                             optional=key.optional == true,
                             defaultControl=key.defaultControl,
-                            inactive=key.inactive == true,
-                            groupedBy=key.groupedBy,
-                            displayAlias=key.displayAlias,
                             sustained=key.sustained == true,
                             action=key.action,
                             override=key.override,

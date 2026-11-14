@@ -59,17 +59,6 @@ assert(setCount==16 and abilityBindings.Left.EnhancedInputAction~=consumableBind
 assert(monitor:restoreAll())
 for widget,native in pairs(original) do assert(widget.EnhancedInputAction==native) end
 assert(stored=='')
-local groupAction=keep(object('/Engine/Transient.AdvancedGroup2'))
-local aliasPlan={bindings={},displays={}}
-for slot=1,4 do
-    aliasPlan.displays[#aliasPlan.displays+1]={source='advanced.group2',action={type='consumable',slot=slot}}
-end
-assert(monitor:refresh({['advanced.group2']=groupAction},aliasPlan))
-for _,position in ipairs(positions) do
-    assert(consumableBindings[position].EnhancedInputAction==groupAction,
-        'grouped slot display must reuse the group input action')
-end
-assert(monitor:restoreAll())
 local failPath,forceWrites=nil,0
 local recovering=require('mc_key_indicators').new({
     valid=function(value)return value and value.valid end,
