@@ -15,8 +15,15 @@ end}
 ModRef={}
 ExecuteInGameThread=function() error('input startup failed') end
 local root=assert(os.getenv('PWD'))
+local printed,print_={},print
+print=function(line) printed[#printed+1]=tostring(line) end
 assert(loadfile(root .. '/Scripts/main.lua'))()
-assert(ModCoreControls==nil,'input startup must still fail in this test')
+print=print_
+local failed=false
+for _,line in ipairs(printed) do
+    if line:find('CRITICAL',1,true) and line:find('startup failed',1,true) then failed=true end
+end
+assert(failed,'input startup must still fail in this test: '..table.concat(printed,' / '))
 assert(#published==1,'the page is published although input startup failed')
 local page=published[1].pages[1]
 assert(#published[1].pages==1 and page.id=='ModCoreControls' and page.name=='Controls')
