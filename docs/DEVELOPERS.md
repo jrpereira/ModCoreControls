@@ -64,9 +64,17 @@ Keybind action shapes are `{type='ability',slot=1}`, `{type='consumable',slot=1}
 2 consumables). Focus can instead use `wheel='default'` or `wheel='other'`.
 Supported contexts are `exploration` and `combat`.
 
-Keybind options include `optional`, `defaultControl`, `override`, `sustained`,
-`inactive`, `groupedBy` and `displayAlias`. Start with the options in the example;
-use the [runtime reference](RUNTIME.md) before adding inheritance or overrides.
+Keybind options:
+
+| Option | Effect |
+| --- | --- |
+| `optional=true` | The row gets a clear button, so the player can leave the key unbound |
+| `defaultControl='IA_Name'` | While unbound, the key inherits the player's keys for that native action; requires `optional=true` |
+| `override` | `true` (with `defaultControl`), an action name, a `{action=,value=}` descriptor or a list: suppresses native actions while the key is bound |
+| `sustained=true` | Focus actions only: Hold acts from press until release, showing the wheel while held, instead of once at High |
+
+Start with the options in the example; use the [runtime reference](RUNTIME.md)
+before adding inheritance or overrides.
 
 A mirror repeats another picker without owning a config key:
 
