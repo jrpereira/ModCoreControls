@@ -23,6 +23,23 @@ export DMM_CHOICES_PATH="/path/to/DawnwalkerModMenu/Scripts/choices.lua"
 export MCS_SCRIPTS_PATH="/path/to/ModCoreSettings/Scripts"
 ```
 
+CI runs the loop without them, so the suite skips there.
+
+## Before a release
+
+The DMM integration suite is a local pre-release check, not a CI one. Run it against
+the installed DMM and the ModCore Settings checkout next to this repository:
+
+```sh
+DMM_CHOICES_PATH="<ue4ss>/Mods/DawnwalkerModMenu/Scripts/choices.lua" \
+MCS_SCRIPTS_PATH=../ModCoreSettings/Scripts \
+lua5.4 tests/mc_dmm_test.lua
+```
+
+It must pass without printing `SKIP` before a release is tagged.
+
+## Focused checks
+
 A focused declaration check is `lua5.4 tests/mc_menu_test.lua`; input validation
 is covered by `lua5.4 tests/mc_input_plan_test.lua`.
 
