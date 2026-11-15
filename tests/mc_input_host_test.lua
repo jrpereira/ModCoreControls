@@ -1198,7 +1198,7 @@ do
 end
 print('PASS rebuilt triggers refresh the player action instances')
 
--- A key acting on press shows a full rim while it is down.
+-- A key acting on press flashes its rim for Low, however long it is held.
 do
     local rims={}
     environment.inGameThread=function() return true end
@@ -1211,34 +1211,45 @@ do
     assert(pressHost:apply({contexts={'exploration','combat'},bindings={key},overrides={},holdLow=.1,holdHigh=.4}))
     local byPhase={}
     for index=first+1,#callbacks do byPhase[callbacks[index].phase]=callbacks[index].callback end
+    -- Without a timer the rim empties when the action completes.
+    local delay=environment.delay
+    environment.delay=nil
     byPhase.Started({elapsed_processed=0})
     byPhase.Triggered({elapsed_processed=0})
-    byPhase.Ongoing({elapsed_processed=2})
-    assert(#rims==1 and rims[1]==1,'full on press, and it stays full while held')
-    byPhase.Completed({elapsed_processed=2.1})
-    assert(rims[2]==0,'it empties on release')
-    -- A quick press stays full until the low mark has passed.
+    assert(#rims==1 and rims[1]==1,'full on press')
+    byPhase.Completed({elapsed_processed=.02})
+    assert(#rims==2 and rims[2]==0,'without a timer it empties on Completed')
     local timers={}
-    local delay=environment.delay
     environment.delay=function(ms,callback) timers[#timers+1]={ms=ms,run=callback};return true end
+    -- Pressed completes the frame after the press, with the key still down: the rim stays.
     byPhase.Started({elapsed_processed=0})
-    byPhase.Completed({elapsed_processed=.04})
-    assert(#rims==3 and rims[3]==1 and timers[1].ms==60,'still full after a quick release')
+    byPhase.Triggered({elapsed_processed=0})
+    byPhase.Completed({elapsed_processed=.016})
+    assert(#rims==3 and rims[3]==1 and timers[1].ms==100,'full for Low from the press')
     timers[1].run()
-    assert(rims[4]==0,'empty once the low mark has passed')
+    assert(#rims==4 and rims[4]==0,'empty at Low')
+    -- A Completed long after Low (or none before it) changes nothing.
+    byPhase.Started({elapsed_processed=0})
+    timers[2].run()
+    assert(#rims==6 and rims[6]==0,'empty at Low while the key is still down')
+    byPhase.Ongoing({elapsed_processed=2})
+    byPhase.Completed({elapsed_processed=2.1})
+    assert(#rims==6,'a late Completed does not touch the rim')
     -- A newer press is not emptied by the older press's timer.
     byPhase.Started({elapsed_processed=0})
     byPhase.Completed({elapsed_processed=.04})
     byPhase.Started({elapsed_processed=0})
-    timers[2].run()
-    assert(#rims==6 and rims[6]==1,'the second press keeps its rim')
+    timers[3].run()
+    assert(#rims==8 and rims[8]==1,'the second press keeps its rim')
+    timers[4].run()
+    assert(#rims==9 and rims[9]==0,'and its own timer ends it')
     environment.delay=delay
     assert(pressHost:stop())
     environment.setIndicatorProgress=nil
 end
-print('PASS a key acting on press is full while down')
+print('PASS a key acting on press flashes its rim for Low')
 
--- The flash lasts until the low mark, however long the window.
+-- The flash lasts Low from the press, however long the window.
 do
     local timers={}
     local delay=environment.delay
@@ -1254,8 +1265,9 @@ do
     local byPhase={}
     for index=first+1,#callbacks do byPhase[callbacks[index].phase]=callbacks[index].callback end
     byPhase.Started({elapsed_processed=0})
+    assert(timers[1]==500,'flash until low: '..tostring(timers[1]))
     byPhase.Completed({elapsed_processed=.2})
-    assert(timers[1]==300,'flash until low: '..tostring(timers[1]))
+    assert(#timers==1,'Completed schedules nothing more')
     assert(capHost:stop())
     environment.delay,environment.setIndicatorProgress=delay,nil
 end

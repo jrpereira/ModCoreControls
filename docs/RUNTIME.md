@@ -14,8 +14,9 @@ While a key set to Hold is held, its HUD key indicator's rim fills from press to
 where the key acts; when a Tap shares its key, it stays empty until Low and fills from
 there. This follows the game's own hold prompts (`OnActionProgress` on the indicator,
 from the action's `Ongoing` events); it empties when the action fires or the key is
-released. A key set to Tap shows the rim too (`SetHoldDisplayOverride`): full while the
-key is down, and at least until Low after a press so a quick one still shows. A Tap
+released. A key set to Tap shows the rim too (`SetHoldDisplayOverride`). One that acts
+on press flashes it for Low from the press, however long the key is held: its action
+completes the frame after the press, so it cannot mark the release. A Tap
 sharing its key with a Hold is lit from press until it fires on a release before High,
 or until the Hold fires at High; from Low the Hold's rim fills beside it. A press
 shorter than Low never shows the Hold filling. These extra phases only drive the rim; they are never delivered as input.

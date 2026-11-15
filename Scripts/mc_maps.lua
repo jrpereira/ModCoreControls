@@ -53,7 +53,7 @@ M.addSectionMap('module', {
                 params={min=100,max=500,step=10,gap=50,suffix=' ms'}},
             {id='KeyOutline',name='Show key outline',type='picker',default=2,
                 description='The rim on HUD key hints: a Hold key\'s fills while held, a Tap key\'s is'
-                    ..' full while pressed. Hold keys always keep their rim; with None it does not fill.',
+                    ..' lit when pressed. Hold keys always keep their rim; with None it does not fill.',
                 params={values={0,1,2},labels={'None','Hold','Tap & Hold'}}},
         },
         holdThreshold='HoldThreshold',

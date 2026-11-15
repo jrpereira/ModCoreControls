@@ -1063,27 +1063,36 @@ function M.new(queue,log,service,environment)
     local rims={}
     -- Presses per binding, so a delayed empty never clears a later press's rim.
     local presses={}
+    -- The press whose Low flash a timer will end; later phases leave its rim alone.
+    local flashes={}
     fillRim=function(binding,phase,event)
         local value
         local low=api.plan and api.plan.holdLow or Context.DEFAULT_LOW
         local high=api.plan and api.plan.holdHigh or Context.DEFAULT_HIGH
         local elapsed=tonumber(event and event.elapsed_processed) or 0
         if binding.mode==3 then
-            -- Acts on press: full while the key is down, and at least until Low
-            -- so a quick press still shows.
-            if phase=='Started' then presses[binding.id]=(presses[binding.id] or 0)+1 end
-            value=(phase=='Completed' or phase=='Canceled') and 0 or 1
-            local remaining=low-elapsed
-            if value==0 and remaining>0 and type(e.delay)=='function' then
-                local press=presses[binding.id]
-                pcall(e.delay,math.floor(remaining*1000+.5),function()
-                    pcall(queue,function()
-                        if presses[binding.id]~=press or api.phase~='ready' or rims[binding.id]~=1 then return end
-                        rims[binding.id]=0
-                        setRim(binding,0)
-                    end)
-                end)
+            -- Acts on press, so how long the key is held does not matter: the rim
+            -- flashes for Low from the press. Pressed completes the frame after the
+            -- press, with the key still down, so Completed never marks the release.
+            if phase=='Started' then
+                local press=(presses[binding.id] or 0)+1
+                presses[binding.id]=press
                 value=1
+                local ok,scheduled=false,nil
+                if type(e.delay)=='function' then
+                    ok,scheduled=pcall(e.delay,math.floor(math.max(0,low-elapsed)*1000+.5),function()
+                        pcall(queue,function()
+                            if presses[binding.id]~=press or api.phase~='ready' or rims[binding.id]~=1 then return end
+                            rims[binding.id]=0
+                            setRim(binding,0)
+                        end)
+                    end)
+                end
+                flashes[binding.id]=ok and scheduled~=false and press or nil
+            elseif flashes[binding.id]==presses[binding.id] then value=rims[binding.id] or 0
+            else
+                -- No timer: empty when the action completes rather than stay lit.
+                value=(phase=='Completed' or phase=='Canceled') and 0 or 1
             end
         elseif binding.mode==0 or binding.mode==4 then
             -- Tap, alone with Instant Tap off or sharing its key with a Hold: lit from press until it fires, is released,

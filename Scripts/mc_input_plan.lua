@@ -211,7 +211,7 @@ function M.build(definition,values,options)
                         -- A Hold sharing its key with a Tap starts filling its rim at Low.
                         sharesTap=mode==1 and name~=nil and tapKeys[name:lower()] or nil}
                     -- A Hold key fills its indicator's rim while held, as the game's own
-                    -- hold prompts do; a Tap key's rim is full while pressed. They also
+                    -- hold prompts do; a Tap key's rim lights on press. They also
                     -- listen to these phases, only for the rim.
                     if mode==1 and name and plan.keyOutline>=M.OUTLINE.hold
                         or (mode==0 or mode==3 or mode==4) and binding.action.type~='focus'

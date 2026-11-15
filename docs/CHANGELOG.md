@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- A key that acts on press (Tap with Instant Tap on and no Hold on the same key)
+  now flashes its rim for Low from the press, however long the key is held. Its
+  action completes the frame after the press, so the rim no longer claims to follow
+  the key.
+
 ## v1.3.0
 
 - New **Key Press Behaviour** block on the Options page:
