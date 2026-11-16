@@ -221,9 +221,17 @@ local function defaultEnvironment()
         preHook=function(name,callback) return RegisterHook(name,callback) end,
         unhook=rawget(_G,'UnregisterHook'),
         inGameThread=rawget(_G,'IsInGameThread'),
-        delay=rawget(_G,'ExecuteWithDelay'),
+        -- On the game thread: ExecuteWithDelay runs its callback on UE4SS's async thread,
+        -- in this mod's Lua state while the game thread may use it (ModCore Templates'
+        -- previews crashed the game that way, 2026-11-16).
+        delay=type(rawget(_G,'ExecuteInGameThreadWithDelay'))=='function'
+            and function(ms,callback) return ExecuteInGameThreadWithDelay(math.max(1,math.floor(ms)),callback) end
+            or rawget(_G,'ExecuteWithDelay'),
     }
 end
+
+-- Exposed for tests: which UE4SS functions the live host uses.
+M.defaultEnvironment=defaultEnvironment
 
 function M.new(queue,log,service,environment)
     assert(type(queue)=='function','game-thread queue required')

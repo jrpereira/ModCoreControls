@@ -1301,3 +1301,20 @@ end
 environment.hudForOwner=nil
 print('PASS a Groups key fills only the focused wheel')
 
+
+do
+    local Host=require('mc_input_host')
+    local saved={rawget(_G,'ExecuteInGameThreadWithDelay'),rawget(_G,'ExecuteWithDelay')}
+    local calls={}
+    rawset(_G,'ExecuteInGameThreadWithDelay',function(ms,callback) calls[#calls+1]={'game',ms,callback} end)
+    rawset(_G,'ExecuteWithDelay',function(ms,callback) calls[#calls+1]={'async',ms,callback} end)
+    local callback=function() end
+    Host.defaultEnvironment().delay(0.4,callback)
+    assert(#calls==1 and calls[1][1]=='game' and calls[1][2]==1 and calls[1][3]==callback,
+        'delays run on the game thread, at least 1 ms')
+    rawset(_G,'ExecuteInGameThreadWithDelay',nil)
+    Host.defaultEnvironment().delay(5,callback)
+    assert(#calls==2 and calls[2][1]=='async' and calls[2][2]==5,'without it, ExecuteWithDelay is the fallback')
+    rawset(_G,'ExecuteInGameThreadWithDelay',saved[1]);rawset(_G,'ExecuteWithDelay',saved[2])
+end
+print('PASS delays prefer the game thread')
