@@ -2,21 +2,7 @@
 
 ## v1.3.2
 
-- Fixes a possible crash: MCC's delayed work (a key's rim reaching Low, and retries
-  while the game sets up its input and HUD) now runs on the game thread. It ran on
-  UE4SS's async thread before, sharing MCC's Lua state with the game thread.
-
-## v1.3.1
-
 - Requires UE4SSLuaEventBridge 1.3.0 and ModCore Settings 1.9.0 or newer.
-- The Default wheel is Abilities out of the box (was Consumables). A saved choice is kept.
-- A key that acts on press (Tap with Instant Tap on and no Hold on the same key)
-  now flashes its rim for Low from the press, however long the key is held. Its
-  action completes the frame after the press, so the rim no longer claims to follow
-  the key.
-
-## v1.3.0
-
 - New **Key Press Behaviour** block on the Options page:
   - **Tap vs Hold Threshold** replaces the fixed 200 ms: a window from Low to High,
     100-350 ms by default, adjustable within 100-500 ms in 10 ms steps and at least
@@ -27,28 +13,22 @@
     tap always acts.
   - **Show key outline**: None, Hold, or Tap & Hold (the default) chooses which HUD
     key hints get a rim. A Hold key's rim fills while held: from press for a lone
-    Hold, from Low when a Tap shares the key. A Tap key's rim is full while pressed
-    and stays lit long enough for a quick press to show. Hold keys keep their rim
-    under every choice; with None it does not fill.
+    Hold, from Low when a Tap shares the key. A key that acts on press flashes its
+    rim for Low from the press, however long it is held; another Tap key's rim is
+    full while pressed and stays lit long enough for a quick press to show. Hold
+    keys keep their rim under every choice; with None it does not fill.
+- A Groups key fills its rim only on the wheel that was focused when it was pressed.
 - Quickslot keys set to Hold are underlined on their HUD key hint. The underline
   follows its key when ModCore Templates changes the quickslot layout.
-- A Groups key fills its rim only on the wheel that was focused when it was pressed.
 - Quickslots 1-4 left on their default inherit the player's game key as an MCC
   binding: they act on press and their hints get MCC's glyph and rim.
+- The Default wheel is Abilities out of the box (was Consumables). A saved choice is kept.
 - MCC publishes `controls.slots.global`, the quickslots with a working Global key,
   so templates can leave those slots undimmed while their wheel is unfocused, and
   defines `templates.layout.changed` for ModCore Templates to publish.
-
-## v1.2.0
-
-- Requires ModCore Settings 1.7.0 or later.
-- No change to controls or settings since 1.0.12. The version moves to 1.2.0
-  because releases 1.0.1 to 1.0.12 shipped significant performance and bug fixes
-  that were numbered as patch revisions: using a skill no longer stutters the
-  game, loading a save from a running game no longer crashes it or leaves keys
-  unbound and wheels stuck, and MCC no longer searches every game object or every
-  InputAction on routine syncs, attaches and combat changes. The larger step marks
-  that body of work.
+- Fixes a possible crash: retries while the game sets up its input and HUD now run
+  on the game thread. They ran on UE4SS's async thread, sharing MCC's Lua state
+  with the game thread.
 
 ## v1.0.12
 
