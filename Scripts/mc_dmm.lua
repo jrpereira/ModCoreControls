@@ -92,15 +92,16 @@ function M.schema(definition,gamepad)
         for key,field in pairs(extra or {}) do fields[key]=field end
         block(lines,'Setting.'..id,fields)
     end
-    -- Visuals hosts ModCore Templates' quickslot Template picker. The placeholder
-    -- is ModCoreSettings' row slot controls:visuals: contributed rows take its
-    -- place and gating, and it shows only while nothing is contributed. With
-    -- mcSlotLabel the first contributed row takes this label and mcCategory, so the
-    -- template picker is the page's "Quickslots Visuals" heading row, with the
-    -- other contributed rows indented beneath it.
+    -- Visuals hosts ModCore Templates' quickslot templates. The placeholder is
+    -- ModCoreSettings' row slot controls:visuals: contributed rows take its place
+    -- and gating, and it shows only while nothing is contributed, as the
+    -- "Quickslots Visuals" heading row. The rows keep their groups (mcSlotGroups),
+    -- so the page reads as the template's own module page: under a "Quickslots
+    -- Visuals" heading (mcSlotLabel names the first group with this label) the
+    -- Template picker, then the chosen template's settings under its own heading.
     block(lines,'Category.Visuals',{mcHeading=0,VisibleWhen='MCC_Page',VisibleValues=page.visuals})
     display('MCC_Visuals_Pending','Visuals','Quickslots Visuals','Coming from ModCore Templates',
-        {mcSlot='visuals',mcSlotLabel=1,mcCategory=1})
+        {mcSlot='visuals',mcSlotLabel=1,mcSlotGroups=1,mcCategory=1})
     block(lines,'Category.Controller',{VisibleWhen='MCC_Page',VisibleValues=page.controller})
     display('MCC_Pad_Note','Controller','Note','Work in progress')
     if gamepad then
@@ -124,6 +125,7 @@ function M.schema(definition,gamepad)
                     Group=section.name,Type='picker',Default=selector.default,
                     PresetValues=table.concat(selector.values,'|'),
                     PresetLabels=table.concat(selector.labels,'|'),
+                    Description='Chooses which map\'s keys to edit. Every map\'s keys work at the same time.',
                     mcNavigation=1,VisibleWhen=pageWhen,VisibleValues=pageValue})
             end
             for _,map in ipairs(section.maps) do

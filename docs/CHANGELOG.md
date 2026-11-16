@@ -2,6 +2,9 @@
 
 ## v1.3.2
 
+- Settings and keys have clearer descriptions, and every key and the Control Map picker has one.
+- Quickslots Visuals lists the Template picker under its heading, then the chosen
+  template's settings under the template's own heading.
 - Requires UE4SSLuaEventBridge 1.3.0 and ModCore Settings 1.9.0 or newer.
 - New **Key Press Behaviour** block on the Options page:
   - **Tap vs Hold Threshold** replaces the fixed 200 ms: a window from Low to High,

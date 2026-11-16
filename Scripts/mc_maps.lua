@@ -33,27 +33,28 @@ M.addSectionMap('module', {
         contexts={'exploration','combat'},
         settings={
             {id='SwapOutsideCombat',name='Allow Swap outside of combat',type='picker',default=1,
+                description='On lets the Toggle Quickslots key swap wheels in the open world too. Off, it swaps only in combat.',
                 params={values={0,1},labels={'Off','On'}}},
             {id='HoldSwap',name='Hold to Swap, release to return',type='picker',default=1,
-                description='Applies to the Toggle Quickslots key. If you bind Swap to that same key'
-                    ..' in Groups, the Swap key\'s own Tap or Hold is used instead.',
+                description='On: holding the Toggle Quickslots key shows the other wheel until you let go.'
+                    ..' Off: each press swaps wheels. A Swap key bound to the same key uses its own Tap or Hold instead.',
                 params={values={0,1},labels={'Off','On'}}},
             {id='DefaultWheel',name='Default wheel',type='picker',default=1,
+                description='The wheel your quickslot keys use at rest. Swapping shows the other one;'
+                    ..' releasing a held swap returns here.',
                 params={values={1,2},labels={'Abilities','Consumables'}}},
             {id='InstantTap',name='Instant Tap when no Hold for same key',type='picker',default=1,
                 heading='Key Press Behaviour',
-                description='A key bound only to Tap fires on press (On), or on release or at High,'
-                    ..' whichever comes first (Off), so a tap always acts.',
+                description='On: a key bound only to Tap acts as soon as it is pressed. Off: it acts on release,'
+                    ..' or at High of the Tap vs Hold Threshold if still held.',
                 params={values={0,1},labels={'Off','On'}}},
             {id='HoldThreshold',name='Tap vs Hold Threshold',type='range',default='100|350',
-                description='A key bound only as Hold fires at High; its outline fills from 0 to High.'
-                    ..' When a key has both, pressing lights the Tap; at Low the Hold starts filling'
-                    ..' beside it; at High the Hold fires and the Tap goes dark. Releasing before High'
-                    ..' fires the Tap, so a press shorter than Low never shows the Hold filling.',
+                description='A Hold key acts at High, its outline filling until then. On a key with both,'
+                    ..' releasing before High fires the Tap instead; the Hold only starts filling at Low.',
                 params={min=100,max=500,step=10,gap=50,suffix=' ms'}},
             {id='KeyOutline',name='Show key outline',type='picker',default=2,
-                description='The rim on HUD key hints: a Hold key\'s fills while held, a Tap key\'s is'
-                    ..' lit when pressed. Hold keys always keep their rim; with None it does not fill.',
+                description='Rim feedback on HUD key hints. Hold fills a Hold key\'s rim while held; Tap & Hold'
+                    ..' also lights a Tap key\'s rim on press. With None, Hold keys keep an empty rim.',
                 params={values={0,1,2},labels={'None','Hold','Tap & Hold'}}},
         },
         holdThreshold='HoldThreshold',
@@ -73,6 +74,8 @@ for slot = 1, 4 do
         id = 'QuickSlot' .. slot,
         name = 'Quickslot ' .. slot,
         type = 'keybind',
+        description = 'Uses the ' .. arrows[slot] .. ' slot of the wheel in focus.'
+            .. ' Unbound, it keeps your game key for that slot.',
         params = {
             trigger = 'Tap|Hold',
             action = { type = 'selected', slot = slot },
@@ -109,6 +112,7 @@ M.addSectionMap('actions', {
                         },
                     },
                     { id = 'DefaultGroup', name = 'Swap back to default', type = 'mirror',
+                        description = 'The wheel Swap returns to: the Default wheel setting, also on the Options page.',
                         params = { section = 'module', map = 'default', setting = 'DefaultWheel', cycle = true } },
                 },
             },
@@ -116,6 +120,7 @@ M.addSectionMap('actions', {
                 name = 'Explicit Activation',
                 settings = {
                     { id = 'ActivateAbilities', name = 'Activate Abilities', type = 'keybind', default = 0,
+                        description = 'Tap shows the Abilities wheel. Hold shows it until release, then returns to the Default wheel.',
                         params = {
                             trigger = 'Hold|Tap', sustained = true,
                             action = { type = 'focus', group = 1 },
@@ -123,6 +128,7 @@ M.addSectionMap('actions', {
                         },
                     },
                     { id = 'ActivateConsumables', name = 'Activate Consumables', type = 'keybind', default = 0,
+                        description = 'Tap shows the Consumables wheel. Hold shows it until release, then returns to the Default wheel.',
                         params = {
                             trigger = 'Hold|Tap', sustained = true,
                             action = { type = 'focus', group = 2 },
@@ -145,6 +151,7 @@ for slot = 1, 4 do
         name = 'Ability Slot ' .. slot,
         type = 'keybind',
         default = 0,
+        description = 'Uses the ' .. arrows[slot] .. ' ability slot, whichever wheel is in focus.',
         params = { trigger = 'Tap|Hold', action = { type = 'ability', slot = slot }, optional = true },
     }
     consumables[slot] = {
@@ -152,6 +159,7 @@ for slot = 1, 4 do
         name = 'Consumable Slot ' .. slot,
         type = 'keybind',
         default = 0,
+        description = 'Uses the ' .. arrows[slot] .. ' consumable slot, whichever wheel is in focus.',
         params = { trigger = 'Tap|Hold', action = { type = 'consumable', slot = slot }, optional = true },
     }
 end

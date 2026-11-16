@@ -62,7 +62,8 @@ assert(schema:find('Label=Swap to Consumables\n',1,true),'its static label names
 -- Swap back to default shows its wheels as tabs.
 assert(schema:match('%[Setting%.MCC_actions_grouped_DefaultGroup%]\n(.-)\n\n'):find('\nmcType=cycle$'))
 -- Hold to Swap and the Swap key explain how they interact.
-assert(schema:find('Description=Applies to the Toggle Quickslots key. If you bind Swap',1,true)
+assert(schema:find('Description=On: holding the Toggle Quickslots key shows the other wheel',1,true)
+    and schema:find('A Swap key bound to the same key uses its own Tap or Hold instead.',1,true)
     and schema:find('Description=Tap swaps, and tapping again swaps back.',1,true))
 assert(schema:find('Label=Swap back to default\n',1,true) and schema:find('Label=Activate Abilities\n',1,true)
     and schema:find('Label=Activate Consumables\n',1,true) and schema:find('[Category.actions.grouped.3]',1,true))

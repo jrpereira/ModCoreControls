@@ -117,6 +117,7 @@ end
 local slotRow=DMM.schema(definition):match('%[Setting%.MCC_Visuals_Pending%][^%[]*')
 assert(slotRow and slotRow:find('mcSlot=visuals',1,true) and slotRow:find('mcSlotLabel=1',1,true)
     and slotRow:find('Label=Quickslots Visuals',1,true) and slotRow:find('mcCategory=1',1,true)
+    and slotRow:find('mcSlotGroups=1',1,true)
     and not slotRow:find('mcLevel',1,true),
     'the Visuals placeholder is the labelled ModCoreSettings row slot')
 assert(DMM.schema(definition):match('%[Category%.Visuals%][^%[]*mcHeading=0'),
