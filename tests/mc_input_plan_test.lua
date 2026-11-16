@@ -21,7 +21,7 @@ local default=Plan.build(definition,model.values)
 -- keys on their default control leave those keys to the native actions.
 assert(default.nativeSwap==nil)
 assert(table.concat(default.contexts,',')=='exploration,combat')
-assert(find(default,'default.swap.hold') and default.defaultGroup==2)
+assert(find(default,'default.swap.hold') and default.defaultGroup==1)
 assert(default.overrides.IA_Combat_ToggleQuickslots,'Default must suppress the native toggle')
 -- Hold threshold: a low-high window, 100-350 ms by default, 100 to 500 ms in 10 ms steps,
 -- at least 50 ms apart, in seconds in the plan.
@@ -110,9 +110,9 @@ assert(not find(default,'grouped.ActivateAbilities') and not find(default,'group
     'explicit activation keys are unbound by default')
 local defaultHold=default.bindings[1]
 assert(defaultHold.swap and defaultHold.mode==2 and defaultHold.sustained and defaultHold.action.type=='focus'
-    and defaultHold.action.group==1 and defaultHold.standardAction=='IA_Combat_ToggleQuickslots'
+    and defaultHold.action.group==2 and defaultHold.standardAction=='IA_Combat_ToggleQuickslots'
     and table.concat(defaultHold.phases,',')=='Started,Completed,Canceled',
-    'Hold to Swap is Swap to set to Hold on the inherited key: show Abilities while held')
+    'Hold to Swap is Swap to set to Hold on the inherited key: show Consumables while held')
 model:set(defaultMap.holdSwap.enabled.id,0)
 local tapDefault=Plan.build(definition,model.values)
 assert(not find(tapDefault,'default.swap.hold') and find(tapDefault,'default.swap.toggle')

@@ -38,7 +38,7 @@ M.addSectionMap('module', {
                 description='Applies to the Toggle Quickslots key. If you bind Swap to that same key'
                     ..' in Groups, the Swap key\'s own Tap or Hold is used instead.',
                 params={values={0,1},labels={'Off','On'}}},
-            {id='DefaultWheel',name='Default wheel',type='picker',default=2,
+            {id='DefaultWheel',name='Default wheel',type='picker',default=1,
                 params={values={1,2},labels={'Abilities','Consumables'}}},
             {id='InstantTap',name='Instant Tap when no Hold for same key',type='picker',default=1,
                 heading='Key Press Behaviour',

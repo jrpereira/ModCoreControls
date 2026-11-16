@@ -49,7 +49,7 @@ ok,saved=apply({[first]='1|Hold'})
 assert(ok,saved)
 assert(saved[first]=='1|Hold' and config():find('grouped.QuickSlot1=1|Hold\n',1,true))
 -- Number settings stay integers in the same file.
-assert(config():find('default.DefaultWheel=2\n',1,true))
+assert(config():find('default.DefaultWheel=1\n',1,true))
 
 -- Default Group mirrors Default's Default wheel: it loads from that setting, a
 -- change is saved there, and changing both to different values is rejected.
@@ -58,7 +58,7 @@ assert(schema:find('[Setting.MCC_actions_grouped_DefaultGroup]',1,true)
     and not schema:find('ConfigKey=grouped.DefaultGroup',1,true))
 assert(schema:find('mcLabelWhen=MCC_actions_grouped_DefaultGroup\nmcLabels=1:Swap to Consumables;2:Swap to Abilities',1,true),
     'the swap key is labelled after the wheel other than Default')
-assert(schema:find('Label=Swap to Abilities\n',1,true),'its static label names the wheel for the default setting')
+assert(schema:find('Label=Swap to Consumables\n',1,true),'its static label names the wheel for the default setting')
 -- Swap back to default shows its wheels as tabs.
 assert(schema:match('%[Setting%.MCC_actions_grouped_DefaultGroup%]\n(.-)\n\n'):find('\nmcType=cycle$'))
 -- Hold to Swap and the Swap key explain how they interact.
@@ -68,11 +68,11 @@ assert(schema:find('Label=Swap back to default\n',1,true) and schema:find('Label
     and schema:find('Label=Activate Consumables\n',1,true) and schema:find('[Category.actions.grouped.3]',1,true))
 local m,w='MCC_actions_grouped_DefaultGroup','MCC_module_default_DefaultWheel'
 open()
-assert(committed[m]==2 and committed[w]==2,'mirror loads the Default wheel')
-assert(apply({[m]=1}) and committed[w]==1 and committed[m]==1)
+assert(committed[m]==1 and committed[w]==1,'mirror loads the Default wheel')
+assert(apply({[m]=2}) and committed[w]==2 and committed[m]==2)
 open()
-assert(committed[m]==1 and committed[w]==1,'mirror change persists to Default')
-assert(apply({[w]=2}) and committed[m]==2,'source change reaches the mirror')
+assert(committed[m]==2 and committed[w]==2,'mirror change persists to Default')
+assert(apply({[w]=1}) and committed[m]==1,'source change reaches the mirror')
 assert(apply({[m]=1,[w]=1}) and committed[w]==1,'matching changes are accepted')
 assert(apply({[m]=2}) and committed[w]==2,'a mirror change wins over an unchanged source')
 -- With two wheels, both rows can change only from disagreeing committed values;

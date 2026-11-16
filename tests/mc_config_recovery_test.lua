@@ -11,11 +11,11 @@ local Menu,Config=require('mc_menu'),require('mc_config')
 local definition=Menu.define(require('mc_sections'),require('mc_maps'))
 local values=Menu.new(definition,{}).values
 local wheel='MCC_module_default_DefaultWheel'
-assert(values[wheel]==2)
+assert(values[wheel]==1)
 local first=Config.encode('[Other]\nkeep=one\n',definition,values)
 local changed={}
 for id,value in pairs(values) do changed[id]=value end
-changed[wheel]=1
+changed[wheel]=2
 local second=Config.encode(first,definition,changed)
 local path=tmpname()
 assert(os.remove(path))
@@ -37,30 +37,30 @@ end
 local function fails()
     local store=Config.open(path,definition)
     assert(tostring(store.recoveryError):find('unresolved',1,true),tostring(store.recoveryError))
-    assert(Menu.new(definition,store.values).values[wheel]==2)
+    assert(Menu.new(definition,store.values).values[wheel]==1)
     local saved,why=pcall(store.save,store,changed)
     assert(not saved and tostring(why):find('reviewed',1,true),tostring(why))
 end
 
 clear()
-assert(Menu.new(definition,Config.open(path,definition).values).values[wheel]==2)
+assert(Menu.new(definition,Config.open(path,definition).values).values[wheel]==1)
 write(path,first)
-assert(Config.open(path,definition).values[wheel]==2)
+assert(Config.open(path,definition).values[wheel]==1)
 
 clear();write(path,first);write(temporary,second)
-assert(Config.open(path,definition).values[wheel]==2)
+assert(Config.open(path,definition).values[wheel]==1)
 assert(read(path)==first and read(temporary)==nil)
 
 clear();write(previous,first);write(temporary,second)
-assert(Config.open(path,definition).values[wheel]==2)
+assert(Config.open(path,definition).values[wheel]==1)
 assert(read(path)==first and read(previous)==nil and read(temporary)==nil)
 
 clear();write(previous,first)
-assert(Config.open(path,definition).values[wheel]==2)
+assert(Config.open(path,definition).values[wheel]==1)
 assert(read(path)==first and read(previous)==nil)
 
 clear();write(path,second);write(previous,first)
-assert(Config.open(path,definition).values[wheel]==1)
+assert(Config.open(path,definition).values[wheel]==2)
 assert(read(path)==second and read(previous)==nil)
 
 clear();write(temporary,second);fails()
@@ -71,11 +71,11 @@ assert(read(path)==second and read(previous)==first and read(temporary)==second)
 
 -- An invalid saved value falls back to its default; the published file wins.
 clear();write(path,'[ModCoreControls.module]\ndefault.DefaultWheel=9\n');write(previous,first)
-assert(Menu.new(definition,Config.open(path,definition).values).values[wheel]==2)
+assert(Menu.new(definition,Config.open(path,definition).values).values[wheel]==1)
 assert(read(previous)==nil)
 -- Repeated sections and keys keep the first value.
-clear();write(path,'[ModCoreControls.module]\ndefault.DefaultWheel=1\n[ModCoreControls.module]\ndefault.DefaultWheel=2\n')
-assert(Config.open(path,definition).values[wheel]==1)
+clear();write(path,'[ModCoreControls.module]\ndefault.DefaultWheel=2\n[ModCoreControls.module]\ndefault.DefaultWheel=1\n')
+assert(Config.open(path,definition).values[wheel]==2)
 
 clear();write(path,first)
 local store=Config.open(path,definition)
@@ -88,7 +88,7 @@ local committed,warning=store:save(changed)
 os.remove=remove
 assert(committed and warning:find('cleanup pending',1,true))
 assert(read(path)==second and read(previous)==first)
-assert(Config.open(path,definition).values[wheel]==1)
+assert(Config.open(path,definition).values[wheel]==2)
 assert(read(previous)==nil)
 
 clear();write(path,first)

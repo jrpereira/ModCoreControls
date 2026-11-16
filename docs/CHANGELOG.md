@@ -1,7 +1,9 @@
 # Changelog
 
-## Unreleased
+## v1.3.1
 
+- Requires UE4SSLuaEventBridge 1.3.0 and ModCore Settings 1.9.0 or newer.
+- The Default wheel is Abilities out of the box (was Consumables). A saved choice is kept.
 - A key that acts on press (Tap with Instant Tap on and no Hold on the same key)
   now flashes its rim for Low from the press, however long the key is held. Its
   action completes the frame after the press, so the rim no longer claims to follow
