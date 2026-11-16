@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.2
+
+- Fixes a possible crash: MCC's delayed work (a key's rim reaching Low, and retries
+  while the game sets up its input and HUD) now runs on the game thread. It ran on
+  UE4SS's async thread before, sharing MCC's Lua state with the game thread.
+
 ## v1.3.1
 
 - Requires UE4SSLuaEventBridge 1.3.0 and ModCore Settings 1.9.0 or newer.
