@@ -115,8 +115,8 @@ do
         ..'MCC_module_default_KeyOutline',table.concat(order,','))
 end
 local slotRow=DMM.schema(definition):match('%[Setting%.MCC_Visuals_Pending%][^%[]*')
-assert(slotRow and slotRow:find('mcSlot=visuals',1,true) and slotRow:find('mcSlotLabel=1',1,true)
-    and slotRow:find('Label=Quickslots Visuals',1,true) and slotRow:find('mcCategory=1',1,true)
+assert(slotRow and slotRow:find('mcSlot=visuals',1,true) and not slotRow:find('mcSlotLabel',1,true)
+    and slotRow:find('Label=Quickslots\n',1,true) and slotRow:find('mcCategory=1',1,true)
     and slotRow:find('mcSlotGroups=1',1,true)
     and not slotRow:find('mcLevel',1,true),
     'the Visuals placeholder is the labelled ModCoreSettings row slot')
@@ -128,7 +128,7 @@ assert(focusRow and focusRow:find('Triggers=Hold|Tap',1,true)
     and focusRow:find('TriggerLabels=Hold|Toggle',1,true),'activation keys label Tap as Toggle')
 local slotKey=DMM.schema(definition):match('%[Setting%.MCC_actions_grouped_QuickSlot1%][^%[]*')
 assert(slotKey and not slotKey:find('TriggerLabels',1,true),'other keys keep the trigger names')
-assert(items[indices.MCC_Visuals_Pending].label=='Quickslots Visuals')
+assert(items[indices.MCC_Visuals_Pending].label=='Quickslots')
 local map=indices.MCC_actions_Map
 assert(items[map].mcFont==nil and not items[map].mcTabs,
     'Control Map must use DMM arrows without a presentation level')

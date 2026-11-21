@@ -5,6 +5,10 @@
 - Log levels no longer come from `log_level.txt`. With the UE4SS Lua Log Bridge installed they
   are set on its Logs page or under `[Levels]` in its `config.ini`; without it, WARN and above.
 - Tap vs Hold Threshold: Low and High may be as little as 10 ms apart (was 50 ms).
+- Visuals: the Quickslots template picker is the section's heading, with the chosen
+  template's settings right under it; the separate "Quickslots Visuals" heading and the
+  heading naming the template are gone (with ModCore Templates and ModCore Settings from
+  this round).
 
 ## v1.3.2
 
