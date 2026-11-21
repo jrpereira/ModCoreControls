@@ -71,12 +71,12 @@ local ok,err=pcall(function()
         local available,settings=pcall(require,'settings_api')
         if available and ModRef and type(RegisterConsoleCommandHandler)=='function' then
             local subscribed,result=pcall(settings.subscribe,'ModCoreControls',function()
-                refresh('DMM Apply')
+                refresh('Settings Apply')
             end)
             if subscribed then unsubscribe=result
-            else log.error('DMM Apply subscription failed: ',result) end
+            else log.error('Settings Apply subscription failed: ',result) end
         else
-            log.warn('DMM Apply notifications unavailable; input refreshes on restart.')
+            log.warn('Settings Apply notifications unavailable; input refreshes on restart.')
         end
         assert(refresh('startup input'),'startup input scheduling failed')
     end
