@@ -31,7 +31,7 @@ M.addSectionMap('actions', {
 })
 ```
 
-Restart, open **Controls → Key & Mouse → Actions → Demo**, bind an unused key,
+Restart, open **Controls → Key & Mouse → Control Map: Demo**, bind an unused key,
 and Apply. The saved key is `demo.Ability1` in `[ModCoreControls.actions]`.
 Keep map IDs, setting IDs and map values stable after users save settings.
 
