@@ -1201,8 +1201,8 @@ function M.new(queue,log,service,environment)
                 api.state.defaultGroup,resolvedForApply=previousDefault,nil
                 return false,why,detail
             end
-            api.plan,api.enabled,api.state=plan,true,{selectedGroup=api.state.selectedGroup,
-                pendingGroup=defaultGroup,defaultGroup=defaultGroup}
+            -- Retiring cleared the selected group: the next attach presents Default.
+            api.plan,api.enabled,api.state=plan,true,{pendingGroup=defaultGroup,defaultGroup=defaultGroup}
             -- The resolved actions are this call's wrappers: never kept past it.
             local results=table.pack(pcall(doSync,true))
             resolvedForApply=nil
