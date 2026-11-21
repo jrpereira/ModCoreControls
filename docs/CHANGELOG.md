@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Tap vs Hold Threshold: Low and High may be as little as 10 ms apart (was 50 ms).
+
 ## v1.3.2
 
 - Settings and keys have clearer descriptions, and every key and the Control Map picker has one.

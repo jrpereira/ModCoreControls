@@ -51,7 +51,7 @@ M.addSectionMap('module', {
             {id='HoldThreshold',name='Tap vs Hold Threshold',type='range',default='100|350',
                 description='A Hold key acts at High, its outline filling until then. On a key with both,'
                     ..' releasing before High fires the Tap instead; the Hold only starts filling at Low.',
-                params={min=100,max=500,step=10,gap=50,suffix=' ms'}},
+                params={min=100,max=500,step=10,gap=10,suffix=' ms'}},
             {id='KeyOutline',name='Show key outline',type='picker',default=2,
                 description='Rim feedback on HUD key hints. Hold fills a Hold key\'s rim while held; Tap & Hold'
                     ..' also lights a Tap key\'s rim on press. With None, Hold keys keep an empty rim.',

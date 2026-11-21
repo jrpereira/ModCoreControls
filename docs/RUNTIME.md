@@ -36,7 +36,7 @@ Hold), it removes the player's instance of each rebuilt action from
 `EnhancedPlayerInput.ActionInstanceData`, so the change applies at once.
 
 These settings sit under **Key Press Behaviour** on the Options page. The window is
-**Tap vs Hold Threshold**, a range from Low to High: 100-350 ms by default, 100 to 500 ms in 10 ms steps, at least 50 ms apart. It only matters for Hold
+**Tap vs Hold Threshold**, a range from Low to High: 100-350 ms by default, 100 to 500 ms in 10 ms steps, at least 10 ms apart. It only matters for Hold
 keys, for a Tap that shares its key with a Hold, and for the rim. A changed High
 rebuilds the triggers on Apply.
 

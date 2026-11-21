@@ -24,16 +24,16 @@ assert(table.concat(default.contexts,',')=='exploration,combat')
 assert(find(default,'default.swap.hold') and default.defaultGroup==1)
 assert(default.overrides.IA_Combat_ToggleQuickslots,'Default must suppress the native toggle')
 -- Hold threshold: a low-high window, 100-350 ms by default, 100 to 500 ms in 10 ms steps,
--- at least 50 ms apart, in seconds in the plan.
+-- at least 10 ms apart, in seconds in the plan.
 do
     local threshold=definition.byId.MCC_module_default_HoldThreshold
     assert(threshold and threshold.kind=='range' and threshold.default=='100|350'
-        and threshold.minimum==100 and threshold.maximum==500 and threshold.step==10 and threshold.gap==50)
+        and threshold.minimum==100 and threshold.maximum==500 and threshold.step==10 and threshold.gap==10)
     assert(default.holdLow==.1 and default.holdHigh==.35,'the default window reaches the plan')
-    for _,value in ipairs({'100|140','90|300','100|510','105|300','300|200','100','100|350|400'}) do
+    for _,value in ipairs({'100|100','200|200','90|300','100|510','105|300','300|200','100','100|350|400'}) do
         assert(not Menu.valid(threshold,value),'rejects '..value)
     end
-    for _,value in ipairs({'100|150','100|500','450|500'}) do assert(Menu.valid(threshold,value),'accepts '..value) end
+    for _,value in ipairs({'100|110','100|140','100|150','100|500','450|500'}) do assert(Menu.valid(threshold,value),'accepts '..value) end
     local values={}
     for id,value in pairs(model.values) do values[id]=value end
     values[threshold.id]='200|400'
@@ -41,7 +41,7 @@ do
     assert(built.holdLow==.2 and built.holdHigh==.4)
     -- A saved value outside the range falls back to the default.
     local Config=require('mc_config')
-    local decoded=Config.decode('[ModCoreControls.module]\ndefault.HoldThreshold=100|120\n',definition)
+    local decoded=Config.decode('[ModCoreControls.module]\ndefault.HoldThreshold=100|100\n',definition)
     assert(decoded[threshold.id]==nil,'an invalid saved window is left out')
     decoded=Config.decode('[ModCoreControls.module]\ndefault.HoldThreshold=150|300\n',definition)
     assert(decoded[threshold.id]=='150|300')
