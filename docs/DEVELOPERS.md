@@ -80,7 +80,7 @@ Keybind options:
 | --- | --- |
 | `optional=true` | The row gets a clear button, so the player can leave the key unbound |
 | `defaultControl='IA_Name'` | While unbound, the key inherits the player's keys for that native action; requires `optional=true` |
-| `override` | `true` (with `defaultControl`), an action name or a list of them: suppresses native actions while the key is bound |
+| `override` | `true` (with `defaultControl`), an action name or a list of them: suppresses native actions while the key is bound. A slot (`selected`) key with `override=true` inherits its `defaultControl` key while unbound and keeps suppressing it |
 | `sustained=true` | Focus actions only: Hold acts from press until release, showing the wheel while held, instead of once at High |
 
 Start with the options in the example; use the [runtime reference](RUNTIME.md)

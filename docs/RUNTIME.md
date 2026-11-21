@@ -61,7 +61,7 @@ out, the key stays unbound.
 
 | Declaration | Behavior |
 | --- | --- |
-| Key `override=true` with `defaultControl` | Custom key suppresses that native action; unbound leaves the action to the game |
+| Key `override=true` with `defaultControl` | Custom key suppresses that native action; unbound leaves the action to the game, except a slot (`selected`) key, which inherits the player's key and still suppresses it |
 | Key `override='IA_Name'` | Overrides that action while bound; declare the key separately in `default` |
 | Map `override={'IA_First','IA_Second'}` | Overrides remain active independently of individual keys |
 
