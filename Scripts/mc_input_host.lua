@@ -1272,14 +1272,19 @@ function M.new(queue,log,service,environment)
         api.retryStep=step
         local ms=step==1 and 100 or step==2 and 500 or 3000*(1<<math.min(step-3,2))
         retryArmed=true
+        -- The body runs through queue: with only ExecuteWithDelay the timer fires on
+        -- UE4SS's async thread, which must not touch MCC's state.
         local ok,result=pcall(e.delay,ms,function()
-            retryArmed=false
-            if api.phase=='stopped' or not api.enabled then return end
-            if api.ready then
-                if not api.incomplete then return end
-                overridesStale=true
-            end
-            wake()
+            local queued,why=pcall(queue,function()
+                retryArmed=false
+                if api.phase=='stopped' or not api.enabled then return end
+                if api.ready then
+                    if not api.incomplete then return end
+                    overridesStale=true
+                end
+                wake()
+            end)
+            if not queued or why==false then retryArmed=false;log.warn('lifecycle retry failed to queue: ',why) end
         end)
         if not ok or result==false then
             retryArmed=false

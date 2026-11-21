@@ -625,6 +625,32 @@ do
 end
 print('PASS without the input setup hook, retries continue while not attached')
 
+-- A retry timer only queues: with ExecuteWithDelay it fires on UE4SS's async thread,
+-- where MCC's state must not be touched.
+do
+    local scheduled,deferred,deferring={},{},false
+    environment.delay=function(ms,callback) scheduled[#scheduled+1]={ms=ms,callback=callback};return true end
+    input.AppliedInputContexts[native]=nil
+    local timerHost=require('mc_input_host').new(function(callback)
+        if deferring then deferred[#deferred+1]=callback else callback() end
+        return true
+    end,function()end,service,environment)
+    assert(not timerHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',key=74,
+        keyName='J',mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={}}))
+    assert(#scheduled==1)
+    -- Even a timer firing after stop reads no state itself: its phase check runs queued.
+    assert(timerHost:stop())
+    deferring=true
+    table.remove(scheduled,1).callback()
+    deferring=false
+    assert(#deferred==1,'the timer queues before it reads any state')
+    table.remove(deferred,1)()
+    assert(#scheduled==0 and #mccKeys()==0)
+    input.AppliedInputContexts[native]=5
+    environment.delay=nil
+end
+print('PASS retry timers run their work through the game-thread queue')
+
 -- Rebuild requests come during play, as on every skill: while the kept player lives
 -- and owns its input, a sync or a gameplay context added scans for no object. A
 -- possession scans.
