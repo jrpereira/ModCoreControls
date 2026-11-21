@@ -16,10 +16,11 @@ there. This follows the game's own hold prompts (`OnActionProgress` on the indic
 from the action's `Ongoing` events); it empties when the action fires or the key is
 released. A key set to Tap shows the rim too (`SetHoldDisplayOverride`). One that acts
 on press flashes it for Low from the press, however long the key is held: its action
-completes the frame after the press, so it cannot mark the release. A Tap
-sharing its key with a Hold is lit from press until it fires on a release before High,
-or until the Hold fires at High; from Low the Hold's rim fills beside it. A press
-shorter than Low never shows the Hold filling. These extra phases only drive the rim; they are never delivered as input.
+completes the frame after the press, so it cannot mark the release. Any other Tap
+key is lit from press until it fires; one sharing its key with a Hold fires on a
+release before High, or goes dark when the Hold fires at High, and from Low the Hold's
+rim fills beside it. A press shorter than Low stays lit until Low from the press, so
+even a quick press shows; it never shows the Hold filling. These extra phases only drive the rim; they are never delivered as input.
 The Options page's **Show key outline** chooses which keys do this: None, Hold, or
 Tap & Hold (the default). A Hold key always keeps its rim; with None it just does not
 fill. A Groups key fills the hint of the wheel focused when it was pressed.

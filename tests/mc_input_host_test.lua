@@ -1199,6 +1199,26 @@ do
     assert(rims[4]==0 and #activated==1,'at the high mark the Hold fires and the Tap goes dark')
     fire('Canceled',.6)
     assert(#rims==4)
+    -- A quick press stays lit until Low from the press, so it shows.
+    local timers={}
+    local delay=environment.delay
+    environment.delay=function(ms,callback) timers[#timers+1]={ms=ms,run=callback};return true end
+    fire('Started',0)
+    fire('Triggered',.03)
+    assert(#rims==5 and rims[5]==1 and #timers==1 and timers[1].ms==70,'a quick tap stays lit until Low')
+    fire('Completed',.03)
+    assert(#rims==5 and #timers==1,'its release changes nothing')
+    timers[1].run()
+    assert(#rims==6 and rims[6]==0,'and empties at Low')
+    -- A newer press is not emptied by the older press's timer.
+    fire('Started',0)
+    fire('Triggered',.02)
+    fire('Started',0)
+    timers[2].run()
+    assert(rims[#rims]==1,'the second press keeps its rim')
+    fire('Triggered',.2)
+    assert(rims[#rims]==0 and #timers==2,'a tap past Low empties at once')
+    environment.delay=delay
     -- With Show key outline set to Hold, a Tap key no longer shows a rim.
     assert(tapHost:apply({contexts={'exploration','combat'},bindings={{id='global.AbilitySlot1',keyName='One',
         mode=0,phases={'Triggered'},action={type='ability',slot=1}}},overrides={},holdLow=.1,holdHigh=.4,keyOutline=1}))

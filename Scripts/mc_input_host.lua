@@ -1104,9 +1104,31 @@ function M.new(queue,log,service,environment)
         elseif binding.mode==0 or binding.mode==4 then
             -- Tap, alone with Instant Tap off or sharing its key with a Hold: lit from press until it fires, is released,
             -- or the Hold fires at High; from Low it shows beside the Hold filling.
-            if phase=='Started' then value=1
-            elseif phase=='Ongoing' then value=elapsed<high and 1 or 0
-            else value=0 end
+            -- A press ending before Low stays lit until Low from the press, so even a
+            -- quick press shows.
+            if phase=='Started' then
+                presses[binding.id]=(presses[binding.id] or 0)+1
+                flashes[binding.id]=nil
+                value=1
+            elseif flashes[binding.id]~=nil and flashes[binding.id]==presses[binding.id] then value=rims[binding.id] or 0
+            elseif phase=='Ongoing' and elapsed<high then value=1
+            else
+                value=0
+                if elapsed<low and rims[binding.id]==1 and type(e.delay)=='function' then
+                    local press=presses[binding.id] or 0
+                    presses[binding.id]=press
+                    local ok,scheduled=pcall(e.delay,math.floor(math.max(0,low-elapsed)*1000+.5),function()
+                        pcall(queue,function()
+                            if presses[binding.id]~=press or flashes[binding.id]~=press then return end
+                            flashes[binding.id]=nil
+                            if api.phase~='ready' or rims[binding.id]~=1 then return end
+                            rims[binding.id]=0
+                            setRim(binding,0)
+                        end)
+                    end)
+                    if ok and scheduled~=false then flashes[binding.id]=press;value=1 end
+                end
+            end
         elseif phase=='Ongoing' then
             -- Hold: fills from press to act at High; one sharing its key with
             -- a Tap stays empty until Low, while the Tap is lit.
