@@ -13,6 +13,13 @@
   "Default": Allow Swap outside of combat, Hold to Swap, Default wheel) and **Shortcuts**
   (was "Key Press Behaviour": Instant Tap, Tap vs Hold Threshold, Show key outline).
   Saved settings are unchanged.
+- The Controls page is one page instead of four picked from the top (Options, Visuals,
+  Key & Mouse, Controller): the Quickslots template picker and its settings first, then
+  **Mappings**, three links that each open an inner page (**Group Keys**, **Global Keys**,
+  **Controller**), then Behaviours. Each inner page has its own Apply, and Back returns to
+  the Controls page. The Control Map picker is gone with the Key & Mouse page. Saved
+  bindings and settings are unchanged. Needs ModCore Settings from this round (inner
+  pages).
 
 ## v1.3.2
 

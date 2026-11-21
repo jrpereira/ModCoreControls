@@ -15,7 +15,7 @@ local common={id=true,name=true,type=true,default=true,params=true,description=t
 -- A map's fields; holdThreshold, keyOutline, instantTap and holdSwap name its settings.
 -- within is a heading the map's settings blocks sit under as subgroups.
 local mapFields={id=true,name=true,value=true,contexts=true,map=true,settings=true,override=true,
-    holdThreshold=true,keyOutline=true,instantTap=true,holdSwap=true,within=true}
+    holdThreshold=true,keyOutline=true,instantTap=true,holdSwap=true,within=true,page=true}
 local paramFields={
     -- tab=true shows the choices as tabs instead of a left/right picker; cycle=true
     -- shows only the current choice, in the keybind key column, advancing on click.
@@ -111,26 +111,24 @@ function M.define(registry, mapRegistry)
             assert(declaration.within==nil or type(declaration.within)=='string'
                 and declaration.within:match('%S') and not declaration.within:find('[:;]'),
                 'invalid within heading: ' .. mapId)
+            -- page names the map's inner page and the main page's link to it; a map
+            -- without one shows on the main page.
+            assert(declaration.page==nil or type(declaration.page)=='string'
+                and declaration.page:match('%S') and not declaration.page:find('[|;%[%]%c]'),
+                'invalid page name: ' .. mapId)
             require('mc_input_plan').validateOverride(declaration.override)
             section.maps[#section.maps + 1] = { id=mapId, name=declaration.name,
                 value=declaration.value, declaration=declaration, groups={},
                 contexts=declaration.contexts, override=declaration.override,
                 settings={},holdSwap=declaration.holdSwap,holdThreshold=declaration.holdThreshold,
                 keyOutline=declaration.keyOutline,instantTap=declaration.instantTap,
-                within=declaration.within }
+                within=declaration.within, page=declaration.page }
         end
         table.sort(section.maps, function(a,b) return a.value < b.value end)
-        if #section.maps > 0 then
-            local values, labels, used = {}, {}, {}
-            for _, map in ipairs(section.maps) do
-                assert(not used[map.value], 'duplicate map value in ' .. id)
-                used[map.value] = true
-                values[#values+1], labels[#labels+1] = map.value, map.name
-            end
-            -- Maps coexist. The picker only navigates between their pages, so it
-            -- is neither a stored setting nor an input to the runtime plan.
-            section.selector = { id='MCC_' .. token(id) .. '_Map', name='Control Map', kind='choice',
-                default=values[1], values=values, labels=labels, navigation=true }
+        local used = {}
+        for _, map in ipairs(section.maps) do
+            assert(not used[map.value], 'duplicate map value in ' .. id)
+            used[map.value] = true
         end
         for _, map in ipairs(section.maps) do
             local declaredSettings=map.declaration.settings or {}

@@ -18,8 +18,8 @@ updates the HUD key indicators.
   comes first.
 - **Use keyboard and mouse bindings with Tap/Hold:** configure supported actions
   in the menu and activate them in exploration and combat.
-- **Keep all control maps available:** every map's bindings work together; the
-  menu selector only changes which map you are editing.
+- **Keep all control maps available:** every map's bindings work together; each
+  map's page only shows its keys for editing.
 - **Save validated bindings:** Apply checks for duplicate custom keys across
   maps and saves successful changes for the next session.
 - **Keep HUD hints aligned:** key indicators reflect MCC bindings, with original
@@ -54,17 +54,18 @@ fully restart the game after changing Lua files.
 
 ## Menu behavior
 
-| Controls page | Contents |
-| --- | --- |
-| Options | Behaviours: Quickslot Wheels (default wheel and Toggle Quickslots behavior) and Shortcuts (Instant Tap, Tap vs Hold Threshold and key outline) |
-| Visuals | MCT quickslot template selection and settings, when contributed |
-| Key & Mouse | Actions maps |
-| Controller | Read-only list of the player's current gamepad mappings |
+The Controls page is a single page, top to bottom:
 
-Every map's bindings stay active together. **Control Map** selects which rows
-to display; it does not enable or disable a map. Apply rejects the same key with
-the same trigger on two rows; the same key with Tap on one row and Hold on another
-is two separate bindings.
+| Section | Contents |
+| --- | --- |
+| Quickslots | MCT quickslot template selection and settings, when contributed |
+| Mappings | Links (**edit**) to the inner pages **Group Keys** (the Groups map), **Global Keys** (the Global map) and **Controller** (a read-only list of the player's current gamepad mappings) |
+| Behaviours | Quickslot Wheels (default wheel and Toggle Quickslots behavior) and Shortcuts (Instant Tap, Tap vs Hold Threshold and key outline) |
+
+Each inner page has its own Apply; Back returns to the Controls page. Every map's
+bindings stay active together; its page only shows them. Apply rejects the same key
+with the same trigger on two rows, on any of the pages; the same key with Tap on one
+row and Hold on another is two separate bindings.
 
 Groups operates on the focused wheel; Global addresses individual
 ability or consumable slots. An optional binding with `defaultControl` inherits

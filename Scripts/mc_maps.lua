@@ -25,7 +25,8 @@ function M.seal() M.sealed=true end
 
 -- Every setting has an id, a name and a type; what is specific to its type sits in
 -- params. Map settings are pickers. A group lists its keybinds and mirrors in the
--- order the page shows them.
+-- order the page shows them. A map with a page has an inner page of that name, opened
+-- from the Mappings links; the others show on the main page.
 M.addSectionMap('module', {
         id='default',
         name='Quickslot Wheels',
@@ -90,6 +91,7 @@ end
 M.addSectionMap('actions', {
         id = 'grouped',
         name = 'Groups',
+        page = 'Group Keys',
         value = 1,
         contexts= {'exploration', 'combat'},
         -- The grouped slot keys fire the focused wheel. Alternate Activation swaps
@@ -113,7 +115,7 @@ M.addSectionMap('actions', {
                         },
                     },
                     { id = 'DefaultGroup', name = 'Swap back to default', type = 'mirror',
-                        description = 'The wheel Swap returns to: the Default wheel setting, also under Quickslot Wheels on the Options page.',
+                        description = 'The wheel Swap returns to: the Default wheel setting, also under Quickslot Wheels on the main Controls page.',
                         params = { section = 'module', map = 'default', setting = 'DefaultWheel', cycle = true } },
                 },
             },
@@ -168,6 +170,7 @@ end
 M.addSectionMap('actions', {
         id = 'global',
         name = 'Global',
+        page = 'Global Keys',
         value = 2,
         contexts= {'exploration', 'combat'},
         map = {

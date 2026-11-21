@@ -21,7 +21,7 @@ key is lit from press until it fires; one sharing its key with a Hold fires on a
 release before High, or goes dark when the Hold fires at High, and from Low the Hold's
 rim fills beside it. A press shorter than Low stays lit until Low from the press, so
 even a quick press shows; it never shows the Hold filling. These extra phases only drive the rim; they are never delivered as input.
-The Options page's **Show key outline** chooses which keys do this: None, Hold, or
+The Controls page's **Show key outline** chooses which keys do this: None, Hold, or
 Tap & Hold (the default). A Hold key always keeps its rim; with None it just does not
 fill. A Groups key fills the hint of the wheel focused when it was pressed.
 
@@ -35,7 +35,7 @@ uses the action. When MCC rebuilds triggers (a new threshold, or Tap changed to
 Hold), it removes the player's instance of each rebuilt action from
 `EnhancedPlayerInput.ActionInstanceData`, so the change applies at once.
 
-These settings sit under **Behaviours → Shortcuts** on the Options page. The window is
+These settings sit under **Behaviours → Shortcuts** on the Controls page. The window is
 **Tap vs Hold Threshold**, a range from Low to High: 100-350 ms by default, 100 to 500 ms in 10 ms steps, at least 10 ms apart. It only matters for Hold
 keys, for a Tap that shares its key with a Hold, and for the rim. A changed High
 rebuilds the triggers on Apply.

@@ -53,7 +53,9 @@ assert(config():find('default.DefaultWheel=1\n',1,true))
 
 -- Default Group mirrors Default's Default wheel: it loads from that setting, a
 -- change is saved there, and changing both to different values is rejected.
-local schema=DMM.schema(require('mc_menu').define(require('mc_sections'),require('mc_maps')))
+-- The mirror and the swap keys are on the Group Keys page, Hold to Swap on the main page.
+local definition=require('mc_menu').define(require('mc_sections'),require('mc_maps'))
+local schema=DMM.schema(definition,nil,'ModCoreControls.grouped')..'\n'..DMM.schema(definition)
 assert(schema:find('[Setting.MCC_actions_grouped_DefaultGroup]',1,true)
     and not schema:find('ConfigKey=grouped.DefaultGroup',1,true))
 assert(schema:find('mcLabelWhen=MCC_actions_grouped_DefaultGroup\nmcLabels=1:Swap to Consumables;2:Swap to Abilities',1,true),

@@ -9,8 +9,9 @@ assert(module.id=='module' and #module.maps==1 and defaultMap.id=='default',
     'Default belongs to the Module section')
 assert(actions.id=='actions' and groupedMap.id=='grouped' and globalMap.id=='global'
     and #actions.maps==2,'Actions has Groups and Global')
--- The map picker only navigates: it is not a stored setting or a plan input.
-assert(actions.selector.navigation and not definition.byId[actions.selector.id])
+-- Each map with a page has an inner page; there is no map picker.
+assert(actions.selector==nil and groupedMap.page=='Group Keys' and globalMap.page=='Global Keys'
+    and defaultMap.page==nil)
 
 local function find(plan,id)
     for _,item in ipairs(plan.bindings) do if item.id==id then return item end end

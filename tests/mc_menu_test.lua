@@ -14,10 +14,20 @@ local module,actions=definition.sections[1],definition.sections[2]
 assert(module.id=='module' and module.maps[1].id=='default' and #module.maps==1)
 assert(actions.id=='actions' and actions.maps[1].id=='grouped')
 assert(#definition.sections==2)
-local selector=actions.selector
--- The map picker only navigates between coexisting maps; it is never stored.
-assert(selector.navigation and not definition.byId[selector.id] and model.values[selector.id]==nil)
-assert(not pcall(model.set,model,selector.id,2))
+-- Maps coexist; each with a page is edited on its own inner page, so there is no map picker.
+assert(actions.selector==nil and actions.maps[1].page=='Group Keys')
+-- A page name is shown text: no separators DMM reads.
+do
+    for _,name in ipairs({'mc_maps','mc_sections','mc_menu'}) do package.loaded[name]=nil end
+    local maps=require('mc_maps')
+    maps.maps.actions.grouped.page='Bad|Name'
+    assert(not pcall(require('mc_menu').define,require('mc_sections'),maps),'invalid page names are rejected')
+    for _,name in ipairs({'mc_maps','mc_sections','mc_menu'}) do package.loaded[name]=nil end
+    Menu=require('mc_menu')
+    definition=Menu.define(require('mc_sections'),require('mc_maps'))
+    model=Menu.new(definition,{})
+    actions=definition.sections[2]
+end
 local globalMap=actions.maps[2]
 assert(globalMap.id=='global' and #actions.maps==2)
 local globalKeys=0

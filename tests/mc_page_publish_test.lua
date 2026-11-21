@@ -26,7 +26,17 @@ end
 assert(failed,'input startup must still fail in this test: '..table.concat(printed,' / '))
 assert(#published==1,'the page is published although input startup failed')
 local page=published[1].pages[1]
-assert(#published[1].pages==1 and page.id=='ModCoreControls' and page.name=='Controls')
+assert(page.id=='ModCoreControls' and page.name=='Controls')
+-- Then its inner pages, listed nowhere and opened from the main page's Mappings links.
+local inner={}
+for n=2,#published[1].pages do
+    local child=published[1].pages[n]
+    assert(child.under=='ModCoreControls' and child.group=='inner' and child.hooks==root .. '/Scripts/mcs_page.lua'
+        and child.configDirectory==root,child.id)
+    inner[#inner+1]=child.id..'='..child.name
+end
+assert(table.concat(inner,',')=='ModCoreControls.grouped=Group Keys,ModCoreControls.global=Global Keys,'
+    ..'ModCoreControls.controller=Controller',table.concat(inner,','))
 assert(page.hooks==root .. '/Scripts/mcs_page.lua' and page.configDirectory==root)
 assert(page.attach==root:match('([^/\\]+)$'),'the page replaces this mod folder\'s placeholder')
 assert(options.id=='ModCoreControls' and options.directory==root .. '/cache')
@@ -35,7 +45,8 @@ assert(options.id=='ModCoreControls' and options.directory==root .. '/cache')
 local hooks=dofile(page.hooks)
 assert(hooks.contract==1 and type(hooks.manifest)=='function'
     and type(hooks.load)=='function' and type(hooks.apply)=='function')
-assert(hooks.manifest({page=page.id,directory=page.configDirectory}):find('[Setting.MCC_Page]',1,true))
+assert(hooks.manifest({page=page.id,directory=page.configDirectory}):find('mcLinkPage=ModCoreControls.grouped',1,true))
+assert(hooks.manifest({page='ModCoreControls.controller',directory=page.configDirectory}):find('[Setting.MCC_Pad_Note]',1,true))
 print('PASS main publishes the Controls page before input startup')
 
 -- The page version is the release's VERSION, whether loaded relatively or by full path.

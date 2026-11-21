@@ -14,6 +14,7 @@ adds one optional binding to ability slot 1:
 M.addSectionMap('actions', {
     id = 'demo',
     name = 'Demo',
+    page = 'Demo Keys', -- its inner page, linked under Mappings
     value = 3, -- 1 and 2 are already used by Actions maps
     contexts = {'exploration', 'combat'},
     map = {
@@ -31,7 +32,7 @@ M.addSectionMap('actions', {
 })
 ```
 
-Restart, open **Controls → Key & Mouse → Control Map: Demo**, bind an unused key,
+Restart, open **Controls → Mappings → Demo Keys**, bind an unused key,
 and Apply. The saved key is `demo.Ability1` in `[ModCoreControls.actions]`.
 Keep map IDs, setting IDs and map values stable after users save settings.
 
@@ -43,7 +44,7 @@ own Lua state and seal the registry when they build their definition; a later
 
 | Location | Required fields | Optional fields |
 | --- | --- | --- |
-| Map | `id`, `name`, unique section-local numeric `value`, `contexts`, `map` | `settings`, `override`, `within`, and the setting fields below |
+| Map | `id`, `name`, unique section-local numeric `value` (its order), `contexts`, `map` | `page`, `settings`, `override`, `within`, and the setting fields below |
 | Group inside `map` | `name`, `settings` | `description` |
 | Setting | `id`, `name`, `type` | `default`, `description`, `params` |
 
@@ -110,18 +111,21 @@ current declarations. Old `.key` and `.trigger` assignments are ignored.
 
 ## How the menu reaches gameplay
 
-1. `main.lua` publishes the `ModCoreControls` page through MCS's
+1. `main.lua` publishes the `ModCoreControls` page and its inner pages
+   (`ModCoreControls.<map id>` for each map with a `page`, then
+   `ModCoreControls.controller`; MCS `group='inner'`) through MCS's
    `menu_contributions.lua`, before input startup.
-2. MCS loads `mcs_page.lua` in the menu state. `mc_dmm.lua` generates the manifest
-   and supplies `load`/`apply` hooks for MCC's storage.
-3. Apply resolves mirrors, validates all maps together, and saves `config.ini`.
-4. MCC receives the Apply notification, rereads its config on the game thread,
-   and replaces the runtime plan when native resources are ready.
+2. MCS loads `mcs_page.lua` in the menu state. `mc_dmm.lua` generates each page's
+   manifest by `context.page` and supplies `load`/`apply` hooks for MCC's storage.
+3. Apply on any of the pages resolves mirrors, validates all maps together, and saves
+   `config.ini`; settings on the other pages keep their saved values.
+4. MCC receives the Apply notification (it subscribes to every page's id), rereads its
+   config on the game thread, and replaces the runtime plan when native resources are ready.
 
-Page, Section and Control Map are navigation only. Key & Mouse lists only sections
-that have maps; the Section picker appears once two of them do. Visuals declares the
-`controls:visuals` slot for MCT; the placeholder remains if no valid rows arrive.
-MCC installs no DMM extension or `mod_settings.ini`.
+The main page holds the `controls:visuals` slot for MCT at the top (the placeholder
+remains if no valid rows arrive), the **Mappings** links (navigation rows with
+`mcLinkPage`, never stored), then the maps without a `page`. A map with a `page` is
+shown only on its inner page. MCC installs no DMM extension or `mod_settings.ini`.
 
 ## Check your change
 

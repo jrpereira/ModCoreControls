@@ -27,12 +27,19 @@ end
 local published,publishWhy=pcall(function()
     -- The cache directory is not shipped; create it for the page descriptors.
     require('safe_file').mkdir(root .. '/cache')
-    local page=require('mc_dmm').page
+    local Page=require('mc_dmm')
+    local page=Page.page
     local pages=require('menu_contributions').publisher(assert(rawget(_G,'ModRef'),'ModRef unavailable'),
         {id=page.id,directory=root .. '/cache'})
-    pages:publish({pages={{id=page.id,name=page.name,author=page.author,version=page.version,
+    -- The main page, then its inner pages: listed nowhere, opened from its Mappings links.
+    local list={{id=page.id,name=page.name,author=page.author,version=page.version,
         description=page.description,attach=root:match('([^/\\]+)$'),
-        hooks=scripts .. '/mcs_page.lua',configDirectory=root}}})
+        hooks=scripts .. '/mcs_page.lua',configDirectory=root}}
+    for _,inner in ipairs(Page.pages(require('mc_menu').define(require('mc_sections'),require('mc_maps')))) do
+        list[#list+1]={id=inner.id,name=inner.name,description=inner.description,version=page.version,
+            under=page.id,group='inner',hooks=scripts .. '/mcs_page.lua',configDirectory=root}
+    end
+    pages:publish({pages=list})
 end)
 if not published then log.error('Controls page unavailable: ',publishWhy) end
 local ok,err=pcall(function()
@@ -69,11 +76,22 @@ local ok,err=pcall(function()
         end
         local available,settings=pcall(require,'settings_api')
         if available and ModRef and type(RegisterConsoleCommandHandler)=='function' then
-            local subscribed,result=pcall(settings.subscribe,'ModCoreControls',function()
-                refresh('Settings Apply')
-            end)
-            if subscribed then unsubscribe=result
-            else log.error('Settings Apply subscription failed: ',result) end
+            -- Each Controls page publishes its own Apply.
+            local ids={require('mc_dmm').page.id}
+            for _,inner in ipairs(require('mc_dmm').pages(definition)) do ids[#ids+1]=inner.id end
+            local tickets={}
+            for _,id in ipairs(ids) do
+                local subscribed,result=pcall(settings.subscribe,id,function()
+                    refresh('Settings Apply')
+                end)
+                if subscribed then tickets[#tickets+1]=result
+                else log.error('Settings Apply subscription failed for ',id,': ',result) end
+            end
+            if #tickets>0 then
+                unsubscribe=function()
+                    for _,ticket in ipairs(tickets) do ticket() end
+                end
+            end
         else
             log.warn('Settings Apply notifications unavailable; input refreshes on restart.')
         end

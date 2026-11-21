@@ -10,7 +10,12 @@ local function version()
     return text:gsub('^\239\187\191',''):match('^%s*(%S+)') or 'unknown'
 end
 M.page={id='ModCoreControls',name='Controls',author='Jorge Pereira (kell)',version=version(),
-    description='Choose options, visuals, keyboard and mouse controls, or view controller buttons.'}
+    description='Choose the quickslot visuals and behaviours, and open the key mappings and controller buttons.'}
+M.controller={id=M.page.id..'.controller',name='Controller',
+    description='The controller buttons and what the game assigns to each.'}
+-- What each map's link says, by map id; a map without one has its own name in the description.
+local LINKS={grouped='Quickslot keys for the wheel in focus, and the keys that swap or activate wheels.',
+    global='Keys for each ability and consumable slot, whichever wheel is in focus.'}
 
 local function block(lines,name,fields)
     lines[#lines+1]='[' .. name .. ']'
@@ -25,8 +30,27 @@ local function define()
     return require('mc_menu').define(require('mc_sections'),require('mc_maps'))
 end
 
+-- The inner pages, in the order the main page links them: each map with a page, then
+-- the Controller page. Each is {id=,name=,description=,section=,map=} (no map: Controller).
+function M.pages(definition)
+    local list={}
+    for _,section in ipairs(definition.sections) do
+        for _,map in ipairs(section.maps) do
+            if map.page then
+                list[#list+1]={id=M.page.id..'.'..map.id,name=map.page,section=section,map=map,
+                    description=LINKS[map.id] or map.name..' keys.'}
+            end
+        end
+    end
+    list[#list+1]=M.controller
+    return list
+end
+
+-- The manifest of one page: pageId is M.page.id (the main page, by default), an inner
+-- page's id from M.pages, or M.controller.id.
 -- gamepad: optional live button assignments from mc_gamepad.read().
-function M.schema(definition,gamepad)
+function M.schema(definition,gamepad,pageId)
+    pageId=pageId or M.page.id
     local lines = {}
     local function row(item, group, extra)
         local data={Id=item.id,Label=item.name,Group=group,Default=item.default,
@@ -51,38 +75,6 @@ function M.schema(definition,gamepad)
         for k,v in pairs(extra or {}) do data[k]=v end
         block(lines,'Setting.' .. item.id,data)
     end
-    -- Keys relative to the Default wheel are labelled after the wheel they show.
-    local defaultWheel
-    for _,section in ipairs(definition.sections) do
-        for _,map in ipairs(section.maps) do
-            if map.holdSwap then defaultWheel=map.holdSwap.defaultWheel end
-        end
-    end
-    -- The top picker chooses a page. Options shows the Module section; Key &
-    -- Mouse nests a Section picker over the other sections; all are navigation.
-    local pages={'Options','Visuals','Key & Mouse','Controller'}
-    local page={options=0,visuals=1,keys=2,controller=3}
-    local pageValues={}
-    for i in ipairs(pages) do pageValues[i]=i-1 end
-    block(lines,'Setting.MCC_Page',{Id='MCC_Page',Label='Page',Group='Pages',Type='picker',
-        Default=0,PresetValues=table.concat(pageValues,'|'),PresetLabels=table.concat(pages,'|'),
-        mcNavigation=1,mcHeading=true})
-    block(lines,'Category.Pages',{mcHeading=0})
-    -- Only sections with maps get a page; a section without any (a placeholder) is
-    -- left out. A single one needs no Section picker and shows under Key & Mouse.
-    local keyed,values,labels={},{},{}
-    for _,section in ipairs(definition.sections) do
-        if section.id~='module' and #section.maps>0 then
-            keyed[section]=#values
-            values[#values+1],labels[#labels+1]=#values,section.name
-        end
-    end
-    block(lines,'Category.KeyMouse',{mcHeading=0,VisibleWhen='MCC_Page',VisibleValues=page.keys})
-    if #values>1 then
-        block(lines,'Setting.MCC_Section',{Id='MCC_Section',Label='Section',Group='KeyMouse',Type='picker',
-            Default=0,PresetValues=table.concat(values,'|'),PresetLabels=table.concat(labels,'|'),
-            mcNavigation=1})
-    end
     -- One read-only row. DMM pickers need two choices; ModCoreSettings collapses
     -- matching read-only labels to the single displayed value.
     local function display(id,group,label,value,extra)
@@ -92,44 +84,58 @@ function M.schema(definition,gamepad)
         for key,field in pairs(extra or {}) do fields[key]=field end
         block(lines,'Setting.'..id,fields)
     end
-    -- Visuals hosts ModCore Templates' quickslot templates. The placeholder is
-    -- ModCoreSettings' row slot controls:visuals: contributed rows take its place
-    -- and gating, and it shows only while nothing is contributed, as the
-    -- "Quickslots" heading row. The rows keep their groups (mcSlotGroups), so the
-    -- page reads as the template's own module page: the Quickslots template picker
-    -- as the heading, then the chosen template's settings.
-    block(lines,'Category.Visuals',{mcHeading=0,VisibleWhen='MCC_Page',VisibleValues=page.visuals})
-    display('MCC_Visuals_Pending','Visuals','Quickslots','Coming from ModCore Templates',
-        {mcSlot='visuals',mcSlotGroups=1,mcCategory=1})
-    block(lines,'Category.Controller',{VisibleWhen='MCC_Page',VisibleValues=page.controller})
-    display('MCC_Pad_Note','Controller','Note','Work in progress')
-    if gamepad then
-        for _,button in ipairs(gamepad) do
-            -- Long action lists wrap at commas in a wider value column.
-            display('MCC_Pad_'..button.key,'Controller',button.label,
-                #button.actions>0 and table.concat(button.actions,', ') or 'Unassigned',{mcWrap=1})
-        end
-    else
-        display('MCC_Pad_Unavailable','Controller','Gamepad buttons','Available in game')
-    end
-    for _,section in ipairs(definition.sections) do
-        local pageWhen,pageValue='MCC_Section',keyed[section]
-        if section.id=='module' then pageWhen,pageValue='MCC_Page',page.options
-        elseif #values==1 then pageWhen,pageValue='MCC_Page',page.keys end
-        if section.selector then
-            if #section.selector.values>1 then
-                local selector=section.selector
-                block(lines,'Category.' .. section.name,{mcHeading=0})
-                block(lines,'Setting.' .. selector.id,{Id=selector.id,Label=selector.name,
-                    Group=section.name,Type='picker',Default=selector.default,
-                    PresetValues=table.concat(selector.values,'|'),
-                    PresetLabels=table.concat(selector.labels,'|'),
-                    Description='Chooses which map\'s keys to edit. Every map\'s keys work at the same time.',
-                    mcNavigation=1,VisibleWhen=pageWhen,VisibleValues=pageValue})
+    local inner=M.pages(definition)
+    if pageId==M.controller.id then
+        block(lines,'Category.Controller',{})
+        display('MCC_Pad_Note','Controller','Note','Work in progress')
+        if gamepad then
+            for _,button in ipairs(gamepad) do
+                -- Long action lists wrap at commas in a wider value column.
+                display('MCC_Pad_'..button.key,'Controller',button.label,
+                    #button.actions>0 and table.concat(button.actions,', ') or 'Unassigned',{mcWrap=1})
             end
-            for _,map in ipairs(section.maps) do
-                -- The section's description is help text under the first heading of each
-                -- of its map pages, ahead of that group's own description.
+        else
+            display('MCC_Pad_Unavailable','Controller','Gamepad buttons','Available in game')
+        end
+        return table.concat(lines,'\n')
+    end
+    local shown
+    for _,entry in ipairs(inner) do
+        if entry.id==pageId then shown=entry end
+    end
+    assert(pageId==M.page.id or shown,'unknown Controls page: '..tostring(pageId))
+    -- Keys relative to the Default wheel are labelled after the wheel they show.
+    local defaultWheel
+    for _,section in ipairs(definition.sections) do
+        for _,map in ipairs(section.maps) do
+            if map.holdSwap then defaultWheel=map.holdSwap.defaultWheel end
+        end
+    end
+    if pageId==M.page.id then
+        -- The top hosts ModCore Templates' quickslot templates. The placeholder is
+        -- ModCoreSettings' row slot controls:visuals: contributed rows take its place,
+        -- and it shows only while nothing is contributed, as the "Quickslots" heading
+        -- row. The rows keep their groups (mcSlotGroups), so the slot reads as the
+        -- template's own module page: the Quickslots template picker as the heading,
+        -- then the chosen template's settings.
+        block(lines,'Category.Visuals',{mcHeading=0})
+        display('MCC_Visuals_Pending','Visuals','Quickslots','Coming from ModCore Templates',
+            {mcSlot='visuals',mcSlotGroups=1,mcCategory=1})
+        -- Mappings links each inner page; Back there returns here.
+        block(lines,'Category.Mappings',{})
+        for _,entry in ipairs(inner) do
+            block(lines,'Setting.MCC_Link_'..entry.id:sub(#M.page.id+2),{Id='MCC_Link_'..entry.id:sub(#M.page.id+2),
+                Label=entry.name,Group='Mappings',Type='picker',Default=0,PresetValues='0|1',
+                PresetLabels='edit|edit',mcType='tab',mcNavigation=1,mcLinkPage=entry.id,
+                Description='Opens '..entry.name..': '..entry.description})
+        end
+    end
+    -- The maps on this page: the main page's maps have no page of their own.
+    for _,section in ipairs(definition.sections) do
+        -- The section's description is help text under the first heading of each
+        -- of its maps, ahead of that group's own description.
+        for _,map in ipairs(section.maps) do
+            if shown and shown.map==map or not shown and not map.page then
                 local sectionHelp=section.description
                 local function help(own)
                     local text=sectionHelp and own and sectionHelp .. ' ' .. own or sectionHelp or own
@@ -138,13 +144,10 @@ function M.schema(definition,gamepad)
                 end
                 if #map.settings>0 then
                     local id=section.id..'.'..map.id..'.settings'
-                    local when=#section.maps>1 and section.selector.id or pageWhen
-                    local value=#section.maps>1 and map.value or pageValue
                     -- With within, every block is a subgroup of a category without rows,
                     -- headed by the within text (ModCoreSettings' mcWithin/mcWithinLabel).
                     local within=map.within and section.id..'.'..map.id..'.within'
-                    block(lines,'Category.'..id,{VisibleWhen=when,VisibleValues=value,
-                        mcLabelWhen=when,mcLabels=value..':'..map.name,mcHelp=help(nil),
+                    block(lines,'Category.'..id,{mcLabel=map.name,mcHelp=help(nil),
                         mcWithin=within,mcWithinLabel=map.within})
                     -- A setting with a heading starts a titled block; the ones after it
                     -- follow under it.
@@ -153,8 +156,7 @@ function M.schema(definition,gamepad)
                         if item.heading then
                             blocks=blocks+1
                             current=id..'.'..blocks
-                            block(lines,'Category.'..current,{VisibleWhen=when,VisibleValues=value,
-                                mcLabelWhen=when,mcLabels=value..':'..item.heading,
+                            block(lines,'Category.'..current,{mcLabel=item.heading,
                                 mcWithin=within,mcWithinLabel=map.within})
                         end
                         row(item,current)
@@ -162,11 +164,8 @@ function M.schema(definition,gamepad)
                 end
                 for groupIndex,group in ipairs(map.groups) do
                     local id=section.id .. '.' .. map.id .. '.' .. groupIndex
-                    local when=#section.maps>1 and section.selector.id or pageWhen
-                    local value=#section.maps>1 and map.value or pageValue
                     assert(not group.name:find('[:;]'),'group name cannot contain : or ;')
-                    block(lines,'Category.' .. id,{VisibleWhen=when,VisibleValues=value,
-                        mcLabelWhen=when,mcLabels=value .. ':' .. group.name,mcHelp=help(group.description)})
+                    block(lines,'Category.' .. id,{mcLabel=group.name,mcHelp=help(group.description)})
                     -- A mirror shows another map's setting on this page; MCC's
                     -- storage keeps it in step with that setting.
                     local labelSource=defaultWheel
@@ -189,9 +188,9 @@ function M.schema(definition,gamepad)
                             -- A tapped group activation key stays on its wheel until pressed
                             -- again, so its Tap reads Toggle. Display only: values keep Tap.
                             if binding.action.type=='focus' then
-                                local shown={}
-                                for n,name in ipairs(setting.labels) do shown[n]=name=='Tap' and 'Toggle' or name end
-                                keyMetadata.TriggerLabels=table.concat(shown,'|')
+                                local shownLabels={}
+                                for n,name in ipairs(setting.labels) do shownLabels[n]=name=='Tap' and 'Toggle' or name end
+                                keyMetadata.TriggerLabels=table.concat(shownLabels,'|')
                             end
                             if binding.optional then keyMetadata.Optional=1 end
                             if binding.defaultControl then keyMetadata.DefaultControl=binding.defaultControl end
@@ -199,13 +198,13 @@ function M.schema(definition,gamepad)
                                 local wheel=assert(labelSource,'relative focus needs a Default wheel: '..binding.id)
                                 local entries={}
                                 for index,default in ipairs(wheel.values) do
-                                    local shown=binding.action.wheel=='default' and index
+                                    local shownWheel=binding.action.wheel=='default' and index
                                         or #wheel.values+1-index
                                     -- {wheel} in the name is the wheel the key shows; without
                                     -- it the label is that wheel's name.
                                     local label=setting.name:find('{wheel}',1,true)
-                                        and setting.name:gsub('{wheel}',(wheel.labels[shown]:gsub('%%','%%%%')))
-                                        or wheel.labels[shown]
+                                        and setting.name:gsub('{wheel}',(wheel.labels[shownWheel]:gsub('%%','%%%%')))
+                                        or wheel.labels[shownWheel]
                                     entries[#entries+1]=default..':'..label
                                     if default==wheel.default then keyMetadata.Label=label end
                                 end
@@ -222,21 +221,25 @@ function M.schema(definition,gamepad)
     return table.concat(lines,'\n')
 end
 
--- The page's settings, rebuilt on every menu build so controller rows stay current.
-function M.manifest()
-    local read,gamepad=pcall(function() return require('mc_gamepad').read() end)
-    return M.schema(define(),read and gamepad or nil)
+-- A page's settings, rebuilt on every menu build so controller rows stay current.
+function M.manifest(pageId)
+    local gamepad
+    if pageId==M.controller.id then
+        local read,buttons=pcall(function() return require('mc_gamepad').read() end)
+        gamepad=read and buttons or nil
+    end
+    return M.schema(define(),gamepad,pageId)
 end
 
 -- Each load opens the config; Apply saves through that store, so a file changed
--- since the page opened is refused rather than overwritten.
+-- since the page opened is refused rather than overwritten. Every page has its own.
 local opened={}
 
-function M.load(directory)
+function M.load(directory,pageId)
     local definition=define()
     local store=require('mc_config').open(directory .. '/config.ini',definition)
     local shared=require('mc_menu').new(definition,store.values)
-    opened[directory]={definition=definition,store=store,shared=shared}
+    opened[directory..'\0'..(pageId or M.page.id)]={definition=definition,store=store,shared=shared}
     local values={}
     for id,value in pairs(shared.values) do values[id]=value end
     for _,mirror in ipairs(definition.mirrors) do values[mirror.id]=shared.values[mirror.mirror.id] end
@@ -245,8 +248,9 @@ end
 
 -- values holds every stored row by id; changes the edited ones as {old=,new=}.
 -- Returns the saved values, mirrors included, and an optional warning.
-function M.apply(directory,values,changes)
-    local page=assert(opened[directory],'Controls settings are not loaded')
+-- Settings that are not on the page keep the values loaded with it.
+function M.apply(directory,values,changes,pageId)
+    local page=assert(opened[directory..'\0'..(pageId or M.page.id)],'Controls settings are not loaded')
     local definition,shared=page.definition,page.shared
     local resolved={}
     for id,value in pairs(values) do resolved[id]=value end
