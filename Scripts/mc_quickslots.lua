@@ -67,12 +67,7 @@ function M.new(environment)
                 end
             end
         end
-        local candidate=current.hud
-        if type(e.hudForOwner)=='function' then
-            local ok,resolved=pcall(e.hudForOwner,current)
-            if ok and isValid(resolved) then candidate=resolved end
-        end
-        candidate=get(candidate)
+        local candidate=get(current.hud)
         if not isValid(candidate) then cached=nil;return nil end
         if not sameObject(live(cached),candidate) then
             presentationNeeded=true

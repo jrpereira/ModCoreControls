@@ -505,7 +505,6 @@ function M.new(queue,log,service,environment)
         return ok and e.unwrap(value) or nil
     end
     local function ownerHud(live)
-        if type(e.hudForOwner)=='function' then return e.hudForOwner(live) end
         local controllerWorld=call(live.controller,'GetWorld')
         local worldCandidate,count=nil,0
         for _,hud in ipairs(e.all and e.all('WBP_GameHUD_C') or {}) do

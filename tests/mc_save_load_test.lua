@@ -79,7 +79,7 @@ local function newWorld(n)
     local subsystem=object('EnhancedInputLocalPlayerSubsystem','/Engine/Transient.Subsystem_'..n,
         {Outer=player})
     local action=object('InputAction','/Game/Input_'..n..'.IA_Test')
-    local hud=object('WBP_GameHUD_C','/Engine/Transient.HUD_'..n)
+    local hud=object('WBP_GameHUD_C','/Engine/Transient.HUD_'..n,{OwningPlayer=controller})
     -- Both wheels' four key widgets, each in its wheel's overlay.
     local keys={}
     for kind,fields in pairs({ability={'WBP_AA_Quickslots','WBP_AA_Quickslots_Bindings'},
@@ -147,7 +147,8 @@ environment={
     all=function(class)
         local found=class=='BP_PlayerController_C' and world.controller
             or class=='EnhancedInputLocalPlayerSubsystem' and world.subsystem
-            or class=='InputAction' and world.action or nil
+            or class=='InputAction' and world.action
+            or class=='WBP_GameHUD_C' and world.hud or nil
         return live(found) and {found} or {}
     end,
     retain=function(kind,name)
@@ -206,7 +207,6 @@ environment={
         end
         return true
     end,
-    hudForOwner=function() return live(world.hud) end,
     inGameThread=function() return true end,
     hook=function(name,callback) hooks[name]=callback;return 1,2 end,
     preHook=function(name,callback) preHooks[name]=callback;return 3,4 end,

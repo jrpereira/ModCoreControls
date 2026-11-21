@@ -1052,8 +1052,13 @@ end
 print('PASS a fresh wrapper of the same player stack keeps MCC attached')
 
 -- The rim and mark blocks below run with the default quickslot service, as
--- production does: it finds the player's HUD through hudForOwner while bound.
-environment.hudForOwner=function() return hud end
+-- production does: binding the player finds its HUD among the game's HUDs by owner.
+local hudlessAll=environment.all
+hud.OwningPlayer=controller
+environment.all=function(class)
+    if class=='WBP_GameHUD_C' then return {hud} end
+    return hudlessAll(class)
+end
 -- Hold keys get an underline mark, placed again after a ModCore Templates layout
 -- pass and removed on stop.
 do
@@ -1326,7 +1331,7 @@ do
     assert(groupHost:stop())
     environment.setIndicatorProgress=nil
 end
-environment.hudForOwner=nil
+environment.all,hud.OwningPlayer=hudlessAll,nil
 print('PASS a Groups key fills only the focused wheel')
 
 
