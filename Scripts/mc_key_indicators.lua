@@ -234,10 +234,27 @@ function M.new(e)
         progressTargets={}
         -- Released indicators show the game's own rim display again.
         pcall(displayRims,{bindings={}})
+        -- Recorded indicators are found on the retiring HUD's wheels, never looked up by
+        -- path: after a save load or a death that HUD is gone, every lookup would miss,
+        -- and each miss costs tens of ms on the game thread. Records not under the HUD
+        -- are dropped, as their widgets are gone.
+        local live={}
+        local hud=e.hud()
+        if e.valid(hud) then
+            for _,fields in pairs(wheels) do
+                local wheel=e.property(hud,fields[1])
+                local bindings=wheel and e.property(wheel,fields[2])
+                for _,position in ipairs(positions) do
+                    local widget=bindings and e.property(bindings,position)
+                    local widgetPath=widget and e.valid(widget) and e.path(widget)
+                    if widgetPath then live[widgetPath]=widget end
+                end
+            end
+        end
         local remaining={}
         for widgetPath,record in pairs(records) do
-            local widget=e.resolve(widgetPath)
-            if e.valid(widget) then
+            local widget=live[widgetPath]
+            if widget then
                 local current=currentPath(widget)
                 if current==record.assigned or current==record.pending then
                     local original=record.original and e.resolve(record.original) or nil

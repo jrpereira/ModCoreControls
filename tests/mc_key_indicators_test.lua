@@ -119,6 +119,37 @@ assert(journalMonitor:refresh(groupedActions,groupedPlan))
 assert(journalMonitor:restoreAll())
 print('PASS MCC key indicator update and restoration')
 
+-- Retiring after a save load: the old HUD is gone, so its recorded indicators are
+-- dropped without a path lookup (each StaticFindObject miss stalls the game thread).
+do
+    local lookups=0
+    local liveHud=hud
+    local retiring=require('mc_key_indicators').new({
+        valid=function(value)return value and value.valid end,
+        path=function(value)return value.path end,
+        property=function(value,name)return value and value[name] or nil end,
+        resolve=function(path)lookups=lookups+1;return resolved[path] end,
+        setAction=function(widget,action)widget.EnhancedInputAction=action;return true end,
+        hud=function()return liveHud end,
+        load=function()return stored end,
+        save=function(value)stored=value;return true end,
+    })
+    assert(retiring:refresh(groupedActions,groupedPlan))
+    -- A live HUD: indicators are found on its wheels, only native actions are resolved.
+    lookups=0
+    assert(retiring:restoreAll())
+    assert(lookups==8,'only the 8 original actions are resolved, got '..lookups)
+    for widget,native in pairs(original) do assert(widget.EnhancedInputAction==native) end
+    assert(retiring:refresh(groupedActions,groupedPlan))
+    liveHud=nil
+    lookups=0
+    assert(retiring:restoreAll())
+    assert(lookups==0 and stored=='','a gone HUD drops its records without lookups')
+    -- Put the shared fixture back for the blocks below.
+    for widget,native in pairs(original) do widget.EnhancedInputAction=native end
+end
+print('PASS restoring indicators looks up no widget by path')
+
 -- A rim's indicators are resolved when its key is pressed, never kept from an
 -- earlier press: a new HUD (a save load) gets the first press's rim.
 do
