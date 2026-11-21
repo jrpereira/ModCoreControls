@@ -105,7 +105,6 @@ function M.new(environment)
         if ok then presentationNeeded=false end
         return ok
     end
-    function api:reset(group) return self:select(group or 1) end
     function api:emit(name,payload)
         if type(e.emit)~='function' then return true end
         local ok,result=pcall(e.emit,name,payload)
@@ -119,7 +118,7 @@ end
 local function publish(state,group,service)
     local previous=state.selectedGroup
     state.selectedGroup=group
-    if previous~=group and type(service.emit)=='function' then
+    if previous~=group then
         pcall(service.emit,service,Events.focus,{group={from=previous,to=group}})
     end
 end
@@ -138,7 +137,7 @@ local function present(state,group,service,force)
 end
 
 function M.reconcile(state,service)
-    local needed=type(service.needsPresentation)=='function' and service:needsPresentation()
+    local needed=service:needsPresentation()
     local group=state.pendingGroup or state.selectedGroup
     if group==nil or (not state.pendingGroup and not needed) then return true end
     return present(state,group,service,needed)
@@ -159,8 +158,7 @@ function M.cancel(state,service)
     if defaultGroup==nil then return true end
     state.pendingGroup=defaultGroup
     if not service then return false end
-    local reset=type(service.reset)=='function' and service.reset or service.select
-    local ok,result=pcall(reset,service,defaultGroup)
+    local ok,result=pcall(service.select,service,defaultGroup)
     if ok and result~=false then
         state.pendingGroup=nil
         publish(state,defaultGroup,service)

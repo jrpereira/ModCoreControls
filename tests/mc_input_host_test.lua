@@ -144,6 +144,8 @@ local function quickslots(methods)
     methods.bind=methods.bind or function(_,live) bound=live;return true end
     methods.invalidate=methods.invalidate or function() bound=nil;return true end
     methods.hud=methods.hud or function() return bound and hud or nil end
+    methods.needsPresentation=methods.needsPresentation or function() return false end
+    methods.emit=methods.emit or function() return true end
     return methods
 end
 local calls={}

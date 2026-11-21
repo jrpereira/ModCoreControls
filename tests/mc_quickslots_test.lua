@@ -8,6 +8,7 @@ local service={
     activate=function(_,kind,slot)calls[#calls+1]=kind..':'..slot;return true end,
     select=function(_,group)calls[#calls+1]='group:'..group;return true end,
     emit=function(_,name,payload)events[#events+1]={name=name,payload=payload} end,
+    needsPresentation=function() return false end,
 }
 local state={selectedGroup=1,defaultGroup=1}
 assert(Quickslots.deliver(state,{action={type='selected',slot=2},mode=0},'Triggered',service))
@@ -27,7 +28,7 @@ assert(events[2].payload.group.from==2 and events[2].payload.group.to==1)
 -- With a key on each wheel, tapping a group key always focuses its own wheel.
 do
     local directEvents={}
-    local directService={select=function() return true end,
+    local directService={select=function() return true end,needsPresentation=function() return false end,
         emit=function(_,name,payload) directEvents[#directEvents+1]=payload end}
     local direct={selectedGroup=1,defaultGroup=1}
     local directOne={action={type='focus',group=1},mode=0,direct=true}
@@ -93,7 +94,7 @@ assert(#events==published+1 and events[#events].payload.group.from==1
 
 -- Default activation is an action: the first one publishes without a source group.
 local fresh,freshEvents={pendingGroup=1,defaultGroup=1},{}
-local freshService={select=function()return true end,
+local freshService={select=function()return true end,needsPresentation=function()return false end,
     emit=function(_,name,payload)freshEvents[#freshEvents+1]={name=name,payload=payload} end}
 assert(Quickslots.deliver(fresh,{action={type='selected',slot=1},mode=0},'Triggered',freshService)==false,
     'unknown focus must not pick a wheel')
@@ -132,7 +133,7 @@ local bound=Quickslots.new()
 assert(bound:bind({hud=owned},10))
 assert(bound:activate('ability',1))
 assert(owned.WBP_AA_Quickslots.Left.clicks==1 and not stale.WBP_AA_Quickslots.Left.clicks)
-assert(bound:reset(1) and owned.showsAbilities==true)
+assert(bound:select(1) and owned.showsAbilities==true)
 assert(bound:select(2) and owned.showsAbilities==false,'select sets the game\'s active wheel')
 
 assert(bound:invalidate(10) and not bound:activate('ability',1))
@@ -161,6 +162,7 @@ local swapState={selectedGroup=1,defaultGroup=1}
 local swapService={}
 function swapService:select(group) self.selected=group;return true end
 function swapService:emit() return true end
+function swapService:needsPresentation() return false end
 local swapHold={mode=2,swap=true,sustained=true,action={type='focus',group=2}}
 assert(Quickslots.deliver(swapState,swapHold,'Started',swapService) and swapState.selectedGroup==2)
 assert(Quickslots.deliver(swapState,swapHold,'Completed',swapService) and swapState.selectedGroup==1,
