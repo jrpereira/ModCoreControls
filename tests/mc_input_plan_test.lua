@@ -261,3 +261,10 @@ do
     assert(find(kept,'global.AbilitySlot1') and not find(kept,'global.AbilitySlot2') and #kept.skipped==1)
 end
 print('PASS key names compare without regard to case')
+
+-- An override names actions: one name or a list of names, nothing else.
+assert(Plan.validateOverride('IA_Test') and Plan.validateOverride({'IA_First','IA_Second'}))
+assert(not pcall(Plan.validateOverride,{action='IA_Test'}),'a descriptor is not an override')
+assert(not pcall(Plan.validateOverride,{'IA_First',{'IA_Nested'}}),'a list holds only names')
+assert(not pcall(Plan.validateOverride,{}),'an empty list overrides nothing')
+print('PASS overrides are action names or lists of them')

@@ -66,22 +66,16 @@ local function addOverrides(result,declaration)
         result[declaration]=true
         return
     end
-    assert(type(declaration)=='table','override must be an action name, descriptor, or list')
-    if declaration.action~=nil then
-        assert(type(declaration.action)=='string' and declaration.action:match('%S'),
-            'override descriptor action must be a non-empty string')
-        if declaration.value~=nil then
-            assert(type(declaration.value)=='string' and declaration.value:match('^%a[%w_]*$'),
-                'override descriptor value must be a key name')
-        end
-        for field in pairs(declaration) do
-            assert(field=='action' or field=='value','unknown override field: ' .. tostring(field))
-        end
-        result[declaration.action]=true
-        return
-    end
+    assert(type(declaration)=='table','override must be an action name or a list of them')
     assert(#declaration>0,'override list must not be empty')
-    for _,entry in ipairs(declaration) do addOverrides(result,entry) end
+    for field in pairs(declaration) do
+        assert(math.type(field)=='integer' and field>=1 and field<=#declaration,
+            'override list must hold only action names: ' .. tostring(field))
+    end
+    for _,entry in ipairs(declaration) do
+        assert(type(entry)=='string','override list entries must be action names')
+        addOverrides(result,entry)
+    end
 end
 
 function M.validateOverride(declaration)
