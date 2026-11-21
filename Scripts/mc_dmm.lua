@@ -140,8 +140,12 @@ function M.schema(definition,gamepad)
                     local id=section.id..'.'..map.id..'.settings'
                     local when=#section.maps>1 and section.selector.id or pageWhen
                     local value=#section.maps>1 and map.value or pageValue
+                    -- With within, every block is a subgroup of a category without rows,
+                    -- headed by the within text (ModCoreSettings' mcWithin/mcWithinLabel).
+                    local within=map.within and section.id..'.'..map.id..'.within'
                     block(lines,'Category.'..id,{VisibleWhen=when,VisibleValues=value,
-                        mcLabelWhen=when,mcLabels=value..':'..map.name,mcHelp=help(nil)})
+                        mcLabelWhen=when,mcLabels=value..':'..map.name,mcHelp=help(nil),
+                        mcWithin=within,mcWithinLabel=map.within})
                     -- A setting with a heading starts a titled block; the ones after it
                     -- follow under it.
                     local current,blocks=id,0
@@ -150,7 +154,8 @@ function M.schema(definition,gamepad)
                             blocks=blocks+1
                             current=id..'.'..blocks
                             block(lines,'Category.'..current,{VisibleWhen=when,VisibleValues=value,
-                                mcLabelWhen=when,mcLabels=value..':'..item.heading})
+                                mcLabelWhen=when,mcLabels=value..':'..item.heading,
+                                mcWithin=within,mcWithinLabel=map.within})
                         end
                         row(item,current)
                     end

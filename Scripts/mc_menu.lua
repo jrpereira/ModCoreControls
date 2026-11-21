@@ -13,8 +13,9 @@ end
 -- heading (map settings only) starts a titled block of the map's settings on the page.
 local common={id=true,name=true,type=true,default=true,params=true,description=true,heading=true}
 -- A map's fields; holdThreshold, keyOutline, instantTap and holdSwap name its settings.
+-- within is a heading the map's settings blocks sit under as subgroups.
 local mapFields={id=true,name=true,value=true,contexts=true,map=true,settings=true,override=true,
-    holdThreshold=true,keyOutline=true,instantTap=true,holdSwap=true}
+    holdThreshold=true,keyOutline=true,instantTap=true,holdSwap=true,within=true}
 local paramFields={
     -- tab=true shows the choices as tabs instead of a left/right picker; cycle=true
     -- shows only the current choice, in the keybind key column, advancing on click.
@@ -107,12 +108,16 @@ function M.define(registry, mapRegistry)
             assert(type(declaration.map)=='table','map needs groups: ' .. mapId)
             assert(#declaration.map>0 or type(declaration.settings)=='table'
                 and #declaration.settings>0,'map needs groups or settings: ' .. mapId)
+            assert(declaration.within==nil or type(declaration.within)=='string'
+                and declaration.within:match('%S') and not declaration.within:find('[:;]'),
+                'invalid within heading: ' .. mapId)
             require('mc_input_plan').validateOverride(declaration.override)
             section.maps[#section.maps + 1] = { id=mapId, name=declaration.name,
                 value=declaration.value, declaration=declaration, groups={},
                 contexts=declaration.contexts, override=declaration.override,
                 settings={},holdSwap=declaration.holdSwap,holdThreshold=declaration.holdThreshold,
-                keyOutline=declaration.keyOutline,instantTap=declaration.instantTap }
+                keyOutline=declaration.keyOutline,instantTap=declaration.instantTap,
+                within=declaration.within }
         end
         table.sort(section.maps, function(a,b) return a.value < b.value end)
         if #section.maps > 0 then

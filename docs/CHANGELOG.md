@@ -9,6 +9,10 @@
   template's settings right under it; the separate "Quickslots Visuals" heading and the
   heading naming the template are gone (with ModCore Templates and ModCore Settings from
   this round).
+- Options: a **Behaviours** heading holds two subgroups, **Quickslot Wheels** (was
+  "Default": Allow Swap outside of combat, Hold to Swap, Default wheel) and **Shortcuts**
+  (was "Key Press Behaviour": Instant Tap, Tap vs Hold Threshold, Show key outline).
+  Saved settings are unchanged.
 
 ## v1.3.2
 

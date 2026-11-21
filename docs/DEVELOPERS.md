@@ -2,7 +2,7 @@
 
 MCC builds a menu model from Lua declarations, then turns the saved choices into
 input bindings. A **section** groups maps; a **map** groups settings and bindings.
-Only Actions maps produce quickslot input. Module's Default map supplies shared
+Only Actions maps produce quickslot input. Module's `default` map (Quickslot Wheels) supplies shared
 wheel settings; adding a section does not add a gameplay adapter.
 
 ## Add a control map
@@ -43,12 +43,12 @@ own Lua state and seal the registry when they build their definition; a later
 
 | Location | Required fields | Optional fields |
 | --- | --- | --- |
-| Map | `id`, `name`, unique section-local numeric `value`, `contexts`, `map` | `settings`, `override`, and the setting fields below |
+| Map | `id`, `name`, unique section-local numeric `value`, `contexts`, `map` | `settings`, `override`, `within`, and the setting fields below |
 | Group inside `map` | `name`, `settings` | `description` |
 | Setting | `id`, `name`, `type` | `default`, `description`, `params` |
 
 Some map fields name one of the map's own `settings` by `id`; MCC reads that
-setting's value for the feature. Default declares all four.
+setting's value for the feature. The `default` map declares all four.
 
 | Map field | Names | Setting type |
 | --- | --- | --- |
@@ -59,7 +59,8 @@ setting's value for the feature. Default declares all four.
 
 Type-specific options belong inside `params`. A map setting may also carry `heading`:
 it starts a titled block of the map's settings on the page, holding it and the ones
-after it. Unknown map, setting and parameter
+after it. A map's `within` is a heading over all of its settings blocks: each block,
+the first one titled with the map's `name`, becomes a subgroup under it. Unknown map, setting and parameter
 fields are rejected. Descriptions must be one line, at most 4096 bytes.
 
 | Type | Placement | `params` |

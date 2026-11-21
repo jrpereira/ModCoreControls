@@ -10,7 +10,7 @@ updates the HUD key indicators.
   slots, act on the focused wheel, or select a wheel directly.
 - **Configure wheel switching:** choose the default wheel and Toggle Quickslots
   behavior, including hold-to-swap. A wheel key set to Hold shows its wheel
-  while held and returns to Default on release.
+  while held and returns to the default wheel on release.
 - **Set the Tap vs Hold Threshold:** a window from Low to High (100-350 ms by default,
   within 100-500 ms): a Hold key acts at High, its rim filling up to it; a Tap fires
   on press, or on a release before High when the same key is also a Hold. With
@@ -56,7 +56,7 @@ fully restart the game after changing Lua files.
 
 | Controls page | Contents |
 | --- | --- |
-| Options | Default wheel and Toggle Quickslots behavior; Key Press Behaviour: Instant Tap, Tap vs Hold Threshold and key outline |
+| Options | Behaviours: Quickslot Wheels (default wheel and Toggle Quickslots behavior) and Shortcuts (Instant Tap, Tap vs Hold Threshold and key outline) |
 | Visuals | MCT quickslot template selection and settings, when contributed |
 | Key & Mouse | Actions maps |
 | Controller | Read-only list of the player's current gamepad mappings |
@@ -68,7 +68,7 @@ is two separate bindings.
 
 Groups operates on the focused wheel; Global addresses individual
 ability or consumable slots. An optional binding with `defaultControl` inherits
-the game's control while unbound. Default's swap yields a key claimed by a custom
+the game's control while unbound. The Toggle Quickslots swap yields a key claimed by a custom
 binding. See the [runtime reference](RUNTIME.md) for timing and overrides.
 
 ## Storage and logging

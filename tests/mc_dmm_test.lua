@@ -102,17 +102,39 @@ for _,id in ipairs({'MCC_Visuals_Pending','MCC_Pad_Unavailable','MCC_Pad_Note'})
     local item=items[assert(indices[id],id)]
     assert(item.mcReadOnly and #item.values==1,'read-only display row: ' .. id)
 end
--- Key Press Behaviour heads its own block of the Options settings, in order.
+-- Options: Behaviours heads two subgroups, Quickslot Wheels and Shortcuts, each
+-- holding its block of the Options settings in order.
 do
     local schema=DMM.schema(definition)
-    local heading=schema:match('%[Category%.(module%.default%.settings%.%d+)%][^%[]*mcLabels=0:Key Press Behaviour')
-    assert(heading,'Key Press Behaviour heading')
-    local order={}
-    for id,group in schema:gmatch('%[Setting%.([%w_]+)%][^%[]-Group=([%w%._]+)') do
-        if group==heading then order[#order+1]=id end
+    local function block(label)
+        local id,body=schema:match('%[Category%.(module%.default%.settings[%.%d]*)%]([^%[]*mcLabels=0:'..label..'\n[^%[]*)')
+        assert(id,label..' heading')
+        assert(body:find('mcWithin=module.default.within\n',1,true)
+            and body:find('mcWithinLabel=Behaviours\n',1,true),label..' sits under Behaviours')
+        local order={}
+        for setting,group in schema:gmatch('%[Setting%.([%w_]+)%][^%[]-Group=([%w%._]+)') do
+            if group==id then order[#order+1]=setting end
+        end
+        return table.concat(order,',')
     end
-    assert(table.concat(order,',')=='MCC_module_default_InstantTap,MCC_module_default_HoldThreshold,'
-        ..'MCC_module_default_KeyOutline',table.concat(order,','))
+    local wheels=block('Quickslot Wheels')
+    assert(wheels=='MCC_module_default_SwapOutsideCombat,MCC_module_default_HoldSwap,'
+        ..'MCC_module_default_DefaultWheel',wheels)
+    local shortcuts=block('Shortcuts')
+    assert(shortcuts=='MCC_module_default_InstantTap,MCC_module_default_HoldThreshold,'
+        ..'MCC_module_default_KeyOutline',shortcuts)
+    assert(not schema:find('[Category.module.default.within]',1,true),'Behaviours has no rows of its own')
+    -- ModCoreSettings draws one Behaviours heading over both subgroups.
+    local parents={}
+    for _,item in ipairs(items) do
+        local group=item.mcGroup
+        if item.group:match('^module%.default%.settings') then
+            assert(group and group.within=='module.default.within' and group.parent
+                and group.parent.label=='Behaviours' and group.parent.category,item.id..' under Behaviours')
+            parents[group.parent]=true
+        end
+    end
+    assert(next(parents) and next(parents,next(parents))==nil,'one shared Behaviours heading')
 end
 local slotRow=DMM.schema(definition):match('%[Setting%.MCC_Visuals_Pending%][^%[]*')
 assert(slotRow and slotRow:find('mcSlot=visuals',1,true) and not slotRow:find('mcSlotLabel',1,true)

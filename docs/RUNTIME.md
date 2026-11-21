@@ -35,12 +35,12 @@ uses the action. When MCC rebuilds triggers (a new threshold, or Tap changed to
 Hold), it removes the player's instance of each rebuilt action from
 `EnhancedPlayerInput.ActionInstanceData`, so the change applies at once.
 
-These settings sit under **Key Press Behaviour** on the Options page. The window is
+These settings sit under **Behaviours → Shortcuts** on the Options page. The window is
 **Tap vs Hold Threshold**, a range from Low to High: 100-350 ms by default, 100 to 500 ms in 10 ms steps, at least 10 ms apart. It only matters for Hold
 keys, for a Tap that shares its key with a Hold, and for the rim. A changed High
 rebuilds the triggers on Apply.
 
-Default's
+Quickslot Wheels'
 **Hold to Swap** is the same binding as **Swap to** set to Hold on the inherited
 Toggle Quickslots key: it does not wait for a Hold threshold.
 Explicit focus keys keep their declared Tap/Hold behavior: a held focus key shows

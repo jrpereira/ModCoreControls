@@ -28,7 +28,8 @@ function M.seal() M.sealed=true end
 -- order the page shows them.
 M.addSectionMap('module', {
         id='default',
-        name='Default',
+        name='Quickslot Wheels',
+        within='Behaviours',
         value=0,
         contexts={'exploration','combat'},
         settings={
@@ -44,7 +45,7 @@ M.addSectionMap('module', {
                     ..' releasing a held swap returns here.',
                 params={values={1,2},labels={'Abilities','Consumables'}}},
             {id='InstantTap',name='Instant Tap when no Hold for same key',type='picker',default=1,
-                heading='Key Press Behaviour',
+                heading='Shortcuts',
                 description='On: a key bound only to Tap acts as soon as it is pressed. Off: it acts on release,'
                     ..' or at High of the Tap vs Hold Threshold if still held.',
                 params={values={0,1},labels={'Off','On'}}},
@@ -92,7 +93,7 @@ M.addSectionMap('actions', {
         value = 1,
         contexts= {'exploration', 'combat'},
         -- The grouped slot keys fire the focused wheel. Alternate Activation swaps
-        -- between the Default wheel, mirrored here from Default, and the other one;
+        -- between the Default wheel, mirrored here from Quickslot Wheels, and the other one;
         -- Explicit Activation focuses a fixed wheel and never swaps.
         map = {
             { name = 'Active Group', settings = grouped },
@@ -112,7 +113,7 @@ M.addSectionMap('actions', {
                         },
                     },
                     { id = 'DefaultGroup', name = 'Swap back to default', type = 'mirror',
-                        description = 'The wheel Swap returns to: the Default wheel setting, also on the Options page.',
+                        description = 'The wheel Swap returns to: the Default wheel setting, also under Quickslot Wheels on the Options page.',
                         params = { section = 'module', map = 'default', setting = 'DefaultWheel', cycle = true } },
                 },
             },

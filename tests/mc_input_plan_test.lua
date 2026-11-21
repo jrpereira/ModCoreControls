@@ -81,7 +81,7 @@ do
     assert(find(both,'global.AbilitySlot2').sharesTap,'the Hold knows a Tap shares its key')
     -- Instant Tap off: a lone Tap fires on release or at the high mark, whichever comes first.
     local instant=definition.byId.MCC_module_default_InstantTap
-    assert(instant and instant.default==1 and instant.heading=='Key Press Behaviour'
+    assert(instant and instant.default==1 and instant.heading=='Shortcuts'
         and instant.name=='Instant Tap when no Hold for same key')
     assert(definition.byId.MCC_module_default_HoldThreshold.name=='Tap vs Hold Threshold')
     values[other.id]='none'
