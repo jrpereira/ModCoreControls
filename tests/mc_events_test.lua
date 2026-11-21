@@ -31,7 +31,7 @@ assert(not pcall(publish,Events.focus,{group={from=3,to=2}},owner))
 print('PASS ModCore event publication and subscription')
 
 -- A delivery failure goes to the caller's logger, never straight to print, so it
--- follows that mod's log_level.txt.
+-- follows that mod's level.
 do
     local printed={}
     local realPrint=print

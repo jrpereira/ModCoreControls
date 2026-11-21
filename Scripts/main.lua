@@ -8,8 +8,7 @@ package.path = scripts .. '/vendor/?.lua;' .. scripts .. '/?.lua;' .. package.pa
 
 local queue=rawget(_G,'ExecuteInGameThread')
 local host,unsubscribe
--- The level comes from log_level.txt in the mod folder; WARN without it.
-local log=require('mc_log').new({name='ModCoreControls',path=root .. '/log_level.txt'})
+local log=require('mc_log').new({name='ModCoreControls'})
 local function stopResources()
     if host then
         local ok,removed,why=pcall(host.stop,host)

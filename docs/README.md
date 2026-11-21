@@ -83,8 +83,9 @@ global.AbilitySlot1=J|Hold
 Navigation choices are never saved. A successful Apply saves the configuration;
 activation can remain pending until the player's native input resources are ready.
 
-Logs appear in `UE4SS.log`. The default level is WARN. For more detail, put
-`debug` in `Mods/2_ModCore_Controls/log_level.txt` and restart.
+Logs appear in `UE4SS.log`. The default level is WARN. For more detail, install the
+UE4SS Lua Log Bridge and raise ModCoreControls's level on its Logs page, or set
+`ModCoreControls=DEBUG` under `[Levels]` in the bridge's `config.ini`.
 
 ## Documentation
 

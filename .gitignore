@@ -1,5 +1,4 @@
 config.ini
-log_level.txt
 dlls/
 __pycache__/
 *.pyc

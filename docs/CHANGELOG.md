@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Log levels no longer come from `log_level.txt`. With the UE4SS Lua Log Bridge installed they
+  are set on its Logs page or under `[Levels]` in its `config.ini`; without it, WARN and above.
 - Tap vs Hold Threshold: Low and High may be as little as 10 ms apart (was 50 ms).
 
 ## v1.3.2
