@@ -8,11 +8,11 @@ local function tmpname()
     return path
 end
 -- Needs the real DMM parser and ModCoreSettings sources, which CI does not have; skip without them.
--- It is a local pre-release check instead: see "Before a release" in docs/BUILD.md.
+-- Run it locally, with both set, before a release.
 local path,settings=os.getenv('DMM_CHOICES_PATH'),os.getenv('MCS_SCRIPTS_PATH')
 if not path or not settings then
     print('SKIP DMM integration: set DMM_CHOICES_PATH and MCS_SCRIPTS_PATH;'
-        ..' required before a release (docs/BUILD.md, "Before a release")');return
+        ..' required before a release');return
 end
 -- ModCoreSettings' files require their siblings; MCC's own modules still win.
 package.path=package.path..';'..settings..'/?.lua'

@@ -120,6 +120,6 @@ keep their saved values.
 
 ## Check your change
 
-Run the [offline tests](BUILD.md), then check key capture, Apply, reopening the
-menu, and input in exploration and combat. Verify Tap/Hold behavior and that
-clearing your binding restores the intended native control.
+Check key capture, Apply, reopening the menu, and input in exploration and
+combat. Verify Tap/Hold behavior and that clearing your binding restores the
+intended native control.

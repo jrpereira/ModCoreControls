@@ -97,5 +97,4 @@ UE4SS Lua Log Bridge and raise ModCoreControls's level on its Logs page, or set
 - [Nexus description](https://github.com/jrpereira/ModCoreControls/blob/main/docs/NEXUS.bb): condensed, paste-ready module description in BBCode.
 - [Developer guide](DEVELOPERS.md): add a map and understand its settings.
 - [Runtime reference](RUNTIME.md): Tap/Hold timing, inherited keys, overrides and events.
-- [Build guide](BUILD.md): offline tests and in-game checks.
 - [Changelog](CHANGELOG.md): version history.

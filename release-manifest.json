@@ -34,7 +34,6 @@
     "Scripts/vendor/settings_api.lua": "Scripts/vendor/settings_api.lua",
     "README.md": "docs/README.md",
     "CHANGELOG.md": "docs/CHANGELOG.md",
-    "BUILD.md": "docs/BUILD.md",
     "DEVELOPERS.md": "docs/DEVELOPERS.md",
     "RUNTIME.md": "docs/RUNTIME.md"
   }
