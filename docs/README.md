@@ -29,7 +29,7 @@ updates the HUD key indicators.
 - **Integrate with native input:** MCC handles player/input-resource changes,
   inherited game keys and declared overrides through Enhanced Input.
 - **Coordinate controls and visuals:** publish wheel-focus and Global-slot events
-  for MCT templates and host quickslot visual settings on the Controls page.
+  for MCT templates and host quickslot visual settings at the top of the Controls tab.
 
 ## Choose the right module
 
@@ -54,7 +54,9 @@ fully restart the game after changing Lua files.
 
 ## Menu behavior
 
-The Controls page is a single page, top to bottom:
+MCC's settings are the **Controls** tab of the ModCore Settings page, its first tab and
+the one it opens on. ModCore Controls' entry in the mod list opens it, as does the
+mod list's controls link. Top to bottom:
 
 | Section | Contents |
 | --- | --- |
@@ -62,7 +64,8 @@ The Controls page is a single page, top to bottom:
 | Mappings | Links (**edit**) to the inner pages **Group Keys** (the Groups map), **Global Keys** (the Global map) and **Controller** (a read-only list of the player's current gamepad mappings) |
 | Behaviours | Quickslot Wheels (default wheel and Toggle Quickslots behavior) and Shortcuts (Instant Tap, Tap vs Hold Threshold and key outline) |
 
-Each inner page has its own Apply; Back returns to the Controls page. Every map's
+Apply on the Controls tab saves these settings into MCC's `config.ini`, as before. Each
+inner page has its own Apply; Back returns to the Controls tab. Every map's
 bindings stay active together; its page only shows them. Apply rejects the same key
 with the same trigger on two rows, on any of the pages; the same key with Tap on one
 row and Hold on another is two separate bindings.

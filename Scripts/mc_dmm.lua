@@ -231,6 +231,14 @@ function M.manifest(pageId)
     return M.schema(define(),gamepad,pageId)
 end
 
+-- The ids of a manifest's settings, in page order: the main page's are the rows ModCore
+-- Settings shows in its Controls tab.
+function M.ids(manifest)
+    local ids={}
+    for id in ('\n'..manifest):gmatch('\nId=([^\n]+)') do ids[#ids+1]=id end
+    return ids
+end
+
 -- Each load opens the config; Apply saves through that store, so a file changed
 -- since the page opened is refused rather than overwritten. Every page has its own.
 local opened={}

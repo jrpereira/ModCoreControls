@@ -32,7 +32,7 @@ M.addSectionMap('actions', {
 })
 ```
 
-Restart, open **Controls → Mappings → Demo Keys**, bind an unused key,
+Restart, open **ModCore Settings → Controls → Mappings → Demo Keys**, bind an unused key,
 and Apply. The saved key is `demo.Ability1` in `[ModCoreControls.actions]`.
 Keep map IDs, setting IDs and map values stable after users save settings.
 
@@ -111,10 +111,13 @@ current declarations. Old `.key` and `.trigger` assignments are ignored.
 
 ## How the menu reaches gameplay
 
-1. `main.lua` publishes the `ModCoreControls` page and its inner pages
+1. `main.lua` publishes, through MCS's `menu_contributions.lua` and before input
+   startup, the hidden `ModCoreControls` page, its inner pages
    (`ModCoreControls.<map id>` for each map with a `page`, then
-   `ModCoreControls.controller`; MCS `group='inner'`) through MCS's
-   `menu_contributions.lua`, before input startup.
+   `ModCoreControls.controller`; MCS `group='inner'`), the mod list entry
+   `ModCoreControls.entry` (a slot link to `settings:controls`, attached to MCC's
+   folder), and slot rows putting every setting of the main page, in order, into
+   `settings:controls`: ModCore Settings' Controls tab.
 2. MCS loads `mcs_page.lua` in the menu state. `mc_dmm.lua` generates each page's
    manifest by `context.page` and supplies `load`/`apply` hooks for MCC's storage.
 3. Apply on any of the pages resolves mirrors, validates all maps together, and saves
@@ -126,6 +129,13 @@ The main page holds the `controls:visuals` slot for MCT at the top (the placehol
 remains if no valid rows arrive), the **Mappings** links (navigation rows with
 `mcLinkPage`, never stored), then the maps without a `page`. A map with a `page` is
 shown only on its inner page. MCC installs no DMM extension or `mod_settings.ini`.
+
+In the Controls tab the rows stay the main page's: MCS edits them through its hooks,
+Apply saves them into MCC's `config.ini` and publishes under `ModCoreControls`, which MCC
+subscribes to. MCS keeps the hidden page in its menu, listed nowhere, so its
+`controls:visuals` slot fills inside the tab, its links open the inner pages and Back
+returns to the tab with the link selected. A ModCore Settings without the tab shows the
+main page on its own instead. Main page settings past 32 go into further row entries.
 
 ## Check your change
 

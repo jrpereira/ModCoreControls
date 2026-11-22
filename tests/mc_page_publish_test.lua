@@ -27,9 +27,13 @@ assert(failed,'input startup must still fail in this test: '..table.concat(print
 assert(#published==1,'the page is published although input startup failed')
 local page=published[1].pages[1]
 assert(page.id=='ModCoreControls' and page.name=='Controls')
+-- Hidden: ModCore Settings shows it as its Controls tab.
+assert(page.visible==false and page.attach==nil,'the main page is shown in the Controls tab')
 -- Then its inner pages, listed nowhere and opened from the main page's Mappings links.
 local inner={}
-for n=2,#published[1].pages do
+local pages=published[1].pages
+local entry=table.remove(pages)
+for n=2,#pages do
     local child=published[1].pages[n]
     assert(child.under=='ModCoreControls' and child.group=='inner' and child.hooks==root .. '/Scripts/mcs_page.lua'
         and child.configDirectory==root,child.id)
@@ -38,7 +42,16 @@ end
 assert(table.concat(inner,',')=='ModCoreControls.grouped=Group Keys,ModCoreControls.global=Global Keys,'
     ..'ModCoreControls.controller=Controller',table.concat(inner,','))
 assert(page.hooks==root .. '/Scripts/mcs_page.lua' and page.configDirectory==root)
-assert(page.attach==root:match('([^/\\]+)$'),'the page replaces this mod folder\'s placeholder')
+-- Last, the mod's entry: it replaces this mod folder's placeholder and opens the tab.
+assert(entry.id=='ModCoreControls.entry' and entry.link=='settings:controls'
+    and entry.attach==root:match('([^/\\]+)$') and not entry.hooks and not entry.configDirectory,entry.id)
+-- Every main page setting, in page order, goes into the tab.
+local rows=published[1].rows
+assert(#rows==1 and rows[1].page=='ModCoreControls' and rows[1].slot=='settings:controls')
+local DMM=require('mc_dmm')
+assert(table.concat(rows[1].settings,',')==table.concat(DMM.ids(DMM.manifest()),',')
+    and rows[1].settings[1]=='MCC_Visuals_Pending' and rows[1].settings[2]=='MCC_Link_grouped'
+    and rows[1].settings[#rows[1].settings]=='MCC_module_default_KeyOutline',table.concat(rows[1].settings,','))
 assert(options.id=='ModCoreControls' and options.directory==root .. '/cache')
 
 -- The hooks file follows ModCoreSettings' hooks contract 1.

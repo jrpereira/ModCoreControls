@@ -66,7 +66,7 @@ local main,groups,global,pad=pages.ModCoreControls,pages['ModCoreControls.groupe
 assert(main.manifest:find('mcSlot=visuals',1,true),'ModCoreSettings reads row slots from the manifest text')
 -- The published pages name this hooks file and the mod folder as their config directory.
 local Contributions=require('menu_contributions')
-local published={{id=DMM.page.id,name=DMM.page.name,attach='2_ModCore_Controls',hooks=scripts .. '/mcs_page.lua',
+local published={{id=DMM.page.id,name=DMM.page.name,visible=false,hooks=scripts .. '/mcs_page.lua',
     configDirectory=temp}}
 for _,entry in ipairs(inner) do
     published[#published+1]={id=entry.id,name=entry.name,description=entry.description,under=DMM.page.id,
@@ -276,106 +276,261 @@ else
 end
 print('PASS DMM matches MCC definitions, storage, and pages')
 
--- End to end through ModCoreSettings: the published pages become providers, the inner
--- pages are listed nowhere, a contributed row fills the Visuals slot, every Mappings link
--- opens its page, Apply there saves, and Back returns to the main page.
+-- End to end through ModCoreSettings: the page main.lua publishes becomes ModCore
+-- Settings' Controls tab, its first tab and the one it opens on. ModCore Settings' page
+-- parses with all four tabs, Controls | Templates | Settings | Developer Tools; both slots
+-- fill, the Visuals slot inside the Controls tab included; Apply there saves into each
+-- page's own config and publishes its own event; every Mappings link opens its inner page,
+-- Back returns to the Controls tab with the link selected; and each mod list entry or link
+-- to a slot opens its tab.
 do
     local MenuPages=dofile(settings..'/menu_pages.lua')
     local Slots=dofile(settings..'/menu_slots.lua')
     local Links=dofile(settings..'/page_links.lua')
+    local MenuData=dofile(settings..'/menu_data.lua')
+    local Groups=dofile(settings..'/browser_groups.lua')
     local reports={}
     local function report(event,detail) reports[#reports+1]=event..' '..tostring(detail) end
     local controller=assert(Slots.install(choices,report,Contributions,function() return nil end))
+    local applied={}
+    controller.applied=function(provider,event) applied[#applied+1]={id=provider.id,event=event} end
+    local function compile(menu) return MenuData.manifest(menu) end
     local function hooked(page)
         local own=PageHooks.loader()(page.hooks)
         local context=PageHooks.context(page)
-        return own,PageHooks.manifest(own,context),context
+        local manifest,menu=PageHooks.manifest(own,context,compile)
+        return own,manifest,context,menu
     end
-    -- A stand-in for ModCore Templates: a hidden page whose template picker fills the slot.
+    local function stored(page) return PageHooks.stored(page.menu),PageHooks.context(page) end
+    -- The contribution exactly as main.lua publishes it, with its config in the temp folder.
+    local contribution
+    do
+        local real,given=package.loaded.menu_contributions,nil
+        package.loaded.menu_contributions={publisher=function(_,options)
+            given=options
+            return {publish=function(_,value) contribution=value;return 1 end}
+        end}
+        local modRef,queue=rawget(_G,'ModRef'),rawget(_G,'ExecuteInGameThread')
+        ModRef,ExecuteInGameThread={},nil
+        local print_=print;print=function() end
+        local ran,why=pcall(assert(loadfile(scripts..'/main.lua')))
+        print=print_
+        ModRef,ExecuteInGameThread,package.loaded.menu_contributions=modRef,queue,real
+        assert(ran,why)
+        assert(given.id=='ModCoreControls' and Contributions.validate('ModCoreControls',contribution))
+        for _,page in ipairs(contribution.pages) do
+            if page.configDirectory then page.configDirectory=temp end
+            -- Installed, the mod's folder is 2_ModCore_Controls.
+            if page.attach then page.attach='2_ModCore_Controls' end
+        end
+        contribution.id='ModCoreControls'
+    end
+    -- A stand-in for ModCore Templates, published first: its Quickslots page fills the
+    -- Visuals slot and its list the Templates tab, its entry links to that tab, and a
+    -- merged module page links to the Visuals slot.
     local template=table.concat({'[Category.Quickslots]','mcHeading=0','',
         '[Setting.MCT_Template]','Id=MCT_Template','Label=Quickslots','Group=Quickslots','Type=picker',
         'Default=0','PresetValues=0|1','PresetLabels=Native|Fancy','ConfigFile=templates.ini',
-        'ConfigSection=Templates','ConfigKey=Template','mcCategory=1',''},'\n')
-    local providers={{id='detected:ue4ss:2_modcore_controls',name='2_ModCore_Controls',detectedKind='ue4ss',
-        noSettings=true,choices={}},{id='Zeta',name='Zeta',choices={{id='z'}},path='/z/mod_settings.ini'}}
-    local state={}
-    MenuPages.apply(providers,{
-        {id='ModCoreControls',pages=published},
-        {id='ModCoreTemplates',pages={{id='ModCoreTemplates',name='Templates',manifest=template,
-            configDirectory=temp,visible=false}},
-            rows={{page='ModCoreTemplates',slot='controls:visuals',settings={'MCT_Template'}}}},
-    },function(content) return choices.parse(content) end,state,report,controller,hooked)
-    assert(#reports==0,table.concat(reports,' / '))
-    local order,byId={},{}
-    for index,provider in ipairs(providers) do order[index]=provider.id;byId[provider.id]=index end
-    assert(table.concat(order,',')=='ModCoreControls,ModCoreControls.grouped,ModCoreControls.global,'
-        ..'ModCoreControls.controller,Zeta',table.concat(order,','))
-    for n=2,4 do
-        assert(providers[n].mcBrowserHidden and providers[n].mcBrowserGroup=='inner',providers[n].id..' is not listed')
+        'ConfigSection=Templates','ConfigKey=Template','mcCategory=1','',
+        '[Setting.MCT_Size]','Id=MCT_Size','Label=Size','Group=Fancy','Type=picker','Default=0',
+        'PresetValues=0|1','PresetLabels=Small|Large','VisibleWhen=MCT_Template','VisibleValues=1',
+        'ConfigFile=templates.ini','ConfigSection=Templates','ConfigKey=Size',''},'\n')
+    local listing=table.concat({'[Category.Player]','',
+        '[Setting.MCT_Listed_1]','Id=MCT_Listed_1','Label=Wheels','Group=Player','Type=picker','Default=0',
+        'PresetValues=0|1','PresetLabels=Fangdango|Fangdango','mcReadOnly=1',''},'\n')
+    local merged=table.concat({'[Category.Fangdango]','',
+        '[Setting.MCT_MergedNotice]','Id=MCT_MergedNotice','Label=Merged into Controls','Group=Fangdango',
+        'Type=picker','Default=0','PresetValues=0|1','PresetLabels=Controls|Controls','mcNavigation=1',
+        'mcLinkPage=controls:visuals','mcType=tab',''},'\n')
+    local templates={id='ModCoreTemplates',pages={
+        {id='ModCoreTemplates',name='ModCore Templates',attach='3_ModCore_Templates',link='settings:templates'},
+        {id='ModCoreTemplates.templates',name='ModCore Templates',manifest=listing,configDirectory=temp,visible=false},
+        {id='ModCoreTemplates.quickslots',name='Quickslots',manifest=template,configDirectory=temp,visible=false},
+        {id='ModCoreTemplates.module.Fangdango',name='Fangdango',manifest=merged,configDirectory=temp,
+            attach='9_ModCore_Fangdango'}},
+        rows={{page='ModCoreTemplates.templates',slot='settings:templates',settings={'MCT_Listed_1'}},
+            {page='ModCoreTemplates.quickslots',slot='controls:visuals',settings={'MCT_Template','MCT_Size'}}}}
+    assert(Contributions.validate('ModCoreTemplates',{pages=templates.pages,rows=templates.rows}))
+    local mcs={id='ModCoreSettings',pages={{id='ModCoreSettings',name='ModCore Settings',attach='1_ModCore_Settings',
+        menu=dofile(settings..'/mcs_page.lua'),configDirectory=temp..'/mcs'}}}
+    assert(os.execute('mkdir ' .. string.format('%q',temp..'/mcs')))
+    local function placeholder(folder)
+        return {id='detected:ue4ss:'..folder:lower(),name=folder,detectedKind='ue4ss',noSettings=true,choices={}}
     end
-    assert(not providers[1].mcBrowserHidden and providers[1].mcModuleEntry,'the main page is the mod\'s entry')
-    -- The slot resolves: the template picker takes the placeholder's place.
+    local providers={placeholder('1_ModCore_Settings'),placeholder('2_ModCore_Controls'),
+        placeholder('3_ModCore_Templates'),placeholder('9_ModCore_Fangdango'),
+        {id='Zeta',name='Zeta',choices={{id='z'}},path='/z/mod_settings.ini'}}
+    local state={}
+    MenuPages.apply(providers,{templates,contribution,mcs},function(content) return choices.parse(content) end,
+        state,report,controller,hooked,compile,stored)
+    assert(#reports==0,table.concat(reports,' / '))
+    local byId,listed={},{}
+    for index,provider in ipairs(providers) do
+        byId[provider.id]=index
+        if not provider.mcBrowserHidden then listed[#listed+1]=provider.id end
+    end
+    table.sort(listed)
+    -- The mod list: ModCore Controls' and ModCore Templates' entries link to their tabs.
+    assert(table.concat(listed,',')=='ModCoreControls.entry,ModCoreSettings,'
+        ..'ModCoreTemplates,ModCoreTemplates.module.Fangdango,Zeta',table.concat(listed,','))
+    local entry=providers[byId['ModCoreControls.entry']]
+    assert(entry.mcModuleEntry and entry.mcLinkSlot.host=='ModCoreSettings' and entry.mcLinkSlot.slot=='controls',
+        'ModCore Controls\' entry opens the Controls tab')
+    assert(providers[byId.ModCoreTemplates].mcLinkSlot.slot=='templates')
+    -- The main page and its inner pages are kept, listed nowhere.
+    for _,id in ipairs(ids) do
+        assert(byId[id] and providers[byId[id]].mcBrowserHidden,id..' is kept, unlisted')
+    end
+    -- ModCore Settings' page as the browser leaves it: its Developer Tools tab appended.
+    local host=providers[byId.ModCoreSettings]
+    host.mcManifest=host.mcManifest:gsub('%s*$','')..'\n\n'
+        ..Groups.manifest({['ModCoreDevTools.sounds']=true},{},{{id='ModCoreDevTools.sounds',name='Sounds Explorer'}})
+    host.choices=choices.parse(host.mcManifest);host.settingsCount=#host.choices
     controller.inserts=state.inserts
-    local host=providers[1]
-    assert(controller:load(host,function() return nil end),'the slot is filled')
-    local hostModel=choices.open(host)
-    assert(not hostModel.error,hostModel.error)
-    assert(hostModel.items[1].id=='MCT_Template' and hostModel.items[2].id=='MCC_Link_grouped',
-        'the template picker heads the page, the links follow')
+    assert(controller:load(host,function() return nil end),'both slots fill')
+    assert(#reports==0,table.concat(reports,' / '))
+    local model=choices.open(host)
+    assert(not model.error,model.error)
+    local index,order={},{}
+    for i,item in ipairs(model.items) do index[item.id]=i;order[i]=item.id end
+    -- DMM takes at most 256 settings on a page.
+    assert(#model.items<=256 and #model.items==#host.choices,#model.items)
+    local tabs=model.items[1]
+    assert(tabs.id=='MCS_Page' and table.concat(tabs.labels,'|')=='Controls|Templates|Settings|Developer Tools'
+        and table.concat(tabs.values,'|')=='0|1|2|3' and model.pending[1]==0,'four tabs, opening on Controls')
+    -- The Controls tab: the Quickslots picker and its template's rows, the Mappings links,
+    -- then Behaviours. Nothing of MCC's placeholder remains.
+    local mainIds=DMM.ids(DMM.manifest())
+    local expected={'MCS_Page','MCT_Template','MCT_Size'}
+    for n=2,#mainIds do expected[#expected+1]=mainIds[n] end
+    assert(table.concat(order,',',1,#expected)==table.concat(expected,','),table.concat(order,','))
+    assert(not index.MCC_Visuals_Pending and not index.MCS_Controls and not index.MCS_Templates,'placeholders give way')
+    local function shown(page)
+        model:set(1,page)
+        local visible=model:visibility()
+        local out={}
+        for i,item in ipairs(model.items) do if visible[i] then out[#out+1]=item.id end end
+        return table.concat(out,',')
+    end
+    local controls=shown(0)
+    assert(controls:find('^MCS_Page,MCT_Template,MCC_Link_grouped') and controls:find('MCC_module_default_KeyOutline$')
+        and not controls:find('SortBy',1,true) and not controls:find('MCT_Listed_1',1,true),controls)
+    assert(shown(1)=='MCS_Page,MCT_Listed_1',shown(1))
+    local own=shown(2)
+    assert(own:find('CompactStyle',1,true) and own:find('SortBy',1,true) and not own:find('MCC_',1,true),own)
+    assert(shown(3)=='MCS_Page,MCS_Index_1',shown(3))
+    model:set(1,0)
+    assert(not model:dirty(),'tabs are navigation')
+    -- The rows keep their groups and their own types: Behaviours heads its two subgroups,
+    -- the threshold is ModCoreSettings' range, the links are edit links.
+    local threshold=model.items[index.MCC_module_default_HoldThreshold]
+    assert(threshold.kind=='extension' and threshold.editor=='range','the threshold stays a range')
+    local link=model.items[index.MCC_Link_grouped]
+    assert(link.mcNavigation and link.mcLinkPage=='ModCoreControls.grouped' and link.mcTabs,'links stay edit links')
+    local parents={}
+    for _,item in ipairs(model.items) do
+        if item.id:match('^MCC_module_default_') then
+            assert(item.mcGroup and item.mcGroup.parent and item.mcGroup.parent.label=='Behaviours',item.id..' under Behaviours')
+            parents[item.mcGroup.parent]=true
+        end
+    end
+    assert(next(parents) and next(parents,next(parents))==nil,'one shared Behaviours heading')
+    assert(model.items[index.MCT_Template].mcSlotSource==providers[byId['ModCoreTemplates.quickslots']]
+        and model.items[index.MCC_Link_grouped].mcSlotSource==providers[byId.ModCoreControls],'each row keeps its owner')
+    -- Apply on the Controls tab saves into each page's own config and publishes its own event.
+    local before=config()
+    model:set(index.MCC_module_default_HoldThreshold,'120|300')
+    model:set(index.MCT_Template,1)
+    assert(model:dirty())
+    local ok,why=model:apply()
+    assert(ok,why)
+    local text=config()
+    assert(text:find('default.HoldThreshold=120|300',1,true) and text~=before,'MCC saves its own setting')
+    local file=assert(io.open(temp..'/templates.ini','rb'));local saved=file:read('a');file:close()
+    assert(saved:find('Template=1',1,true),'the template choice is saved by its own page')
+    local events={}
+    for _,entryEvent in ipairs(applied) do events[entryEvent.id]=entryEvent.event end
+    assert(events.ModCoreControls and events.ModCoreControls.values.MCC_module_default_HoldThreshold=='120|300',
+        'MCC\'s Apply subscribers hear the tab\'s Apply')
+    assert(events['ModCoreTemplates.quickslots'],'the template page publishes its own')
     -- A DMM page over these providers: the listed rows and DMM's full list.
     local page={rows={},allRows={},controlStatus={},mode='browser'}
-    for index,provider in ipairs(providers) do
-        local row={providerIndex=index}
+    for at,provider in ipairs(providers) do
+        local row={providerIndex=at}
         page.allRows[#page.allRows+1]=row
         if not provider.mcBrowserHidden then page.rows[#page.rows+1]=row end
     end
-    local shown={}
+    local trace={}
     page.controls={tick=function() return false end,refresh=function() end,
-        select=function(_,index) shown[#shown+1]='select '..index end,
-        show=function(self,index)
-            if providers[index].mcSlotBase then controller:load(providers[index],function() return nil end) end
-            self.model=choices.open(providers[index]);self.provider=providers[index]
+        select=function(_,at) trace[#trace+1]='select '..at end,
+        show=function(self,at)
+            controller:load(providers[at],function() return nil end)
+            self.model=choices.open(providers[at]);self.provider=providers[at]
         end}
-    function page:showBrowser() self.mode='browser';shown[#shown+1]='browser' end
+    function page:showBrowser() self.mode='browser';trace[#trace+1]='browser' end
     function page:showDetail(row)
         self.mode='detail'
         self.controls:show(self.rows[row].providerIndex)
-        shown[#shown+1]=self.controls.provider.id
+        trace[#trace+1]=self.controls.provider.id
     end
-    Links.wrap(page,providers,{setText=function(_,text) reports[#reports+1]='status '..text end},controller,report)
+    Links.wrap(page,providers,{setText=function(_,message) reports[#reports+1]='status '..message end},controller,report)
+    local function rowOf(id)
+        for row,candidate in ipairs(page.rows) do if providers[candidate.providerIndex].id==id then return row end end
+    end
     local function follow(id)
         local current=page.controls.model
-        local index
-        for i,item in ipairs(current.items) do if item.id==id then index=i end end
-        current.mcActivateLink=true;current:set(assert(index,id),0)
+        local at
+        for i,item in ipairs(current.items) do if item.id==id then at=i end end
+        current.mcActivateLink=true;current:set(assert(at,id),0)
         assert(page.controls:tick()==true)
-        return index
+        return at
     end
-    for n,link in ipairs({'MCC_Link_grouped','MCC_Link_global','MCC_Link_controller'}) do
-        page:showDetail(1)
+    -- ModCore Controls' entry opens ModCore Settings' page on the Controls tab, at its first row.
+    trace={}
+    page:showDetail(rowOf('ModCoreControls.entry'))
+    assert(page.controls.provider==host and page.controls.model.pending[1]==0
+        and trace[#trace]=='select '..index.MCT_Template,table.concat(trace,','))
+    -- ModCore Templates' entry opens the Templates tab.
+    trace={}
+    page:showDetail(rowOf('ModCoreTemplates'))
+    assert(page.controls.provider==host and page.controls.model.pending[1]==1
+        and trace[#trace]=='select '..index.MCT_Listed_1,table.concat(trace,','))
+    page:showBrowser()
+    -- A link to the Visuals slot opens the Controls tab at the Quickslots picker.
+    page:showDetail(rowOf('ModCoreTemplates.module.Fangdango'))
+    trace={}
+    follow('MCT_MergedNotice')
+    assert(page.controls.provider==host and page.controls.model.pending[1]==0
+        and trace[#trace]=='select '..index.MCT_Template,table.concat(trace,','))
+    page:showBrowser();page.controls:tick()
+    assert(page.controls.provider==providers[byId['ModCoreTemplates.module.Fangdango']],'Back returns to the merged page')
+    page:showBrowser()
+    -- Every Mappings link opens its inner page; Back lands on the Controls tab, link selected.
+    for n,id in ipairs({'MCC_Link_grouped','MCC_Link_global','MCC_Link_controller'}) do
+        page:showDetail(rowOf('ModCoreSettings'))
         assert(page.controls.provider==host)
-        local row=follow(link)
-        assert(page.mode=='detail' and page.controls.provider==providers[n+1],link..' opens '..providers[n+1].id)
+        page.controls.model:set(1,2)
+        page.controls.model:set(1,0)
+        local row=follow(id)
+        assert(page.mode=='detail' and page.controls.provider==providers[byId[ids[n+1]]],id..' opens '..ids[n+1])
         assert(not page.controls.model.error,page.controls.model.error)
-        if link=='MCC_Link_global' then
-            -- Apply on the inner page saves.
+        if id=='MCC_Link_global' then
             local keys=page.controls.model
-            local index
-            for i,item in ipairs(keys.items) do if item.id=='MCC_actions_global_ConsumableSlot4' then index=i end end
-            keys:set(index,'K|Tap')
+            local at
+            for i,item in ipairs(keys.items) do if item.id=='MCC_actions_global_ConsumableSlot4' then at=i end end
+            keys:set(at,'K|Tap')
             assert(keys:apply())
             assert(config():find('global.ConsumableSlot4=K|Tap',1,true),'Apply on Global Keys saves')
         end
-        -- Back returns to the main page with the link selected; Back there reaches the browser.
-        shown={}
+        trace={}
         page:showBrowser()
         page.controls:tick()
-        assert(page.mode=='detail' and page.controls.provider==host
-            and shown[#shown]=='select '..row,link..' Back: '..table.concat(shown,','))
+        assert(page.mode=='detail' and page.controls.provider==host and page.controls.model.pending[1]==0
+            and trace[#trace]=='select '..row,id..' Back: '..table.concat(trace,','))
         page:showBrowser()
         assert(page.mode=='browser')
     end
     assert(#reports==0,table.concat(reports,' / '))
-    print('PASS the Controls pages resolve in ModCoreSettings: slot, inner pages, Apply and Back')
+    print('PASS ModCore Settings\' page has Controls | Templates | Settings | Developer Tools: slots, links, Apply and Back')
 end
 assert(os.execute('rm -r ' .. string.format('%q',temp)))

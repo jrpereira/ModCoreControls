@@ -31,15 +31,25 @@ local published,publishWhy=pcall(function()
     local page=Page.page
     local pages=require('menu_contributions').publisher(assert(rawget(_G,'ModRef'),'ModRef unavailable'),
         {id=page.id,directory=root .. '/cache'})
-    -- The main page, then its inner pages: listed nowhere, opened from its Mappings links.
+    -- The main page is ModCore Settings' Controls tab (slot settings:controls): its rows are
+    -- shown there and edited and stored here. It stays hidden; ModCoreSettings keeps it for
+    -- its inner pages and the Visuals slot, and shows it on its own only without the tab.
     local list={{id=page.id,name=page.name,author=page.author,version=page.version,
-        description=page.description,attach=root:match('([^/\\]+)$'),
-        hooks=scripts .. '/mcs_page.lua',configDirectory=root}}
+        description=page.description,visible=false,hooks=scripts .. '/mcs_page.lua',configDirectory=root}}
+    -- Its inner pages: listed nowhere, opened from its Mappings links.
     for _,inner in ipairs(Page.pages(require('mc_menu').define(require('mc_sections'),require('mc_maps')))) do
         list[#list+1]={id=inner.id,name=inner.name,description=inner.description,version=page.version,
             under=page.id,group='inner',hooks=scripts .. '/mcs_page.lua',configDirectory=root}
     end
-    pages:publish({pages=list})
+    -- The mod's entry in the mod list opens the Controls tab.
+    list[#list+1]={id=page.id..'.entry',name='ModCore Controls',author=page.author,version=page.version,
+        description=page.description,attach=root:match('([^/\\]+)$'),link='settings:controls'}
+    -- ModCoreSettings takes at most 32 settings per row entry.
+    local ids,rows=Page.ids(Page.manifest()),{}
+    for first=1,#ids,32 do
+        rows[#rows+1]={page=page.id,slot='settings:controls',settings={table.unpack(ids,first,math.min(first+31,#ids))}}
+    end
+    pages:publish({pages=list,rows=rows})
 end)
 if not published then log.error('Controls page unavailable: ',publishWhy) end
 local ok,err=pcall(function()
