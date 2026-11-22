@@ -4,7 +4,7 @@
 [size=4][b]Tested for The Blood of Dawnwalker 1.2[/b][/size]
 [b]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/b][/center]
 
-ModCore Controls (MCC) lets you configure Dawnwalker's keyboard and mouse quickslot controls in the mod menu. It saves bindings, applies them through Enhanced Input and updates the HUD key indicators.
+ModCore Controls (MCC) lets you configure Dawnwalker's keyboard and mouse quickslot controls in the mod menu. It saves your bindings, applies them in game and updates the HUD key indicators.
 
 [b]Features and benefits[/b]
 [list]
@@ -14,9 +14,9 @@ ModCore Controls (MCC) lets you configure Dawnwalker's keyboard and mouse quicks
 [*]Use all control maps together; their keys are edited on the Mappings page, one tab per map (Group Keys, Global Keys) plus Controller, opened from Mappings on the Controls tab, and Back returns there.
 [*]A key bound twice is marked as you edit, across Group Keys and Global Keys; Apply refuses duplicate custom keys across maps and saves successful changes between sessions.
 [*]HUD key hints reflect MCC bindings, and keys set to Hold are underlined. A key's outline fills while it is held (Show key outline: None, Hold, or Tap & Hold); MCC restores original indicators when its modifications are removed.
-[*]Native input integration handles player/input-resource changes, inherited game keys and declared overrides.
-[*]Wheel-focus and Global-slot events let ModCore Templates coordinate visuals with controls; the Controls tab also hosts contributed quickslot visual settings at its top.
-[*]MCC's settings are the Controls tab of the ModCore Settings page, the tab it opens on; ModCore Controls' entry in the mod list opens it.
+[*]Keys left on the game's default follow the game's key settings, and custom keys replace the game action they stand in for.
+[*]ModCore Templates quickslot templates follow wheel focus and Global keys; their settings sit at the top of the Controls tab.
+[*]MCC's settings are the Controls tab of the ModCore Settings page, its second tab after Settings; ModCore Controls' entry in the mod list opens it.
 [/list]
 
 [b]Requirements and installation[/b]

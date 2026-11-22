@@ -6,7 +6,7 @@
   Settings tab: the Quickslots templates, Mappings and Behaviours, saved into
   MCC's `config.ini` as before. ModCore Controls' entry in the mod list opens the tab;
   the Mappings links open the Mappings page on its Group Keys, Global Keys or Controller
-  tab, and Back returns to the tab. Needs ModCore Settings from this round (`settings:controls`).
+  tab, and Back returns to the tab. Needs ModCore Settings from this round.
 - Log levels no longer come from `log_level.txt`. With the UE4SS Lua Log Bridge installed they
   are set on its Logs page or under `[Levels]` in its `config.ini`; without it, WARN and above.
 - Tap vs Hold Threshold: Low and High may be as little as 10 ms apart (was 50 ms).
@@ -55,11 +55,8 @@
   binding: they act on press and their hints get MCC's glyph and rim.
 - The Default wheel is Abilities out of the box (was Consumables). A saved choice is kept.
 - MCC publishes `controls.slots.global`, the quickslots with a working Global key,
-  so templates can leave those slots undimmed while their wheel is unfocused, and
-  defines `templates.layout.changed` for ModCore Templates to publish.
-- Fixes a possible crash: retries while the game sets up its input and HUD now run
-  on the game thread. They ran on UE4SS's async thread, sharing MCC's Lua state
-  with the game thread.
+  so templates can leave those slots undimmed while their wheel is unfocused.
+- Fixes a possible crash while the game sets up its input and HUD.
 
 ## v1.0.12
 
@@ -74,30 +71,22 @@
   restarted.
 - A key copied from the game's controls, or a native action MCC overrides, that is
   not available yet when controls attach is tried again shortly after.
-- Using a skill no longer stutters the game. Each control-mapping rebuild, which
-  skills request, searched every game object for the player and HUD; MCC now reuses
-  the ones it found. When a skill lifts the game's controls for a moment, MCC keeps
-  its input instead of removing and restoring it.
-- Controls attach faster after a load or a death: MCC keeps the local player it found
-  on the first attach and reads the new player controller from it, instead of
-  searching every game object again.
-- MCC no longer watches object creation. Of the game's mapping-context changes, it
-  acts only on a gameplay context added for a new player.
+- Using a skill no longer stutters the game, and MCC's keys stay in place when a
+  skill lifts the game's controls for a moment.
+- Controls attach faster after a load or a death.
 - After a load, the Default wheel is shown, and the other one dimmed, as soon as
   the game's HUD exists, before MCC attaches its keys, which can take a moment.
   Loading from the main menu no longer leaves both wheels bright, or the key
   labels showing the game's keys, until the loading screen has faded out.
 - Swapping wheels changes the game's own active wheel, as its toggle does, so the
-  quickslot keys fire the wheel shown. Before, with a ModCore Templates quickslot
-  template, the keys fired consumables out of combat and abilities in combat,
-  whatever the focus. MCC no longer enables or disables wheels that Templates has
-  moved, and no longer needs them to leave anything in the native switcher.
+  quickslot keys fire the wheel shown. With a ModCore Templates quickslot template,
+  the keys no longer fire consumables out of combat and abilities in combat,
+  whatever the focus.
 
 ## v1.0.11
 
-- Controls reattach on their own after a save load. An attach that failed while the
-  new player was still loading was never retried, which left the game's own
-  quickslot keys active and the wheels stuck until the game was restarted.
+- Controls reattach on their own after a save load. Before, the game's own
+  quickslot keys could stay active and the wheels stuck until the game was restarted.
 - Reattaching selects the Default wheel and announces it again, so wheel focus
   and its dimming are correct after a save load.
 
@@ -125,290 +114,135 @@
 
 ## v1.0.5
 
-- The vendored ModCore Settings menu client is version 7.
+- Updates the shared ModCore Settings menu support. No change to controls or settings.
 
 ## v1.0.4
 
 - Control focus events start with no group until the first group transition.
-- Lookups for actions that are missing are throttled on wall-clock time, and empty icon
-  metadata is no longer stored.
-- Uses the shared ModCore Settings tooling, `safe_file` and `mc_ini`; the cache directory
-  is created through `safe_file`. The package now ships those two vendored scripts.
-- Removes the unused key indicator setter, the empty Movement and System placeholder
-  sections, unread section and group fields, and two unused arguments of the input
-  context attach call.
+- Fewer repeated lookups for missing game actions.
+- Cleanup with no change to controls or settings.
 
 ## v1.0.3
 
 - Requires ModCore Settings 1.1.0 or later.
-- A control mapping rebuild no longer rebuilds MCC's triggers and key mappings when
-  nothing changed. Lost mappings are still restored by the attachment check.
-- Each key name is checked with the engine once per session, not on every mapping.
-- Entering or leaving combat no longer reads the Settings key profile: inherited keys
-  are read again only on attach, Apply, the game applying new keyboard mappings, or
-  while one is unresolved. The attachment check reads key names only of MCC's own
-  entries and matches actions by address.
-- An inherited action that no InputAction carries is looked up again only every
-  five seconds, not on every sync. An Apply scans the InputActions once instead of twice.
-- Removed the config migrations from before the first release (Flat map, map
-  choice, Advanced map, Default's move to Module). Retired lines are ignored and
-  `config.ini` is no longer rewritten at startup.
-- Removed the `ModCoreControls` global: it lived only in MCC's own Lua state.
-- The cache folder is found with a probe file; a shell starts only to create it.
-- UE4SSLuaEventBridge API 6 is required by input attachment too, as already documented.
-- Re-vendored `menu_contributions.lua` version 6.
+- Less work while playing: a control rebuild with nothing changed leaves MCC's keys
+  alone, and entering or leaving combat no longer rereads the game's key settings.
+  Lost keys are still restored.
+- Settings retired before the first release are ignored, and `config.ini` is no
+  longer rewritten at startup.
 - A key that focuses group 3, which has no game target yet, is accepted only when
   declared inactive; before, it passed the declaration and failed at startup and Apply.
-- While controls are not attached, the retry backs off to every 12 s (100 ms, 500 ms,
-  3 s, 6 s, then 12 s) instead of scanning for the player every 3 s. Game hooks still
-  start a sync as soon as gameplay input appears.
-- Inherited keys come from ModCoreSettings' vendored `standard_keys.lua`, the rule the
-  key editor shows them with, so the menu and the bindings agree.
+- While controls are not attached, retries back off to every 12 s (100 ms, 500 ms,
+  3 s, 6 s, then 12 s). Controls still attach as soon as gameplay input appears.
+- Inherited keys follow the same rule the key editor shows them with, so the menu
+  and the bindings agree.
 
 ## v1.0.2
 
-- Compare game objects by path. UE4SS returns a new wrapper for every lookup, so
-  comparing wrappers made MCC treat the same player as a new one and reattach all
-  controls whenever something woke it, such as using an ability, and made wheels
-  still inside the native switcher look moved.
-- Fix a crash when loading a save from a running game. MCC kept the player's
-  input objects, the game's mapping contexts and overridden actions, and the
-  quickslot HUD and wheels across garbage collection, and the game's mapping
-  hooks during the load made MCC call them; UE4SS `IsValid` reads the freed
-  object. They are now UE4SSLuaEventBridge weak handles whose native lifetime is
-  checked first; MCC's own root-captured actions and chords stay as they are.
-- Require UE4SSLuaEventBridge 1.0.12 (API 6, weak handles). When the bridge's
-  object lifetimes are unavailable, controls do not attach and the log says why.
+- Using an ability or anything else that woke MCC no longer reattached all controls.
+- Fixes a crash when loading a save from a running game.
+- Requires UE4SSLuaEventBridge 1.0.12 (API 6). With an older bridge,
+  controls do not attach and the log says why.
 
 ## v1.0.1
 
 - The Visuals page's "Quickslots Visuals" template picker shows at Category
-  heading size, with the quickslot settings indented beneath it (`mcCategory=1`
-  on the slot row; requires the matching ModCoreSettings).
+  heading size, with the quickslot settings indented beneath it (requires the
+  matching ModCoreSettings).
 - A key and trigger bind one setting. Apply rejects the same key with the same
   trigger on two rows, with a message naming the key, its trigger and both rows, so
   it is fixed before saving; the same key with another trigger is a separate
   binding. A saved config that already has such a pair keeps the first binding at
-  startup and logs a warning for the skipped one.
+  startup and logs a warning for the skipped one. While editing, such a pair shows
+  a dim red key background, and the page picker turns red when the pair is on
+  different pages.
 - A UTF-8 byte order mark at the start of `config.ini` no longer hides the first
   section's saved controls; saving drops it.
-- A native Input Action is looked up once and reused while it stays valid, instead
-  of scanning every Input Action on each sync.
 - Release packages include `enabled.txt`, so the mod is enabled when installed.
-- MCC no longer hooks `PanelWidget:AddChild`, which ran Lua for every widget the
-  game added, slowing menus that build many rows. Quickslot key indicators are
-  updated at the end of each sync, and on the next game-thread turn after a
-  control mapping rebuild or the construction of a quickslot Bindings widget.
+- Menus that build many rows are no longer slowed down by MCC.
 - Global's eight slot keys are optional.
 - Controller button rows show their actions in a wider 13pt column that wraps at
   commas.
 - Pickers and mirrors accept `cycle=true`: one button under the key column that
-  shows the current choice and moves to the next on click. Swap back to default
-  uses it instead of tabs.
+  shows the current choice and moves to the next on click, and `tab=true`. Swap back
+  to default uses the cycle button.
 - A key's default trigger is the first it declares. Swap to <wheel>, Activate
   Abilities and Activate Consumables declare Hold|Tap, so a newly bound key starts
   on Hold.
-- The swap key set to Tap acts on press (a Pressed trigger) instead of on release;
-  explicit activation keys keep a real Tap. Swap back to default shows its wheels
-  as tabs; map pickers and mirrors accept `tab=true`.
-  Group focus and swap changes apply within the input frame on the game thread
-  instead of on the next queued update, so a native slot action on the same key
-  can see the new focus.
+- The swap key set to Tap acts on press; explicit activation keys keep a real Tap.
+  Group focus and swap changes apply within the same input frame, so a game slot
+  action on the same key sees the new focus.
 - Group Activation becomes two sections. **Alternate Activation** holds **Swap to
-  <wheel>** (the former Secondary Group key, same config ID and settings) and
-  **Swap back to default** (the Default wheel). **Explicit Activation** adds
-  **Activate Abilities** and **Activate Consumables**, optional and unbound, which
-  always focus their own wheel and never swap. The relative Primary Group key is
-  removed; its saved `grouped.GroupFocus1` line is ignored.
+  <wheel>** (the former Secondary Group key, same settings) and **Swap back to
+  default** (the Default wheel). **Explicit Activation** adds **Activate Abilities**
+  and **Activate Consumables**, optional and unbound, which always focus their own
+  wheel and never swap. The relative Primary Group key is removed.
 - Hold to Swap and Swap to <wheel> describe how they interact when selected: a
   Swap key bound to the Toggle Quickslots key uses its own Tap or Hold there.
-  Declared descriptions pass through to DMM: a setting, key or mirror
-  `description` is the row's description, a map group's `description` is help
-  text under its heading, and a section's description (`addSection`) leads the
-  help text under the first heading of each of its pages. A description is one
-  line of up to 4096 characters without control characters.
+  Declared descriptions reach the menu: a setting, key or mirror `description` is
+  the row's description, a map group's `description` is help text under its
+  heading, and a section's description leads the help text under the first heading
+  of each of its pages. A description is one line of up to 4096 characters without
+  control characters.
 - An inherited key that cannot be resolved, such as an unbound Toggle Quickslots
   key, skips only the bindings that use it; every other binding attaches. It is
-  reported once as a warning and attaches once the player binds a key. An error
-  while resolving it is handled the same way instead of failing the sync. A key
-  the game refuses to map, or a binding whose action or trigger cannot be built,
-  likewise skips only itself, with one warning until it succeeds.
-- When several Input Actions share a name MCC overrides or inherits a key from, MCC
-  uses the one in the game's own input folder. If that does not single one out, only
-  that override or key is skipped, with one warning; previously no MCC input attached.
-- A native action MCC overrides that is unloaded or replaced during play is resolved
-  again on the next sync, and the replacement takes the override. Previously this
-  detached all MCC input and reattached it.
-- MCC key mappings left in the game's contexts by an earlier Lua state, after a mod
-  restart or hot reload, are removed instead of being mapped a second time.
-- An Apply that arrives while an input operation is running is applied right after
-  it, instead of being dropped.
-- `mc_events.lua` writes event delivery failures through the subscriber's leveled
-  logger (`api.log`), or a WARN-level `mc_log` logger without one, instead of
-  `print`, so they follow `log_level.txt`. Subscribing while the stored event is
-  unreadable reports it instead of failing. The file now states that MCC holds its
-  source.
-- Key & Mouse lists only sections that have maps. Movement and System, which have
-  none yet, no longer show as empty pages, and with Actions alone there is no
-  Section picker.
-- While controls are enabled but not attached, attaching is retried after 100 ms,
-  500 ms and then every 3 s, instead of stopping after two attempts and waiting
-  for a game event.
-- The Quickslot Groups control map is named Groups again (config ID `grouped`
-  unchanged, so saved keys are kept).
-- Every keybind row on the Controls page declares `mcConflictScope=controls`. With a
-  ModCoreSettings that supports it, the same key and trigger on two rows shows a dim
-  red key background while editing, and the Control Map or Section picker turns red
-  when the pair is on different pages. Apply still rejects the pair.
+  reported once as a warning and attaches once the player binds a key. A key the
+  game refuses to map, or a binding that cannot be built, likewise skips only
+  itself, with one warning until it succeeds.
+- A native action MCC overrides that the game replaces during play takes the
+  override again on the next sync.
+- An Apply made while controls are updating is applied right after, instead of
+  being dropped.
+- Key & Mouse lists only sections that have maps; empty sections no longer show as
+  pages, and with Actions alone there is no Section picker.
+- The Quickslot Groups control map is named Groups again; saved keys are kept.
 - An input callback that fails logs its binding and phase.
-- The Controller page reads the local player's own input subsystem and player
-  input, matched as the input host matches them, instead of the first ones found.
-- Key names compare without regard to case, as the engine compares them, when
-  detecting a key bound twice and when the swap steps aside for a player key. A
-  hand-edited single letter such as `j` reads as `J`.
-- A key name the engine does not know is skipped with one warning instead of being
-  mapped as a dead key. The check uses `KismetInputLibrary.Key_IsValid`, and only
-  once it accepts `SpaceBar`.
-- A key removed from a binding with several keys is detected and mapped again;
-  previously only the binding's action was checked.
-- The definition rejects bindings whose ids differ only in punctuation, since they
-  would share one generated Input Action.
-- Startup runs a shell command to create the `cache` folder only when it is missing.
-- The Controls page shows the version from `VERSION`, the release's version source,
-  instead of a second copy in `mc_dmm.lua`.
+- The Controller page reads the local player's own input.
+- Key names compare without regard to case, as the game does: a hand-edited single
+  letter such as `j` reads as `J`.
+- A key name the game does not know is skipped with one warning instead of being
+  mapped as a dead key.
+- The definition rejects bindings whose ids differ only in punctuation.
+- The Controls page shows the release's version.
 - Log at levels TRACE, DEBUG, INFO, WARN, ERROR and CRITICAL, writing WARN and above
-  by default; `log_level.txt` in the mod folder sets the level. Key-profile
-  lookups, pending syncs and mappings no longer reach the log by default.
+  by default.
 - Configuration never prevents startup: an invalid or repeated saved value falls
-  back to its default, an unusable set of saved controls starts input on the
-  defaults, and an unresolved config transaction starts on the defaults while
-  saving stays refused until the leftover files are reviewed.
-- Stop registering LoadMap hooks; map changes are picked up through the
-  controller, pawn, mapping-context and object-creation events.
-- Move the README and changelog into `docs/`. Release packages are built from
-  `release-manifest.json` and publish every document from `docs/` at the mod
-  root. `mod.json` declares UE4SSLuaEventBridge and ModCoreSettings. GitHub
-  Actions build, test and publish the release archive and its checksum from a
-  `release/vX.Y.Z` branch.
-
+  back to its default, and an unusable set of saved controls starts input on the
+  defaults while saving stays refused until the leftover files are reviewed.
 - Each binding is one setting with one text value, `none` or `<FKey>|<trigger>`
-  (`J|Hold`; number keys as digits, `1|Tap`), shown as a single ModCoreSettings
-  keybind row with its own trigger control. The separate trigger rows and their
-  `Pair=` link are gone. Old `.key`/`.trigger` config lines are ignored, so
-  existing bindings return to their defaults once. Override descriptors name
-  their key instead of a key code; the key-code table is removed.
-- Map declarations use typed settings: every setting has `id`, `name`, `type`
-  and an optional `default`, with its type's arguments in `params` (`picker`,
-  `keybind`, `mirror`). A group's `keys` and `settings` merge into one
-  `settings` list shown in declared order. Unknown fields are rejected, and map
-  settings can no longer be keys.
-- Keys with a `defaultControl` can declare `override=true`, suppressing that
-  native action while the player binds a custom key in its place. On the
-  default key such a key adds no MCC binding, so Quickslot 1–4 no longer bind
-  beside the native slot actions.
-- Group 2 declares `override=true`, so by default it no longer shares the Toggle
-  Quickslots key with Default's swap. Tap swap now sticks with Hold to Swap off,
-  and Swap outside of combat off is respected.
-- Default's swap steps aside while a player key is bound on its inherited key.
-- Inherited keys come only from the Settings key profile; MCC no longer queries
-  the keys mapped in the applied contexts first.
-- An inherited key bound to several keyboard keys in the profile is attached on
-  each of them, where it previously failed the sync. The swap steps aside only
-  on the key a custom binding claims.
-- Apply writes key values as integers (`164`, not `164.0`).
-- The Controls page is published through ModCoreSettings page hooks: MCC no
-  longer installs a DMM extension or ships `mod_settings.ini`. Requires
-  ModCoreSettings with page hooks (descriptor contract 3).
-- Enable Hold to Swap by default; saved choices remain in effect.
-- Maps coexist: Default, Grouped and Global are active together and Control Map
-  only navigates between their pages; it is no longer saved. The same key and
-  trigger in two maps is rejected at Apply. Slot and Group keys start Unbound,
-  and Grouped's Group 2 no longer inherits the Toggle Quickslots key, which
-  Default's swap owns. Removed the Advanced map and Global's Show Controls key.
-  On first open, saved `map=` and the entries of unselected and removed maps are
-  dropped.
-- Rename Grouped to Quickslot Groups (config ID `grouped` unchanged). Its
-  sections are Active Group (shared slot keys) and Group Activation: Default
-  Group, a mirror of Default's Default wheel, then Secondary and Primary Group
-  keys labelled after the wheel they show. Primary is optional and Unbound.
-- Move Default to a new Module section for module-wide settings; Actions keeps
-  Quickslot Groups and Global. Saved `default.*` lines move from
-  `[ModCoreControls.actions]` to `[ModCoreControls.module]` on first open.
-- Replace the Section picker with a Page picker: Options (Module settings),
-  Visuals (placeholder for ModCore Templates' quickslot selection), Key & Mouse
-  (Section picker and controls) and Controller (gamepad buttons with their
-  current actions, read when the menu builds; work in progress).
-- Activate the Default wheel as an action: MCC publishes `controls.group.focus`
-  after settings load (first transition has no `from`, encoded `-`) and when
-  retirement resets to Default. Removed assumed starting groups.
-- Default is the base map: its Default wheel applies under every map and is
-  where released or re-tapped group keys return. Grouped's sections are now
-  Group 1 (Default wheel: Group key and slots) and Group 2 (other wheel), titled
-  after the wheel they show. Saved Group keys keep their config IDs but now
-  follow the Default wheel instead of a fixed wheel.
-- Resolve inherited keys from the Settings key profile when no applied context
-  maps the action, so Grouped, Global, and Advanced attach in open world.
-- Create no mapping contexts. A map's `contexts` say where its keys can be
-  used; MCC maps them into the game's own contexts while those are applied:
-  `IMC_Base` for keys usable everywhere, so they survive combat transitions,
-  and `IMC_OW` or `IMC_RTCombat` for keys limited to one, removes only its own entries, and waits while no game
-  context is applied. MCC's actions now live in the transient package.
-- Default owns the wheel swap on the player's Toggle Quickslots key and
-  suppresses the native toggle. **Allow Swap outside of combat** chooses whether
-  the swap works in open world; **Hold to Swap, release to return** makes it
-  press and release edges. MCC no longer rewrites the native action's triggers
-  or copies its key into `IMC_OW`.
-- Route native slot keys to the focused wheel by enabling it and disabling the
-  other when a layout moves the wheels out of the native switcher.
-- Rename the Flat control map to Global. Saved `map=flat` and `flat.*` keys
-  migrate to `global` the first time MCC opens `config.ini`.
-- Unregister lifecycle function hooks with their names and both UE4SS IDs;
-  report and retain failed removals for retry.
-- Reject late section and map registration after a definition is built, and
-  clean up the input host if startup fails before publishing the facade.
-- Rename the installed mod folder to `2_ModCore_Controls` and resolve
-  ModCoreSettings from `1_ModCore_Settings`.
-- Add coupled mapping-hook lifecycle regressions and deterministic offline work
-  counts for the Audit 6 hardening pass. Live native timing remains unverified.
-- Clarify static declaration scope, Actions-only runtime behavior, Tap release
-  timing, Unbound/native override behavior, initial exploration fallback, and
-  the difference between saved choices and active input.
-- Return a section-scoped map registry from `mc_maps.lua` and expose
-  `addSectionMap(section, map)` beside section registration.
-- Update native quickslot key indicators from MCC's generated actions, refresh
-  them after Apply, and restore the original actions on gameplay-context detach
-  or host retirement.
-- Apply map- and key-level native action overrides through reusable root-captured
-  chord gates, and remove MCC-owned gates on detach.
-- Define extensible input sections, maps, key choices, and trigger choices in Lua.
-- Present the definitions through DMM using a transient Section navigation picker.
-- Keep `mod_settings.ini` to discovery metadata and generate DMM choices from
-  the Lua definitions at runtime.
-- Convert the selected Actions map into generated Enhanced Input actions and
-  gameplay mapping contexts.
-- Bind native input phases through UE4SSLuaEventBridge and retire callbacks when
-  their input generation is replaced.
-- Refresh live input after ModCoreSettings Apply and retry attachment across
-  controller, pawn, mapping-context, and object-creation lifecycle events.
-- Route Grouped and Flat callbacks to the native ability and consumable wheels.
-- Save choices to sectioned `config.ini` data such as
-  `[ModCoreControls.actions]` and `map=flat`.
-- Remove the previous general layout API and compatibility surface from this
-  rewrite; the new runtime consumes the section/map model directly.
+  (`J|Hold`; number keys as digits, `1|Tap`), shown as a single keybind row with
+  its own trigger control. Existing bindings return to their defaults once.
+- Map declarations use typed settings: every setting has `id`, `name`, `type` and
+  an optional `default`, with its type's arguments in `params` (`picker`,
+  `keybind`, `mirror`). A group's settings show in declared order. Unknown fields
+  are rejected.
+- Keys with a `defaultControl` can declare `override=true`, suppressing that native
+  action while the player binds a custom key in its place.
+- Default's swap owns the player's Toggle Quickslots key and steps aside on a key a
+  custom binding claims. **Allow Swap outside of combat** chooses whether the swap
+  works in open world; **Hold to Swap, release to return** (on by default) swaps
+  while held.
+- Maps coexist: Default, Groups and Global are active together and the Control Map
+  picker only navigates between their pages. The same key and trigger in two maps
+  is rejected at Apply. Slot and Group keys start Unbound.
+- Default is the base map, in a Module section for module-wide settings: its
+  Default wheel applies under every map and is where released or re-tapped group
+  keys return.
+- The Controls page has Options, Visuals (ModCore Templates' quickslot selection),
+  Key & Mouse and Controller (gamepad buttons with their current actions) pages.
+- Inherited keys come from the game's key settings, and a native action bound to
+  several keyboard keys inherits each of them.
+- MCC's keys work in exploration and combat alike, and switching between them keeps
+  them.
+- Native quickslot key hints show MCC's bindings, refresh after Apply, and return to
+  the game's own when MCC's input is removed.
+- The installed mod folder is `2_ModCore_Controls`.
 
 ## 0.1.1
 
-- Refine controls-page grouping and metadata.
-- Consolidate integration documentation and add project metadata.
-
-- Keep UE4SSLuaEventBridge as a separate native dependency.
-- Add rooted, reusable native-action gates and offline ownership tests.
+- Refine controls-page grouping.
 
 ## 0.1.0
 
-The source declares version 0.1.0. This entry describes the source baseline;
-it does not assert a published release or live-game acceptance.
-
-- Provide action registration, selectable layouts, and Grouped/Flat/Advanced controls.
-- Publish control context, group, and action-phase events.
-- Reject queued callbacks from successfully retired binding generations.
+- Action registration, selectable layouts, and Grouped/Flat/Advanced controls.
+- Control context, group, and action-phase events.

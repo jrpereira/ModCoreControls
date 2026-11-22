@@ -2,8 +2,8 @@
 
 MCC builds a menu model from Lua declarations, then turns the saved choices into
 input bindings. A **section** groups maps; a **map** groups settings and bindings.
-Only Actions maps produce quickslot input. Module's `default` map (Quickslot Wheels) supplies shared
-wheel settings; adding a section does not add a gameplay adapter.
+Only Actions maps produce quickslot input. The Module section's `default` map
+(Quickslot Wheels) supplies the shared wheel settings.
 
 ## Add a control map
 
@@ -36,9 +36,8 @@ Restart, open **ModCore Settings → Controls → Mappings → Demo Keys**, bind
 and Apply. The saved key is `demo.Ability1` in `[ModCoreControls.actions]`.
 Keep map IDs, setting IDs and map values stable after users save settings.
 
-Declare maps only in `mc_maps.lua`. Gameplay and the menu each load it in their
-own Lua state and seal the registry when they build their definition; a later
-`addSectionMap()` raises. MCC exports no global API.
+Declare maps only in `mc_maps.lua`; an `addSectionMap()` call made anywhere else,
+or after startup, raises an error. MCC exports no global API.
 
 ## Declaration reference
 
@@ -102,44 +101,22 @@ reject the Apply.
 
 A binding stores `none` or `<FKey>|<trigger>`, such as `J|Hold` or `1|Tap`.
 A bare default key uses the first declared trigger. `none` and numeric `0` in a
-declaration mean unbound; picker choices are whole numbers and ranges are `'low|high'`. Legacy numeric key codes
-are not the current keybind format.
+declaration mean unbound; picker choices are whole numbers and ranges are `'low|high'`.
 
-`mc_config.lua` preserves unrelated INI content and refuses to overwrite a file
+Apply keeps unrelated content in `config.ini` and refuses to overwrite a file
 changed since the menu opened. Unreadable saved bindings fall back to their
-current declarations. Old `.key` and `.trigger` assignments are ignored.
+declared defaults.
 
-## How the menu reaches gameplay
+## Where a map appears
 
-1. `main.lua` publishes, through MCS's `menu_contributions.lua` and before input
-   startup, the hidden `ModCoreControls` page, its inner page `ModCoreControls.mappings`
-   (MCS `group='inner'`), the mod list entry
-   `ModCoreControls.entry` (a slot link to `settings:controls`, attached to MCC's
-   folder), and slot rows putting every setting of the main page, in order, into
-   `settings:controls`: ModCore Settings' Controls tab.
-2. MCS loads `mcs_page.lua` in the menu state. `mc_dmm.lua` generates each page's
-   manifest by `context.page` and supplies `load`/`apply` hooks for MCC's storage.
-3. Apply on either page resolves mirrors, validates all maps together, and saves
-   `config.ini`; settings on the other page keep their saved values.
-4. MCC receives the Apply notification (it subscribes to both pages' ids), rereads its
-   config on the game thread, and replaces the runtime plan when native resources are ready.
-
-The main page holds the `controls:visuals` slot for MCT at the top (the placeholder
-remains if no valid rows arrive), the **Mappings** links (navigation rows with
-`mcLinkPage`, never stored), then the maps without a `page`. A map with a `page` is
-shown only on its tab of the Mappings page, in map order, followed by the Controller tab.
-The Mappings page's title row is the tab picker `MCC_Mappings_Tab` (navigation, never
-stored), and each tab's groups show only on it, so all keys share one page and one
-`mcConflictScope`: a key bound twice is marked across tabs. Each link is
-`mcLinkPage=ModCoreControls.mappings#<first row of its tab>`, which MCS opens with that
-row showing and selected. MCC installs no DMM extension or `mod_settings.ini`.
-
-In the Controls tab the rows stay the main page's: MCS edits them through its hooks,
-Apply saves them into MCC's `config.ini` and publishes under `ModCoreControls`, which MCC
-subscribes to. MCS keeps the hidden page in its menu, listed nowhere, so its
-`controls:visuals` slot fills inside the tab, its links open the Mappings page and Back
-returns to the tab with the link selected. A ModCore Settings without the tab shows the
-main page on its own instead. Main page settings past 32 go into further row entries.
+A map without a `page` shows its settings on the Controls tab after the Mappings
+links, as Quickslot Wheels and Shortcuts do.
+A map with a `page` gets its own tab on the **Mappings** page, in map order before
+the Controller tab, and a link under **Mappings** on the Controls tab that opens
+that tab. All tabs share one page and one Apply, so a key bound twice is marked
+across tabs while it is edited, and Apply rejects it. Apply on either page saves
+`config.ini` and the new bindings take effect in game; settings on the other page
+keep their saved values.
 
 ## Check your change
 

@@ -1,7 +1,7 @@
 # Runtime reference
 
 Start with the [developer guide](DEVELOPERS.md) for declaration examples.
-This page describes MCC's current quickslot input adapter.
+This page describes how MCC's quickslot keys behave in game.
 
 ## Triggers
 
@@ -10,54 +10,54 @@ This page describes MCC's current quickslot input adapter.
 | Immediate | Fires on press. With **Instant Tap when no Hold for same key** off: on release or at High, whichever comes first. When the same key is also bound as Hold: on a release before High | Fires at High |
 | Sustained | Toggles on/off | Active until release or cancellation |
 
-While a key set to Hold is held, its HUD key indicator's rim fills from press to High,
-where the key acts; when a Tap shares its key, it stays empty until Low and fills from
-there. This follows the game's own hold prompts (`OnActionProgress` on the indicator,
-from the action's `Ongoing` events); it empties when the action fires or the key is
-released. A key set to Tap shows the rim too (`SetHoldDisplayOverride`). One that acts
-on press flashes it for Low from the press, however long the key is held: its action
-completes the frame after the press, so it cannot mark the release. Any other Tap
-key is lit from press until it fires; one sharing its key with a Hold fires on a
-release before High, or goes dark when the Hold fires at High, and from Low the Hold's
-rim fills beside it. A press shorter than Low stays lit until Low from the press, so
-even a quick press shows; it never shows the Hold filling. These extra phases only drive the rim; they are never delivered as input.
-The Controls page's **Show key outline** chooses which keys do this: None, Hold, or
-Tap & Hold (the default). A Hold key always keeps its rim; with None it just does not
-fill. A Groups key fills the hint of the wheel focused when it was pressed.
+These settings sit under **Behaviours → Shortcuts** on the Controls tab. The window is
+**Tap vs Hold Threshold**, a range from Low to High: 100-350 ms by default, 100 to 500 ms
+in 10 ms steps, at least 10 ms apart. It only matters for Hold keys, for a Tap that
+shares its key with a Hold, and for the key outline. A changed threshold applies on
+Apply, without a restart.
 
-A Groups slot key left on its default control (Quickslot 1-4) is an MCC binding too:
-it inherits the player's key for the game's `IA_Quickslot_<position>`, acts on press as
-the game's action does, and suppresses that action. Its hint, glyph and rim are MCC's
-like any other key. A player key bound elsewhere on the same key takes it over.
+## Key outline
 
-A player's input keeps its own copy of each action's triggers, made when it first
-uses the action. When MCC rebuilds triggers (a new threshold, or Tap changed to
-Hold), it removes the player's instance of each rebuilt action from
-`EnhancedPlayerInput.ActionInstanceData`, so the change applies at once.
+While a key set to Hold is held, its HUD key hint's rim fills from press to High,
+where the key acts; when a Tap shares its key, it stays empty until Low and fills
+from there, as the game's own hold prompts do. It empties when the action fires or
+the key is released. A key set to Tap shows the rim too: one that acts on press
+flashes it for Low from the press, however long the key is held; any other Tap key
+is lit from press until it fires. A Tap sharing its key with a Hold fires on a
+release before High, or goes dark when the Hold fires at High, and from Low the
+Hold's rim fills beside it. A press shorter than Low stays lit until Low from the
+press, so even a quick press shows.
 
-These settings sit under **Behaviours → Shortcuts** on the Controls page. The window is
-**Tap vs Hold Threshold**, a range from Low to High: 100-350 ms by default, 100 to 500 ms in 10 ms steps, at least 10 ms apart. It only matters for Hold
-keys, for a Tap that shares its key with a Hold, and for the rim. A changed High
-rebuilds the triggers on Apply.
+**Show key outline** chooses which keys do this: None, Hold, or Tap & Hold (the
+default). A Hold key always keeps its rim; with None it just does not fill. A Group
+key fills the hint of the wheel focused when it was pressed.
 
-Quickslot Wheels'
-**Hold to Swap** is the same binding as **Swap to** set to Hold on the inherited
-Toggle Quickslots key: it does not wait for a Hold threshold.
-Explicit focus keys keep their declared Tap/Hold behavior: a held focus key shows
-its wheel on press and returns to Default on release. Selected-slot gestures
-retain the wheel selected at press start through their terminal phase.
+Quickslot keys set to Hold are also underlined on their HUD key hint. The underline
+moves, scales, hides and fades with its key, including when ModCore Templates
+changes the quickslot layout.
+
+A Group Keys slot key left on its default control (Quickslot 1-4) uses the player's
+game key for that slot, acts on press as the game's action does, and gets MCC's key
+hint and rim. A key the player binds elsewhere to the same key takes it over.
+
+## Wheels
+
+Quickslot Wheels' **Hold to Swap** is the same binding as **Swap to** set to Hold on
+the inherited Toggle Quickslots key: it does not wait for a Hold threshold. Explicit
+focus keys keep their declared Tap/Hold behavior: a held focus key shows its wheel on
+press and returns to Default on release. Selected-slot gestures keep the wheel
+selected when the press started until they end.
+
+Swapping wheels changes the game's own active wheel, as its toggle does, so the slot
+keys fire the wheel that is shown.
 
 ## Inherited keys and overrides
 
-`defaultControl='IA_Name'` resolves the player's keyboard keys for a native action
-from the Settings key profile while the setting is unbound. Without it, unbound
-means no input. MCC refreshes inherited keys after `ApplyPendingKeyboardMappings`.
-A native action the player left without a keyboard key inherits none: it maps
-nothing and is not read again until the keys can have changed.
-The keys come from ModCoreSettings' vendored `standard_keys.lua`, the rule its key
-editor uses to show them, so a row shows the keys MCC binds. Of several actions with
-the name, the one in the game's input folder is used; if that does not single one
-out, the key stays unbound.
+`defaultControl='IA_Name'` makes an unbound setting use the player's keyboard keys for
+that native action, as set in the game's controls; when the player changes them, MCC
+follows. Without it, unbound means no input. A native action the player left without a
+keyboard key inherits none. If several native actions share the name and the game's
+own one cannot be told apart, the key stays unbound and the log says so.
 
 | Declaration | Behavior |
 | --- | --- |
@@ -67,56 +67,20 @@ out, the key stays unbound.
 
 A map cannot use `override=true`. Clearing a key does not disable a map-level
 override. A custom binding on Default's inherited Toggle Quickslots key suppresses
-that swap key until the custom binding moves.
+that swap key until the custom binding moves. Removing MCC's bindings restores the
+game's own controls and key hints.
 
-## Native ownership
+## When controls attach
 
-`mc_input_plan.lua` combines Module's Default settings with every Actions map.
-`mc_input_context.lua` creates Input Actions and adds MCC bindings to applied game
-contexts. Bindings usable in both contexts prefer `IMC_Base`; otherwise they use
-`IMC_OW` or `IMC_RTCombat`. If Base is absent, each binding falls back to its own
-contexts. MCC creates no mapping context and removes only its own entries.
-
-`mc_input_host.lua` handles player/component changes and rejects callbacks from
-retired generations. It prepares mappings inside the owning player's
-`RequestRebuildControlMappings` pre-hook, including forced rebuilds, without
-requesting another rebuild from that path.
-
-The game adding one of its gameplay mapping contexts (`IMC_OW`, `IMC_RTCombat` or
-`IMC_Base`, through `DWSystemBlueprintFunctionLibrary:AddInputMappingContext`) is the
-signal that a new player's input is set up: after starting or loading a game, and
-after a death, seconds before the loading screen fades out. It re-reads the player's
-keys and override actions and attaches to the current player, detaching from a
-replaced one. Other contexts, such as focus mode, are ignored, and so is an add while
-MCC owns the live player's current input component; the hook reads only the context
-it was given and checks the owner after the call. Two other hooks also wake input:
-`PlayerController:ClientRestart`, for possession, and `ApplyPendingKeyboardMappings`,
-for new keys from the game's settings. MCC observes
-no object construction.
-
-Only those signals, and attaching, scan the game's objects for the player and HUD.
-Every other sync, including the one inside each rebuild request, reuses the kept
-player while it lives and still owns its input. When the game lifts every gameplay
-context for a moment, the same player keeps MCC's input: its keys stay in the game's
-contexts and apply again when they return.
-
-A sync that cannot attach yet, or attaches with an inherited key or override action
-still missing, is retried after 100 ms, 500 ms, 3 s, 6 s and 12 s; the next gameplay
-context the game adds starts the schedule again. If that hook cannot be registered, the retries
-continue every 12 s. Bridge resolution follows the same schedule.
-
-`mc_overrides.lua` installs chord gates after replacement callbacks and contexts
-are ready. Detach removes MCC gates from native trigger arrays and preserves
-foreign triggers. The bounded set of named gate objects remains rooted for reuse.
-`mc_key_indicators.lua` updates HUD actions and restores originals on detach,
-replacement or stop.
-
-Stopping unregisters named UE4SS function hooks with both callback IDs; failed
-removals remain owned for retry. Use a full game restart after Lua changes.
+Controls attach when the game sets up the player's input: after starting or loading
+a game and after a death, seconds before the loading screen fades out. An inherited
+key or overridden action not available yet is tried again shortly after. After a load
+the Default wheel is shown as soon as the HUD exists, even before the keys attach.
+Use a full game restart after changing Lua files.
 
 ## Wheel focus events
 
-A successful change emits `controls.group.focus` through `mc_events.lua`:
+A successful wheel change emits `controls.group.focus`:
 
 ```lua
 {group = {from = 1, to = 2}} -- abilities → consumables
@@ -125,50 +89,21 @@ A successful change emits `controls.group.focus` through `mc_events.lua`:
 The first transition may omit `from`. No event is sent for a failed or unchanged
 selection. Default activation, hold release, cancellation and a successful reset
 also emit transitions. A failed reset keeps the previous state and leaves Default
-pending. Focus calls the HUD's own `Set AA Quickslots Showed`, as the game's toggle
-does: that sets the game's active wheel, the one the slot keys fire, wherever the
-wheels sit, and selects the matching page of the HUD's `QuickslotsSwitcher` when
-the wheels are in it. MCC never reads or changes the wheels; their display is
-ModCore Templates' job.
+pending. MCC never moves or shows the wheels; their display is ModCore Templates' job.
+
+ModCore Templates passes the latest transition to template event callbacks as
+`params.state.controls.group`.
 
 ## Global slot events
 
-`controls.slots.global` reports which quickslots have a working Global key: a key
-on the actions section's Global map (`AbilitySlot1-4`, `ConsumableSlot1-4`) that is
-in the active plan, so bound and not skipped as a duplicate. Those keys fire
-whichever wheel has focus.
+`controls.slots.global` reports which quickslots have a working Global key: a key on
+the Global map (`AbilitySlot1-4`, `ConsumableSlot1-4`) that is bound and not skipped
+as a duplicate. Those keys fire whichever wheel has focus.
 
 ```lua
 {global = {[1] = {true, false, false, false},  -- wheel 1, abilities
            [2] = {false, false, false, false}}} -- wheel 2, consumables
 ```
 
-Slots run Left, Top, Right, Bottom, as in `mc_maps.lua`. The shared value is
-`'<revision> <8 bits>'`, wheel 1 first. MCC publishes it on every attach (startup,
-Apply, save load), so each new player hears it even when the set is unchanged.
-
-A sync presents the wheel as soon as it has found the player and its HUD, before
-it attaches input, so Default shows without waiting for the attach. After a load
-the player is often found before the game creates its HUD; while the wheel cannot
-be presented, only the presentation is tried again after 100 ms, 250 ms, 500 ms,
-1 s and 2 s, stopping once the wheel is shown.
-
-MCT stores the latest transition in `params.state.controls.group` and can deliver
-it to template event callbacks. Events are not logged on every swap. Use
-`Events.format` for diagnostics when needed.
-
-## Hold marks
-
-A quickslot key indicator whose key is set to Hold gets a black underline
-(`mc_hold_marks.lua`). The indicator is a leaf widget, so the mark is a sibling in
-the key's overlay: an 85x85 `SizeBox` named `MCC_HoldMark_<wheel>_<position>`
-holding a black bar, 51 wide, 11 thick, centred, with its bottom edge 15 above the box's
-bottom (layout units). The box copies its key's slot padding and alignment, render
-transform and pivot, visibility and render opacity, so it moves, scales, hides and
-fades with the key under any layout.
-
-Placement is copied on every indicator refresh (attach, Apply, a new HUD) and on
-each `templates.layout.changed` event for `player.quickslots`, which ModCore
-Templates publishes once per layout pass. Only changed placements are written.
-Marks are removed when their key stops being Hold and on stop; marks left by an earlier Lua state are found by name and reused or removed.
-
+Slots run Left, Top, Right, Bottom. MCC sends the event each time controls attach
+(startup, Apply, save load), even when the set is unchanged.
