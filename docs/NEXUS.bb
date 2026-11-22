@@ -1,5 +1,9 @@
 [b]ModCore Controls[/b]
 
+[center][b]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/b]
+[size=4][b]Tested for The Blood of Dawnwalker 1.2[/b][/size]
+[b]━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━[/b][/center]
+
 ModCore Controls (MCC) lets you configure Dawnwalker's keyboard and mouse quickslot controls in the mod menu. It saves bindings, applies them through Enhanced Input and updates the HUD key indicators.
 
 [b]Features and benefits[/b]
