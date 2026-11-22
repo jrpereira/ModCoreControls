@@ -2,6 +2,7 @@
 
 ## v1.4.0
 
+- Requires UE4SS Lua Extensions 1.4.0 and ModCore Settings 1.10.0 or newer.
 - MCC's settings are the **Controls** tab of the ModCore Settings page, its second tab
   after Settings, instead of four pages picked from the top (Options, Visuals,
   Key & Mouse, Controller). ModCore Controls' entry in the mod list opens it. Top to
@@ -19,8 +20,8 @@
 - The Quickslots template picker heads its section; the "Quickslots Visuals" heading and
   the heading naming the template are gone.
 - Tap vs Hold Threshold: Low and High may be as little as 10 ms apart (was 50 ms).
-- Log levels no longer come from `log_level.txt`. With the UE4SS Lua Log Bridge
-  installed, set them in the Logs section of the **Extensions** tab of the ModCore
+- Log levels no longer come from `log_level.txt`. With UE4SS Lua Extensions (its Log
+  Bridge) installed, set them in the Logs section of the **Extensions** tab of the ModCore
   Settings page or under `[Levels]` in the bridge's `config.ini`; without it, WARN and
   above are logged.
 - Fixes a quick press of a Tap key that does not act on press (Instant Tap off, or

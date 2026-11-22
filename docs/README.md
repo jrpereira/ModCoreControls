@@ -42,9 +42,9 @@ source. Maps are static declarations; MCC has no cross-mod runtime registration 
 
 ## Requirements and installation
 
-Use Dawnwalker, UE4SS with Lua 5.4, UE4SSLuaEventBridge 1.3.0 or newer (API 6 or newer),
-and ModCoreSettings 1.9.0 or newer with Dawnwalker Mod
-Menu (DMM). With an older bridge, controls do not attach and the log says why.
+Use Dawnwalker, UE4SS with Lua 5.4, UE4SS Lua Extensions 1.4.0 or newer
+and ModCoreSettings 1.10.0 or newer with Dawnwalker Mod
+Menu (DMM). With an older Event Bridge, controls do not attach and the log says why.
 Install and enable
 MCC under `Mods/2_ModCore_Controls`. Preserve `config.ini` when updating and
 fully restart the game after changing Lua files.
@@ -87,7 +87,7 @@ Navigation choices are never saved. A successful Apply saves the configuration;
 new bindings take effect once you are in game.
 
 Logs appear in `UE4SS.log`. The default level is WARN. For more detail, install the
-UE4SS Lua Log Bridge and raise ModCoreControls' level in the Logs section of the
+UE4SS Lua Extensions package (its Log Bridge) and raise ModCoreControls' level in the Logs section of the
 **Extensions** tab of the ModCore Settings page, or set `ModCoreControls=DEBUG` under
 `[Levels]` in the bridge's `config.ini`.
 
