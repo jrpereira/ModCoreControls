@@ -1,32 +1,31 @@
 # Changelog
 
-## Unreleased
+## v1.4.0
 
-- The Controls page is the **Controls** tab of the ModCore Settings page, after its
-  Settings tab: the Quickslots templates, Mappings and Behaviours, saved into
-  MCC's `config.ini` as before. ModCore Controls' entry in the mod list opens the tab;
-  the Mappings links open the Mappings page on its Group Keys, Global Keys or Controller
-  tab, and Back returns to the tab. Needs ModCore Settings from this round.
-- Log levels no longer come from `log_level.txt`. With the UE4SS Lua Log Bridge installed they
-  are set on its Logs page or under `[Levels]` in its `config.ini`; without it, WARN and above.
+- MCC's settings are the **Controls** tab of the ModCore Settings page, its second tab
+  after Settings, instead of four pages picked from the top (Options, Visuals,
+  Key & Mouse, Controller). ModCore Controls' entry in the mod list opens it. Top to
+  bottom: the Quickslots template picker with the chosen template's settings right under
+  it, then **Mappings**, then **Behaviours**. Apply saves into MCC's `config.ini`; saved
+  bindings and settings are unchanged.
+- **Mappings** holds three links, **Group Keys**, **Global Keys** and **Controller**,
+  each opening the **Mappings** page on that tab; the page's title row picks the tab.
+  The page has its own Apply, a key bound twice is marked across Group Keys and Global
+  Keys as it is edited, and Back returns to the Controls tab with the link selected.
+  The Control Map picker is gone with the Key & Mouse page.
+- **Behaviours** holds two subgroups: **Quickslot Wheels** (was "Default": Allow Swap
+  outside of combat, Hold to Swap, Default wheel) and **Shortcuts** (was "Key Press
+  Behaviour": Instant Tap, Tap vs Hold Threshold, Show key outline).
+- The Quickslots template picker heads its section; the "Quickslots Visuals" heading and
+  the heading naming the template are gone.
 - Tap vs Hold Threshold: Low and High may be as little as 10 ms apart (was 50 ms).
-- Visuals: the Quickslots template picker is the section's heading, with the chosen
-  template's settings right under it; the separate "Quickslots Visuals" heading and the
-  heading naming the template are gone (with ModCore Templates and ModCore Settings from
-  this round).
-- Options: a **Behaviours** heading holds two subgroups, **Quickslot Wheels** (was
-  "Default": Allow Swap outside of combat, Hold to Swap, Default wheel) and **Shortcuts**
-  (was "Key Press Behaviour": Instant Tap, Tap vs Hold Threshold, Show key outline).
-  Saved settings are unchanged.
-- The Controls page is one page instead of four picked from the top (Options, Visuals,
-  Key & Mouse, Controller): the Quickslots template picker and its settings first, then
-  **Mappings**, three links (**Group Keys**, **Global Keys**, **Controller**), then
-  Behaviours. Each link opens the **Mappings** page on its own tab; the page's title row
-  picks the tab. The page has its own Apply, a key bound twice is marked across Group Keys
-  and Global Keys as it is edited, and Back returns to the Controls page with the link
-  selected. The Control Map picker is gone with the Key & Mouse page. Saved bindings and
-  settings are unchanged. Needs ModCore Settings from this round (inner pages and links
-  to a row).
+- Log levels no longer come from `log_level.txt`. With the UE4SS Lua Log Bridge
+  installed, set them in the Logs section of the **Extensions** tab of the ModCore
+  Settings page or under `[Levels]` in the bridge's `config.ini`; without it, WARN and
+  above are logged.
+- Fixes a quick press of a Tap key that does not act on press (Instant Tap off, or
+  sharing its key with a Hold) showing no rim; it now stays lit until Low.
+- Fixes changed keys and Tap vs Hold Threshold values not refreshing input on Apply.
 
 ## v1.3.2
 
