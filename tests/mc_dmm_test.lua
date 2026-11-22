@@ -311,7 +311,7 @@ print('PASS DMM matches MCC definitions, storage, and pages')
 
 -- End to end through ModCoreSettings: the page main.lua publishes becomes ModCore
 -- Settings' Controls tab, its second tab (the page opens on Settings, the first). ModCore Settings' page
--- parses with all four tabs, Settings | Controls | Templates | Developer Tools; both slots
+-- parses with all five tabs, Settings | Controls | Templates | Extensions | Developer Tools; both slots
 -- fill, the Visuals slot inside the Controls tab included; Apply there saves into each
 -- page's own config and publishes its own event; every Mappings link opens the Mappings
 -- page on its tab at its first row, Apply there saves, Back returns to the Controls tab with
@@ -429,8 +429,8 @@ do
     -- DMM takes at most 256 settings on a page.
     assert(#model.items<=256 and #model.items==#host.choices,#model.items)
     local tabs=model.items[1]
-    assert(tabs.id=='MCS_Page' and table.concat(tabs.labels,'|')=='Settings|Controls|Templates|Developer Tools'
-        and table.concat(tabs.values,'|')=='0|1|2|3' and model.pending[1]==0,'four tabs, opening on Settings')
+    assert(tabs.id=='MCS_Page' and table.concat(tabs.labels,'|')=='Settings|Controls|Templates|Extensions|Developer Tools'
+        and table.concat(tabs.values,'|')=='0|1|2|3|4' and model.pending[1]==0,'five tabs, opening on Settings')
     -- The Controls tab: the Quickslots picker and its template's rows, the Mappings links,
     -- then Behaviours. Nothing of MCC's placeholder remains.
     local mainIds=DMM.ids(DMM.manifest())
@@ -451,7 +451,9 @@ do
     assert(shown(2)=='MCS_Page,MCT_Listed_1',shown(2))
     local own=shown(0)
     assert(own:find('CompactStyle',1,true) and own:find('SortBy',1,true) and not own:find('MCC_',1,true),own)
-    assert(shown(3)=='MCS_Page,MCS_Index_1',shown(3))
+    -- Without the UE4SS Lua Extensions the Extensions tab shows its placeholder.
+    assert(shown(3)=='MCS_Page,MCS_Extensions',shown(3))
+    assert(shown(4)=='MCS_Page,MCS_Index_1',shown(4))
     model:set(1,1)
     assert(not model:dirty(),'tabs are navigation')
     -- The rows keep their groups and their own types: Behaviours heads its two subgroups,
@@ -574,6 +576,6 @@ do
         assert(page.mode=='browser')
     end
     assert(#reports==0,table.concat(reports,' / '))
-    print('PASS ModCore Settings\' page has Settings | Controls | Templates | Developer Tools: slots, links, Apply and Back')
+    print('PASS ModCore Settings\' page has Settings | Controls | Templates | Extensions | Developer Tools: slots, links, Apply and Back')
 end
 assert(os.execute('rm -r ' .. string.format('%q',temp)))
