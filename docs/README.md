@@ -4,32 +4,30 @@ ModCore Controls (MCC) connects keyboard and mouse bindings to Dawnwalker's
 quickslot actions. It saves your bindings, applies them in game, and updates the
 HUD key indicators.
 
-## Features and benefits
+## Features
 
-- **Choose how to access quickslots:** bind individual ability or consumable
-  slots, act on the focused wheel, or select a wheel directly.
-- **Configure wheel switching:** choose the default wheel and Toggle Quickslots
-  behavior, including hold-to-swap. A wheel key set to Hold shows its wheel
-  while held and returns to the default wheel on release.
-- **Set the Tap vs Hold Threshold:** a window from Low to High (100-350 ms by default,
-  within 100-500 ms): a Hold key acts at High, its rim filling up to it; a Tap fires
-  on press, or on a release before High when the same key is also a Hold. With
-  **Instant Tap** off, a Tap alone on its key fires on release or at High, whichever
-  comes first.
-- **Use keyboard and mouse bindings with Tap/Hold:** configure supported actions
-  in the menu and activate them in exploration and combat.
-- **Keep all control maps available:** every map's bindings work together; each
-  map's page only shows its keys for editing.
-- **Save validated bindings:** Apply checks for duplicate custom keys across
-  maps and saves successful changes for the next session.
-- **Keep HUD hints aligned:** key indicators reflect MCC bindings, with original
-  values restored when those modifications are removed. Keys set to Hold are
+- **One Controls page:** MCC's settings are the **Controls** tab of the ModCore
+  Settings page: the Quickslots template picker, Mappings and Behaviours.
+- **Mappings page with three tabs:** **Group Keys** act on the focused wheel or
+  select a wheel directly, **Global Keys** address individual ability and consumable
+  slots, and **Controller** lists your current gamepad mappings (read-only).
+- **Tap and Hold bindings** for keyboard and mouse keys, in exploration and combat;
+  Tap and Hold on the same key are two separate bindings.
+- **Tap vs Hold Threshold:** an adjustable window from Low to High (100-350 ms by
+  default, within 100-500 ms); **Instant Tap** fires a lone Tap on press.
+- **Quickslot Wheels:** choose the default wheel, allow swapping outside of combat,
+  and hold to swap, release to return.
+- **Key outlines and underlines:** HUD key hints show your bindings, Hold keys are
   underlined, and a key's outline fills while it is held (**Show key outline**:
   None, Hold, or Tap & Hold).
-- **Follow the game's own controls:** keys left on the game's default follow the
-  game's key settings, and custom keys replace the game action they stand in for.
-- **Coordinate controls and visuals:** ModCore Templates quickslot templates follow
-  wheel focus and Global keys, and their settings sit at the top of the Controls tab.
+- **Duplicate checks:** a key bound twice is marked as you edit, across Group Keys
+  and Global Keys, and Apply refuses it.
+- **Follows the game's controls:** keys left on the default follow the game's key
+  settings; custom keys replace the game action they stand in for.
+- **Works with ModCore Templates:** quickslot templates follow wheel focus and
+  Global keys, and their settings head the Controls tab.
+- **For mod authors:** add control maps to MCC's source as static declarations
+  (see the [developer guide](DEVELOPERS.md)).
 
 ## Choose the right module
 
@@ -89,8 +87,9 @@ Navigation choices are never saved. A successful Apply saves the configuration;
 new bindings take effect once you are in game.
 
 Logs appear in `UE4SS.log`. The default level is WARN. For more detail, install the
-UE4SS Lua Log Bridge and raise ModCoreControls's level on its Logs page, or set
-`ModCoreControls=DEBUG` under `[Levels]` in the bridge's `config.ini`.
+UE4SS Lua Log Bridge and raise ModCoreControls' level in the Logs section of the
+**Extensions** tab of the ModCore Settings page, or set `ModCoreControls=DEBUG` under
+`[Levels]` in the bridge's `config.ini`.
 
 ## Documentation
 

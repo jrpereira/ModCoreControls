@@ -6,17 +6,17 @@
 
 ModCore Controls (MCC) lets you configure Dawnwalker's keyboard and mouse quickslot controls in the mod menu. It saves your bindings, applies them in game and updates the HUD key indicators.
 
-[b]Features and benefits[/b]
+[b]Features[/b]
 [list]
-[*]Bind individual abilities and consumables, use slots on the focused wheel, or select a wheel directly.
-[*]Choose the default wheel and Toggle Quickslots behavior, including hold-to-swap. A wheel key set to Hold shows its wheel while held and returns to the default wheel on release.
-[*]Configure Tap/Hold bindings for supported actions in exploration and combat, with an adjustable Tap vs Hold window (Low and High within 100-500 ms, 100-350 ms by default); a Tap fires on press unless the same key is also a Hold (Instant Tap, on by default; off fires it on release or at High, whichever comes first).
-[*]Use all control maps together; their keys are edited on the Mappings page, one tab per map (Group Keys, Global Keys) plus Controller, opened from Mappings on the Controls tab, and Back returns there.
-[*]A key bound twice is marked as you edit, across Group Keys and Global Keys; Apply refuses duplicate custom keys across maps and saves successful changes between sessions.
-[*]HUD key hints reflect MCC bindings, and keys set to Hold are underlined. A key's outline fills while it is held (Show key outline: None, Hold, or Tap & Hold); MCC restores original indicators when its modifications are removed.
-[*]Keys left on the game's default follow the game's key settings, and custom keys replace the game action they stand in for.
-[*]ModCore Templates quickslot templates follow wheel focus and Global keys; their settings sit at the top of the Controls tab.
-[*]MCC's settings are the Controls tab of the ModCore Settings page, its second tab after Settings; ModCore Controls' entry in the mod list opens it.
+[*]One Controls page: MCC's settings are the Controls tab of the ModCore Settings page, with the Quickslots template picker, Mappings and Behaviours. ModCore Controls' entry in the mod list opens it.
+[*]Mappings page with three tabs: Group Keys act on the focused wheel or select a wheel directly, Global Keys address individual ability and consumable slots, and Controller lists your current gamepad mappings (read-only).
+[*]Tap and Hold bindings for keyboard and mouse keys, in exploration and combat.
+[*]Tap vs Hold Threshold: an adjustable window from Low to High (100-350 ms by default, within 100-500 ms); Instant Tap fires a lone Tap on press.
+[*]Quickslot Wheels: choose the default wheel, allow swapping outside of combat, and hold to swap, release to return.
+[*]HUD key hints show your bindings, Hold keys are underlined, and a key's outline fills while it is held (Show key outline: None, Hold, or Tap & Hold).
+[*]A key bound twice is marked as you edit, across Group Keys and Global Keys, and Apply refuses it; saved bindings carry over between sessions.
+[*]Keys left on the game's default follow the game's key settings; custom keys replace the game action they stand in for.
+[*]ModCore Templates quickslot templates follow wheel focus and Global keys, and their settings head the Controls tab.
 [/list]
 
 [b]Requirements and installation[/b]
