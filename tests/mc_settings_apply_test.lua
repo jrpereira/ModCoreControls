@@ -1,5 +1,5 @@
 -- An Apply in ModCore Settings reaches MCC's input refresh through the vendored
--- settings_api (v2), also when it carries text values: a keybind or a range.
+-- settings_api (v2 or later), also when it carries text values: a keybind or a range.
 package.path='Scripts/?.lua;Scripts/vendor/?.lua;'..package.path
 local jobs,handlers,shared={}, {}, {}
 ExecuteInGameThread=function(callback) jobs[#jobs+1]=callback;return true end
@@ -13,7 +13,7 @@ end}
 local function hex(value) return (value:gsub('.',function(c) return string.format('%02x',c:byte()) end)) end
 local function drain() while #jobs>0 do table.remove(jobs,1)() end end
 
-assert(require('settings_api').version==2,'MCC vendors settings_api v2')
+assert(require('settings_api').version>=2,'MCC vendors settings_api v2 or later')
 local source=assert(os.getenv('PWD'))..'/Scripts/main.lua'
 assert(loadfile(source))()
 drain()
