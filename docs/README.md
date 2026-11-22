@@ -54,9 +54,8 @@ fully restart the game after changing Lua files.
 
 ## Menu behavior
 
-MCC's settings are the **Controls** tab of the ModCore Settings page, its first tab and
-the one it opens on. ModCore Controls' entry in the mod list opens it, as does the
-mod list's controls link. Top to bottom:
+MCC's settings are the **Controls** tab of the ModCore Settings page, its second tab,
+after Settings. ModCore Controls' entry in the mod list opens it. Top to bottom:
 
 | Section | Contents |
 | --- | --- |

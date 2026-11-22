@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- The Controls page is the **Controls** tab of the ModCore Settings page, its first tab
-  and the one it opens on: the Quickslots templates, Mappings and Behaviours, saved into
+- The Controls page is the **Controls** tab of the ModCore Settings page, after its
+  Settings tab: the Quickslots templates, Mappings and Behaviours, saved into
   MCC's `config.ini` as before. ModCore Controls' entry in the mod list opens the tab;
   the Mappings links open the Mappings page on its Group Keys, Global Keys or Controller
   tab, and Back returns to the tab. Needs ModCore Settings from this round (`settings:controls`).

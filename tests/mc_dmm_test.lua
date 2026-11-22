@@ -310,8 +310,8 @@ end
 print('PASS DMM matches MCC definitions, storage, and pages')
 
 -- End to end through ModCoreSettings: the page main.lua publishes becomes ModCore
--- Settings' Controls tab, its first tab (the page opens on Settings). ModCore Settings' page
--- parses with all four tabs, Controls | Templates | Settings | Developer Tools; both slots
+-- Settings' Controls tab, its second tab (the page opens on Settings, the first). ModCore Settings' page
+-- parses with all four tabs, Settings | Controls | Templates | Developer Tools; both slots
 -- fill, the Visuals slot inside the Controls tab included; Apply there saves into each
 -- page's own config and publishes its own event; every Mappings link opens the Mappings
 -- page on its tab at its first row, Apply there saves, Back returns to the Controls tab with
@@ -429,8 +429,8 @@ do
     -- DMM takes at most 256 settings on a page.
     assert(#model.items<=256 and #model.items==#host.choices,#model.items)
     local tabs=model.items[1]
-    assert(tabs.id=='MCS_Page' and table.concat(tabs.labels,'|')=='Controls|Templates|Settings|Developer Tools'
-        and table.concat(tabs.values,'|')=='0|1|2|3' and model.pending[1]==2,'four tabs, opening on Settings')
+    assert(tabs.id=='MCS_Page' and table.concat(tabs.labels,'|')=='Settings|Controls|Templates|Developer Tools'
+        and table.concat(tabs.values,'|')=='0|1|2|3' and model.pending[1]==0,'four tabs, opening on Settings')
     -- The Controls tab: the Quickslots picker and its template's rows, the Mappings links,
     -- then Behaviours. Nothing of MCC's placeholder remains.
     local mainIds=DMM.ids(DMM.manifest())
@@ -445,14 +445,14 @@ do
         for i,item in ipairs(model.items) do if visible[i] then out[#out+1]=item.id end end
         return table.concat(out,',')
     end
-    local controls=shown(0)
+    local controls=shown(1)
     assert(controls:find('^MCS_Page,MCT_Template,MCC_Link_grouped') and controls:find('MCC_module_default_KeyOutline$')
         and not controls:find('SortBy',1,true) and not controls:find('MCT_Listed_1',1,true),controls)
-    assert(shown(1)=='MCS_Page,MCT_Listed_1',shown(1))
-    local own=shown(2)
+    assert(shown(2)=='MCS_Page,MCT_Listed_1',shown(2))
+    local own=shown(0)
     assert(own:find('CompactStyle',1,true) and own:find('SortBy',1,true) and not own:find('MCC_',1,true),own)
     assert(shown(3)=='MCS_Page,MCS_Index_1',shown(3))
-    model:set(1,0)
+    model:set(1,1)
     assert(not model:dirty(),'tabs are navigation')
     -- The rows keep their groups and their own types: Behaviours heads its two subgroups,
     -- the threshold is ModCoreSettings' range, the links are edit links.
@@ -521,19 +521,19 @@ do
     -- ModCore Controls' entry opens ModCore Settings' page on the Controls tab, at its first row.
     trace={}
     page:showDetail(rowOf('ModCoreControls.entry'))
-    assert(page.controls.provider==host and page.controls.model.pending[1]==0
+    assert(page.controls.provider==host and page.controls.model.pending[1]==1
         and trace[#trace]=='select '..index.MCT_Template,table.concat(trace,','))
     -- ModCore Templates' entry opens the Templates tab.
     trace={}
     page:showDetail(rowOf('ModCoreTemplates'))
-    assert(page.controls.provider==host and page.controls.model.pending[1]==1
+    assert(page.controls.provider==host and page.controls.model.pending[1]==2
         and trace[#trace]=='select '..index.MCT_Listed_1,table.concat(trace,','))
     page:showBrowser()
     -- A link to the Visuals slot opens the Controls tab at the Quickslots picker.
     page:showDetail(rowOf('ModCoreTemplates.module.Fangdango'))
     trace={}
     follow('MCT_MergedNotice')
-    assert(page.controls.provider==host and page.controls.model.pending[1]==0
+    assert(page.controls.provider==host and page.controls.model.pending[1]==1
         and trace[#trace]=='select '..index.MCT_Template,table.concat(trace,','))
     page:showBrowser();page.controls:tick()
     assert(page.controls.provider==providers[byId['ModCoreTemplates.module.Fangdango']],'Back returns to the merged page')
@@ -545,8 +545,8 @@ do
     for n,id in ipairs({'MCC_Link_grouped','MCC_Link_global','MCC_Link_controller'}) do
         page:showDetail(rowOf('ModCoreSettings'))
         assert(page.controls.provider==host)
-        page.controls.model:set(1,2)
         page.controls.model:set(1,0)
+        page.controls.model:set(1,1)
         trace={}
         local row=follow(id)
         local keys=page.controls.model
@@ -568,12 +568,12 @@ do
         trace={}
         page:showBrowser()
         page.controls:tick()
-        assert(page.mode=='detail' and page.controls.provider==host and page.controls.model.pending[1]==0
+        assert(page.mode=='detail' and page.controls.provider==host and page.controls.model.pending[1]==1
             and trace[#trace]=='select '..row,id..' Back: '..table.concat(trace,','))
         page:showBrowser()
         assert(page.mode=='browser')
     end
     assert(#reports==0,table.concat(reports,' / '))
-    print('PASS ModCore Settings\' page has Controls | Templates | Settings | Developer Tools: slots, links, Apply and Back')
+    print('PASS ModCore Settings\' page has Settings | Controls | Templates | Developer Tools: slots, links, Apply and Back')
 end
 assert(os.execute('rm -r ' .. string.format('%q',temp)))
