@@ -7,8 +7,7 @@ local function tmpname()
     assert(io.open(path,'wb')):close()
     return path
 end
--- Needs the real DMM parser and ModCoreSettings sources, which CI does not have; skip without them.
--- Run it locally, with both set, before a release.
+-- Needs the real DMM parser and ModCoreSettings sources; skips without them.
 local path,settings=os.getenv('DMM_CHOICES_PATH'),os.getenv('MCS_SCRIPTS_PATH')
 if not path or not settings then
     print('SKIP DMM integration: set DMM_CHOICES_PATH and MCS_SCRIPTS_PATH;'
