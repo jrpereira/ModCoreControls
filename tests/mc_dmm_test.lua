@@ -277,7 +277,7 @@ end
 print('PASS DMM matches MCC definitions, storage, and pages')
 
 -- End to end through ModCoreSettings: the page main.lua publishes becomes ModCore
--- Settings' Controls tab, its first tab and the one it opens on. ModCore Settings' page
+-- Settings' Controls tab, its first tab (the page opens on Settings). ModCore Settings' page
 -- parses with all four tabs, Controls | Templates | Settings | Developer Tools; both slots
 -- fill, the Visuals slot inside the Controls tab included; Apply there saves into each
 -- page's own config and publishes its own event; every Mappings link opens its inner page,
@@ -397,7 +397,7 @@ do
     assert(#model.items<=256 and #model.items==#host.choices,#model.items)
     local tabs=model.items[1]
     assert(tabs.id=='MCS_Page' and table.concat(tabs.labels,'|')=='Controls|Templates|Settings|Developer Tools'
-        and table.concat(tabs.values,'|')=='0|1|2|3' and model.pending[1]==0,'four tabs, opening on Controls')
+        and table.concat(tabs.values,'|')=='0|1|2|3' and model.pending[1]==2,'four tabs, opening on Settings')
     -- The Controls tab: the Quickslots picker and its template's rows, the Mappings links,
     -- then Behaviours. Nothing of MCC's placeholder remains.
     local mainIds=DMM.ids(DMM.manifest())
