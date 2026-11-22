@@ -1,5 +1,5 @@
 -- ModCoreSettings loads this in its menu state to build and store the Controls pages:
--- the main page and its inner pages, told apart by context.page.
+-- the main page and its Mappings page, told apart by context.page.
 local Page=require('mc_dmm')
 return {
     contract=1,

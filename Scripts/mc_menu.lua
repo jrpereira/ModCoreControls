@@ -111,8 +111,8 @@ function M.define(registry, mapRegistry)
             assert(declaration.within==nil or type(declaration.within)=='string'
                 and declaration.within:match('%S') and not declaration.within:find('[:;]'),
                 'invalid within heading: ' .. mapId)
-            -- page names the map's inner page and the main page's link to it; a map
-            -- without one shows on the main page.
+            -- page names the map's tab on the Mappings page and the main page's link to
+            -- it; a map without one shows on the main page.
             assert(declaration.page==nil or type(declaration.page)=='string'
                 and declaration.page:match('%S') and not declaration.page:find('[|;%[%]%c]'),
                 'invalid page name: ' .. mapId)

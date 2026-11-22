@@ -61,14 +61,17 @@ mod list's controls link. Top to bottom:
 | Section | Contents |
 | --- | --- |
 | Quickslots | MCT quickslot template selection and settings, when contributed |
-| Mappings | Links (**edit**) to the inner pages **Group Keys** (the Groups map), **Global Keys** (the Global map) and **Controller** (a read-only list of the player's current gamepad mappings) |
+| Mappings | Links (**edit**) **Group Keys** (the Groups map), **Global Keys** (the Global map) and **Controller** (a read-only list of the player's current gamepad mappings), each opening the **Mappings** page on that tab |
 | Behaviours | Quickslot Wheels (default wheel and Toggle Quickslots behavior) and Shortcuts (Instant Tap, Tap vs Hold Threshold and key outline) |
 
-Apply on the Controls tab saves these settings into MCC's `config.ini`, as before. Each
-inner page has its own Apply; Back returns to the Controls tab. Every map's
-bindings stay active together; its page only shows them. Apply rejects the same key
-with the same trigger on two rows, on any of the pages; the same key with Tap on one
-row and Hold on another is two separate bindings.
+Apply on the Controls tab saves these settings into MCC's `config.ini`, as before. The
+Mappings page's title row picks its tab, Group Keys, Global Keys or Controller; the page
+has its own Apply, and Back returns to the Controls tab with the link that opened it
+selected. Every map's bindings stay active together; its tab only shows them. The same
+key with the same trigger on two rows is marked as it is edited, on Group Keys and
+Global Keys alike (the tab picker is marked too when the pair is on two tabs), and Apply
+rejects it on either page; the same key with Tap on one row and Hold on another is two
+separate bindings.
 
 Groups operates on the focused wheel; Global addresses individual
 ability or consumable slots. An optional binding with `defaultControl` inherits

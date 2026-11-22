@@ -25,8 +25,8 @@ function M.seal() M.sealed=true end
 
 -- Every setting has an id, a name and a type; what is specific to its type sits in
 -- params. Map settings are pickers. A group lists its keybinds and mirrors in the
--- order the page shows them. A map with a page has an inner page of that name, opened
--- from the Mappings links; the others show on the main page.
+-- order the page shows them. A map with a page is a tab of that name on the Mappings
+-- page, opened from its Mappings link; the others show on the main page.
 M.addSectionMap('module', {
         id='default',
         name='Quickslot Wheels',

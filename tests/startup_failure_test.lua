@@ -16,13 +16,13 @@ package.loaded['settings_api']={subscribe=function()
 end}
 local source=assert(os.getenv('PWD'))..'/Scripts/main.lua'
 assert(loadfile(source))()
--- One subscription per Controls page: the main page and its three inner pages.
-assert(queued==2 and stopped==1 and unsubscribed==4,unsubscribed)
+-- One subscription per Controls page: the main page and its Mappings page.
+assert(queued==2 and stopped==1 and unsubscribed==2,unsubscribed)
 queued,stopped,unsubscribed=0,0,0
 ExecuteInGameThread=function()
     queued=queued+1
     return false
 end
 assert(loadfile(source))()
-assert(queued==2 and stopped==1 and unsubscribed==4)
+assert(queued==2 and stopped==1 and unsubscribed==2)
 print('PASS failed MCC startup cleans constructed host and subscription')

@@ -29,7 +29,7 @@ local page=published[1].pages[1]
 assert(page.id=='ModCoreControls' and page.name=='Controls')
 -- Hidden: ModCore Settings shows it as its Controls tab.
 assert(page.visible==false and page.attach==nil,'the main page is shown in the Controls tab')
--- Then its inner pages, listed nowhere and opened from the main page's Mappings links.
+-- Then its Mappings page, listed nowhere and opened on a tab by each of the main page's Mappings links.
 local inner={}
 local pages=published[1].pages
 local entry=table.remove(pages)
@@ -39,8 +39,7 @@ for n=2,#pages do
         and child.configDirectory==root,child.id)
     inner[#inner+1]=child.id..'='..child.name
 end
-assert(table.concat(inner,',')=='ModCoreControls.grouped=Group Keys,ModCoreControls.global=Global Keys,'
-    ..'ModCoreControls.controller=Controller',table.concat(inner,','))
+assert(table.concat(inner,',')=='ModCoreControls.mappings=Mappings',table.concat(inner,','))
 assert(page.hooks==root .. '/Scripts/mcs_page.lua' and page.configDirectory==root)
 -- Last, the mod's entry: it replaces this mod folder's placeholder and opens the tab.
 assert(entry.id=='ModCoreControls.entry' and entry.link=='settings:controls'
@@ -58,8 +57,8 @@ assert(options.id=='ModCoreControls' and options.directory==root .. '/cache')
 local hooks=dofile(page.hooks)
 assert(hooks.contract==1 and type(hooks.manifest)=='function'
     and type(hooks.load)=='function' and type(hooks.apply)=='function')
-assert(hooks.manifest({page=page.id,directory=page.configDirectory}):find('mcLinkPage=ModCoreControls.grouped',1,true))
-assert(hooks.manifest({page='ModCoreControls.controller',directory=page.configDirectory}):find('[Setting.MCC_Pad_Note]',1,true))
+assert(hooks.manifest({page=page.id,directory=page.configDirectory}):find('mcLinkPage=ModCoreControls.mappings#MCC_actions_grouped_QuickSlot1',1,true))
+assert(hooks.manifest({page='ModCoreControls.mappings',directory=page.configDirectory}):find('[Setting.MCC_Pad_Note]',1,true))
 print('PASS main publishes the Controls page before input startup')
 
 -- The page version is the release's VERSION, whether loaded relatively or by full path.

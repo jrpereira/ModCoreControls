@@ -46,7 +46,7 @@ local hooks=PageHooks.loader()(scripts .. '/mcs_page.lua')
 local inner=DMM.pages(definition)
 local ids={DMM.page.id}
 for _,entry in ipairs(inner) do ids[#ids+1]=entry.id end
-same(ids,{'ModCoreControls','ModCoreControls.grouped','ModCoreControls.global','ModCoreControls.controller'},'page ids')
+same(ids,{'ModCoreControls','ModCoreControls.mappings'},'page ids')
 local pages={}
 for _,id in ipairs(ids) do
     local context=PageHooks.context({id=id,configDirectory=temp})
@@ -61,8 +61,9 @@ for _,id in ipairs(ids) do
         assert(not manifest:find(gone,1,true),'no page or map pickers: '..gone..' on '..id)
     end
 end
-local main,groups,global,pad=pages.ModCoreControls,pages['ModCoreControls.grouped'],
-    pages['ModCoreControls.global'],pages['ModCoreControls.controller']
+local main,mappings=pages.ModCoreControls,pages['ModCoreControls.mappings']
+-- Each Mappings link opens the page at its tab's first row.
+local anchors={'MCC_actions_grouped_QuickSlot1','MCC_actions_global_AbilitySlot1','MCC_Pad_Note'}
 assert(main.manifest:find('mcSlot=visuals',1,true),'ModCoreSettings reads row slots from the manifest text')
 -- The published pages name this hooks file and the mod folder as their config directory.
 local Contributions=require('menu_contributions')
@@ -83,7 +84,7 @@ do
     local labels={}
     for i=2,4 do
         local link=main.items[i]
-        assert(link.mcNavigation and link.mcLinkPage==ids[i] and link.mcTabs and #link.labels==2
+        assert(link.mcNavigation and link.mcLinkPage=='ModCoreControls.mappings#'..anchors[i-1] and link.mcTabs and #link.labels==2
             and link.labels[1]=='edit' and link.labels[2]=='edit' and link.group=='Mappings',link.id..' is an edit link')
         labels[#labels+1]=link.label
     end
@@ -91,7 +92,7 @@ do
     local slot=main.items[1]
     assert(slot.mcReadOnly and #slot.values==1 and slot.label=='Quickslots')
 end
--- Every MCC setting is on exactly one page with its storage unchanged; the mirror is on Group Keys.
+-- Every MCC setting is on exactly one page with its storage unchanged; the mirror is on Mappings.
 local editable=0
 for _,setting in ipairs(definition.settings) do
     local found
@@ -122,19 +123,44 @@ for _,setting in ipairs(definition.settings) do
         assert(not found,'fixed trigger should not create a picker: ' .. setting.id)
     end
 end
--- Extra rows: the slot and three links on the main page, the Default Group mirror on
--- Group Keys, and Controller's unavailable and note rows.
-assert(#main.items+#groups.items+#global.items+#pad.items==editable+7,'DMM row count does not match editable MCC settings')
-assert(groups.indices.MCC_actions_grouped_DefaultGroup and #pad.items==2)
+-- Extra rows: the slot and three links on the main page; on Mappings the tab picker, the
+-- Default Group mirror, and Controller's unavailable and note rows.
+assert(#main.items+#mappings.items==editable+8,'DMM row count does not match editable MCC settings')
+assert(mappings.indices.MCC_actions_grouped_DefaultGroup)
 for _,id in ipairs({'MCC_Pad_Unavailable','MCC_Pad_Note'}) do
-    local item=pad.items[assert(pad.indices[id],id)]
+    local item=mappings.items[assert(mappings.indices[id],id)]
     assert(item.mcReadOnly and #item.values==1,'read-only display row: ' .. id)
 end
--- Inner pages show every row: no navigation gates them.
-for _,page in ipairs({groups,global,pad}) do
-    local model=choices.open(page.provider)
+-- The Mappings page's title row is its tab picker, Group Keys | Global Keys | Controller:
+-- navigation, never stored. Each tab shows its own rows; every row is on one tab.
+do
+    local tabs=mappings.items[1]
+    assert(tabs.id=='MCC_Mappings_Tab' and tabs.mcNavigation and tabs.mcHeading
+        and table.concat(tabs.labels,'|')=='Group Keys|Global Keys|Controller'
+        and table.concat(tabs.values,'|')=='0|1|2' and tabs.default==0,'the title row is the tab picker')
+    local model=choices.open(mappings.provider)
     assert(not model.error,model.error)
-    for i in ipairs(page.items) do assert(model:visibility()[i],page.provider.id..' row '..i..' is shown') end
+    assert(model.pending[1]==0,'the page opens on Group Keys')
+    local seen={}
+    local prefixes={'^MCC_actions_grouped_','^MCC_actions_global_','^MCC_Pad_'}
+    for tab=0,2 do
+        model:set(1,tab)
+        assert(not model:dirty(),'tabs are navigation')
+        local visible=model:visibility()
+        assert(visible[1],'the tab picker always shows')
+        local count=0
+        for i=2,#mappings.items do
+            if visible[i] then
+                local id=mappings.items[i].id
+                assert(id:find(prefixes[tab+1]) and not seen[id],id..' on tab '..tab)
+                seen[id]=true;count=count+1
+            end
+        end
+        assert(count>0,'tab '..tab..' has rows')
+        if tab==2 then assert(count==2,'Controller: the note and the unavailable row') end
+    end
+    for i=2,#mappings.items do assert(seen[mappings.items[i].id],mappings.items[i].id..' is on a tab') end
+    assert(mappings.items[2].id==anchors[1],'Group Keys starts the page')
 end
 -- Behaviours heads two subgroups, Quickslot Wheels and Shortcuts, each holding its block
 -- of the main page's settings in order.
@@ -178,19 +204,20 @@ assert(slotRow and slotRow:find('mcSlot=visuals',1,true) and not slotRow:find('m
     'the Visuals placeholder is the labelled ModCoreSettings row slot')
 assert(main.manifest:match('%[Category%.Visuals%][^%[]*mcHeading=0'),
     'the template picker row replaces the Visuals heading')
--- Inner pages head their groups by name.
-assert(groups.manifest:find('[Category.actions.grouped.1]\nmcLabel=Active Group\n',1,true)
-    and global.manifest:find('[Category.actions.global.2]\nmcLabel=Consumables\n',1,true))
+-- The tabs head their groups by name; each group shows on its tab only.
+assert(mappings.manifest:find('[Category.actions.grouped.1]\nVisibleValues=0\nVisibleWhen=MCC_Mappings_Tab\nmcLabel=Active Group\n',1,true)
+    and mappings.manifest:find('[Category.actions.global.2]\nVisibleValues=1\nVisibleWhen=MCC_Mappings_Tab\nmcLabel=Consumables\n',1,true)
+    and mappings.manifest:find('[Category.Controller]\nVisibleValues=2\nVisibleWhen=MCC_Mappings_Tab\n',1,true))
 -- A group activation key's Tap stays on its wheel, so it reads Toggle; values keep Tap.
-local focusRow=groups.manifest:match('%[Setting%.MCC_actions_grouped_ActivateAbilities%][^%[]*')
+local focusRow=mappings.manifest:match('%[Setting%.MCC_actions_grouped_ActivateAbilities%][^%[]*')
 assert(focusRow and focusRow:find('Triggers=Hold|Tap',1,true)
     and focusRow:find('TriggerLabels=Hold|Toggle',1,true),'activation keys label Tap as Toggle')
-local slotKey=groups.manifest:match('%[Setting%.MCC_actions_grouped_QuickSlot1%][^%[]*')
+local slotKey=mappings.manifest:match('%[Setting%.MCC_actions_grouped_QuickSlot1%][^%[]*')
 assert(slotKey and not slotKey:find('TriggerLabels',1,true),'other keys keep the trigger names')
 
--- Apply on an inner page saves that page's keys; settings on other pages keep their values.
-local slot=global.indices.MCC_actions_global_AbilitySlot1
-local model=choices.open(global.provider)
+-- Apply on the Mappings page saves its keys; settings on the main page keep their values.
+local slot=mappings.indices.MCC_actions_global_AbilitySlot1
+local model=choices.open(mappings.provider)
 assert(not model.error,model.error)
 model:set(slot,'J|Hold')
 local ok,why,event=model:apply(); assert(ok,why)
@@ -199,24 +226,24 @@ local saved=config()
 assert(not saved:find('map=',1,true))
 assert(saved:find('global.AbilitySlot1=J|Hold',1,true))
 assert(saved:find('[ModCoreControls.module]',1,true) and saved:find('default.HoldThreshold=100|350',1,true))
-local conflict=global.indices.MCC_actions_global_AbilitySlot2
+local conflict=mappings.indices.MCC_actions_global_AbilitySlot2
 model:set(conflict,'J|Hold')
 local accepted,reason,failedEvent=model:apply()
 assert(not accepted and reason:find('Key J (Hold) is bound to both "Ability Slot 1" and "Ability Slot 2"',1,true),reason)
 assert(failedEvent==nil and model.pending[conflict]=='J|Hold' and model.committed[conflict]=='none')
 assert(config()==saved,'invalid Apply changed persisted config')
--- A key taken on another page is refused at Apply too, naming both settings.
+-- A key taken on another tab is refused at Apply too, naming both settings.
 do
-    local keys=choices.open(groups.provider)
-    local quickslot=groups.indices.MCC_actions_grouped_QuickSlot1
+    local keys=choices.open(mappings.provider)
+    local quickslot=mappings.indices.MCC_actions_grouped_QuickSlot1
     keys:set(quickslot,'J|Hold')
     local refused,message=keys:apply()
     assert(not refused and message:find('Key J (Hold) is bound to both',1,true),message)
-    assert(config()==saved,'a cross-page collision changes nothing')
+    assert(config()==saved,'a cross-tab collision changes nothing')
 end
 local native=Menu.new(definition,Config.decode(saved,definition))
 assert(native.values.MCC_actions_global_AbilitySlot1=='J|Hold')
-model=choices.open(global.provider)
+model=choices.open(mappings.provider)
 assert(not model.error,model.error)
 assert(model.pending[slot]=='J|Hold')
 -- The Hold threshold slider on the main page saves its value on Apply, keeping the keys.
@@ -233,8 +260,8 @@ do
 end
 -- The Default Group mirror on Group Keys saves the main page's Default wheel.
 do
-    local keys=choices.open(groups.provider)
-    local mirror=groups.indices.MCC_actions_grouped_DefaultGroup
+    local keys=choices.open(mappings.provider)
+    local mirror=mappings.indices.MCC_actions_grouped_DefaultGroup
     assert(keys.pending[mirror]==1)
     keys:set(mirror,2)
     assert(keys:apply())
@@ -243,23 +270,23 @@ do
     assert(home.pending[main.indices.MCC_module_default_DefaultWheel]==2,'the main page loads it')
     keys:set(mirror,1);assert(keys:apply())
 end
--- Live gamepad assignments become one read-only row per button on the Controller page.
+-- Live gamepad assignments become one read-only row per button on the Controller tab.
 local schema=DMM.schema(definition,{{key='Gamepad_DPad_Left',label='D-Pad Left',actions={'Quickslot Left','Map|Zoom'}},
-    {key='Gamepad_DPad_Up',label='D-Pad Up',actions={}}},DMM.controller.id)
+    {key='Gamepad_DPad_Up',label='D-Pad Up',actions={}}},DMM.mappings.id)
 assert(schema:find('[Setting.MCC_Pad_Gamepad_DPad_Left]',1,true)
     and schema:find('PresetLabels=Quickslot Left, Map Zoom|Quickslot Left, Map Zoom',1,true)
     and schema:find('PresetLabels=Unassigned|Unassigned',1,true)
     and not schema:find('MCC_Pad_Unavailable',1,true))
--- The work-in-progress note heads the Controller page, above the button rows.
+-- The work-in-progress note heads the Controller tab, above the button rows.
 assert(schema:find('[Setting.MCC_Pad_Note]',1,true)<schema:find('[Setting.MCC_Pad_Gamepad_DPad_Left]',1,true))
-assert(not DMM.schema(definition,{{key='K',label='K',actions={}}}):find('MCC_Pad',1,true),
+assert(not DMM.schema(definition,{{key='K',label='K',actions={}}}):find('[Setting.MCC_Pad',1,true),
     'controller rows stay off the main page')
 assert(not pcall(DMM.schema,definition,nil,'ModCoreControls.nothing'),'unknown pages are refused')
 -- Through ModCoreSettings' conflict scope, the same key and trigger on two rows of a page is
--- marked while editing.
+-- marked while editing, across Group Keys and Global Keys too, where the tab picker shows it.
 if type(fieldTypes.conflicts)=='function' then
-    local otherSlot=assert(global.indices.MCC_actions_global_AbilitySlot2)
-    assert(global.items[slot].conflictScope=='controls','the real parser reads the controls scope')
+    local otherSlot=assert(mappings.indices.MCC_actions_global_AbilitySlot2)
+    assert(mappings.items[slot].conflictScope=='controls','the real parser reads the controls scope')
     local rows=fieldTypes.conflicts(model)
     assert(next(rows)==nil,'saved controls start without collisions')
     model:set(otherSlot,'J|Hold')
@@ -270,7 +297,13 @@ if type(fieldTypes.conflicts)=='function' then
     rows=fieldTypes.conflicts(model)
     assert(next(rows)==nil,'Tap and Hold on one key do not collide')
     model:set(otherSlot,'none')
-    print('PASS ModCoreSettings marks colliding Controls keys on a page')
+    local quickslot=mappings.indices.MCC_actions_grouped_QuickSlot1
+    model:set(quickslot,'J|Hold')
+    local pickers
+    rows,pickers=fieldTypes.conflicts(model)
+    assert(rows[quickslot] and rows[slot] and pickers[1],'a pair on two tabs marks both rows and the tab picker')
+    model:set(quickslot,'none')
+    print('PASS ModCoreSettings marks colliding Controls keys on a page and across its tabs')
 else
     print('SKIP collision marking: this ModCoreSettings has no conflict scopes')
 end
@@ -280,9 +313,9 @@ print('PASS DMM matches MCC definitions, storage, and pages')
 -- Settings' Controls tab, its first tab (the page opens on Settings). ModCore Settings' page
 -- parses with all four tabs, Controls | Templates | Settings | Developer Tools; both slots
 -- fill, the Visuals slot inside the Controls tab included; Apply there saves into each
--- page's own config and publishes its own event; every Mappings link opens its inner page,
--- Back returns to the Controls tab with the link selected; and each mod list entry or link
--- to a slot opens its tab.
+-- page's own config and publishes its own event; every Mappings link opens the Mappings
+-- page on its tab at its first row, Apply there saves, Back returns to the Controls tab with
+-- the link selected; and each mod list entry or link to a slot opens its tab.
 do
     local MenuPages=dofile(settings..'/menu_pages.lua')
     local Slots=dofile(settings..'/menu_slots.lua')
@@ -377,7 +410,7 @@ do
     assert(entry.mcModuleEntry and entry.mcLinkSlot.host=='ModCoreSettings' and entry.mcLinkSlot.slot=='controls',
         'ModCore Controls\' entry opens the Controls tab')
     assert(providers[byId.ModCoreTemplates].mcLinkSlot.slot=='templates')
-    -- The main page and its inner pages are kept, listed nowhere.
+    -- The main page and its Mappings page are kept, listed nowhere.
     for _,id in ipairs(ids) do
         assert(byId[id] and providers[byId[id]].mcBrowserHidden,id..' is kept, unlisted')
     end
@@ -426,7 +459,7 @@ do
     local threshold=model.items[index.MCC_module_default_HoldThreshold]
     assert(threshold.kind=='extension' and threshold.editor=='range','the threshold stays a range')
     local link=model.items[index.MCC_Link_grouped]
-    assert(link.mcNavigation and link.mcLinkPage=='ModCoreControls.grouped' and link.mcTabs,'links stay edit links')
+    assert(link.mcNavigation and link.mcLinkPage=='ModCoreControls.mappings#'..anchors[1] and link.mcTabs,'links stay edit links')
     local parents={}
     for _,item in ipairs(model.items) do
         if item.id:match('^MCC_module_default_') then
@@ -505,22 +538,32 @@ do
     page:showBrowser();page.controls:tick()
     assert(page.controls.provider==providers[byId['ModCoreTemplates.module.Fangdango']],'Back returns to the merged page')
     page:showBrowser()
-    -- Every Mappings link opens its inner page; Back lands on the Controls tab, link selected.
+    -- Every Mappings link opens the Mappings page on its tab, at the tab's first row; Apply
+    -- there saves; Back lands on the Controls tab, link selected.
+    local saves={MCC_Link_grouped={'MCC_actions_grouped_QuickSlot4','L|Hold','grouped.QuickSlot4=L|Hold'},
+        MCC_Link_global={'MCC_actions_global_ConsumableSlot4','K|Tap','global.ConsumableSlot4=K|Tap'}}
     for n,id in ipairs({'MCC_Link_grouped','MCC_Link_global','MCC_Link_controller'}) do
         page:showDetail(rowOf('ModCoreSettings'))
         assert(page.controls.provider==host)
         page.controls.model:set(1,2)
         page.controls.model:set(1,0)
+        trace={}
         local row=follow(id)
-        assert(page.mode=='detail' and page.controls.provider==providers[byId[ids[n+1]]],id..' opens '..ids[n+1])
-        assert(not page.controls.model.error,page.controls.model.error)
-        if id=='MCC_Link_global' then
-            local keys=page.controls.model
+        local keys=page.controls.model
+        assert(page.mode=='detail' and page.controls.provider==providers[byId['ModCoreControls.mappings']],
+            id..' opens Mappings')
+        assert(not keys.error,keys.error)
+        local first
+        for i,item in ipairs(keys.items) do if item.id==anchors[n] then first=i end end
+        assert(keys.items[1].id=='MCC_Mappings_Tab' and keys.pending[1]==n-1 and keys:visibility()[first]
+            and trace[#trace]=='select '..first and not keys:dirty(),id..' opens its tab: '..table.concat(trace,','))
+        local save=saves[id]
+        if save then
             local at
-            for i,item in ipairs(keys.items) do if item.id=='MCC_actions_global_ConsumableSlot4' then at=i end end
-            keys:set(at,'K|Tap')
+            for i,item in ipairs(keys.items) do if item.id==save[1] then at=i end end
+            keys:set(at,save[2])
             assert(keys:apply())
-            assert(config():find('global.ConsumableSlot4=K|Tap',1,true),'Apply on Global Keys saves')
+            assert(config():find(save[3],1,true),'Apply on the tab saves: '..save[3])
         end
         trace={}
         page:showBrowser()

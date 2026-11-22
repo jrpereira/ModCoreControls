@@ -9,7 +9,7 @@ assert(module.id=='module' and #module.maps==1 and defaultMap.id=='default',
     'Default belongs to the Module section')
 assert(actions.id=='actions' and groupedMap.id=='grouped' and globalMap.id=='global'
     and #actions.maps==2,'Actions has Groups and Global')
--- Each map with a page has an inner page; there is no map picker.
+-- Each map with a page has a Mappings tab; there is no map picker.
 assert(actions.selector==nil and groupedMap.page=='Group Keys' and globalMap.page=='Global Keys'
     and defaultMap.page==nil)
 

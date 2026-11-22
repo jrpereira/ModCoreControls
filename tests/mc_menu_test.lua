@@ -14,7 +14,7 @@ local module,actions=definition.sections[1],definition.sections[2]
 assert(module.id=='module' and module.maps[1].id=='default' and #module.maps==1)
 assert(actions.id=='actions' and actions.maps[1].id=='grouped')
 assert(#definition.sections==2)
--- Maps coexist; each with a page is edited on its own inner page, so there is no map picker.
+-- Maps coexist; each with a page is edited on its own Mappings tab, so there is no map picker.
 assert(actions.selector==nil and actions.maps[1].page=='Group Keys')
 -- A page name is shown text: no separators DMM reads.
 do

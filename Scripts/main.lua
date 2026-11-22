@@ -33,11 +33,11 @@ local published,publishWhy=pcall(function()
         {id=page.id,directory=root .. '/cache'})
     -- The main page is ModCore Settings' Controls tab (slot settings:controls): its rows are
     -- shown there and edited and stored here. It stays hidden; ModCoreSettings keeps it for
-    -- its inner pages and the Visuals slot, and shows it on its own only without the tab.
+    -- its Mappings page and the Visuals slot, and shows it on its own only without the tab.
     local list={{id=page.id,name=page.name,author=page.author,version=page.version,
         description=page.description,visible=false,hooks=scripts .. '/mcs_page.lua',configDirectory=root}}
-    -- Its inner pages: listed nowhere, opened from its Mappings links.
-    for _,inner in ipairs(Page.pages(require('mc_menu').define(require('mc_sections'),require('mc_maps')))) do
+    -- Its inner page, Mappings: listed nowhere, opened on one of its tabs by each Mappings link.
+    for _,inner in ipairs(Page.pages()) do
         list[#list+1]={id=inner.id,name=inner.name,description=inner.description,version=page.version,
             under=page.id,group='inner',hooks=scripts .. '/mcs_page.lua',configDirectory=root}
     end
@@ -88,7 +88,7 @@ local ok,err=pcall(function()
         if available and ModRef and type(RegisterConsoleCommandHandler)=='function' then
             -- Each Controls page publishes its own Apply.
             local ids={require('mc_dmm').page.id}
-            for _,inner in ipairs(require('mc_dmm').pages(definition)) do ids[#ids+1]=inner.id end
+            for _,inner in ipairs(require('mc_dmm').pages()) do ids[#ids+1]=inner.id end
             local tickets={}
             for _,id in ipairs(ids) do
                 local subscribed,result=pcall(settings.subscribe,id,function()

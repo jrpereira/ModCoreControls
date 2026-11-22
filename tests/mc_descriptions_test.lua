@@ -11,7 +11,7 @@ grouped.map[2].description='Swap between wheels.'
 grouped.map[2].settings[2].description='The wheel shown at rest; Abilities | Consumables.'
 local Menu=require('mc_menu')
 local definition=Menu.define(sections,maps)
--- The main page and every inner page, one after another.
+-- The main page and the Mappings page, one after another.
 local DMM=require('mc_dmm')
 local schema=DMM.schema(definition)
 for _,inner in ipairs(DMM.pages(definition)) do schema=schema..'\n'..DMM.schema(definition,nil,inner.id) end
@@ -22,7 +22,7 @@ end
 -- The section's description leads its first heading; that group's own text follows.
 assert(section('Category.actions.grouped.1'):find('mcHelp=Keys that use your quickslots. Fire the focused wheel.\n',1,true))
 assert(section('Category.actions.grouped.2'):find('mcHelp=Swap between wheels.\n',1,true))
--- Every inner page of the section starts with it, once.
+-- Every Mappings tab of the section starts with it, once.
 assert(section('Category.actions.global.1'):find('mcHelp=Keys that use your quickslots.',1,true))
 assert(not section('Category.actions.global.2'):find('mcHelp',1,true))
 -- Keys and mirrors carry their own Description.

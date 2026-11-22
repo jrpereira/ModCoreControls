@@ -14,7 +14,7 @@ adds one optional binding to ability slot 1:
 M.addSectionMap('actions', {
     id = 'demo',
     name = 'Demo',
-    page = 'Demo Keys', -- its inner page, linked under Mappings
+    page = 'Demo Keys', -- its tab on the Mappings page, linked under Mappings
     value = 3, -- 1 and 2 are already used by Actions maps
     contexts = {'exploration', 'combat'},
     map = {
@@ -112,28 +112,32 @@ current declarations. Old `.key` and `.trigger` assignments are ignored.
 ## How the menu reaches gameplay
 
 1. `main.lua` publishes, through MCS's `menu_contributions.lua` and before input
-   startup, the hidden `ModCoreControls` page, its inner pages
-   (`ModCoreControls.<map id>` for each map with a `page`, then
-   `ModCoreControls.controller`; MCS `group='inner'`), the mod list entry
+   startup, the hidden `ModCoreControls` page, its inner page `ModCoreControls.mappings`
+   (MCS `group='inner'`), the mod list entry
    `ModCoreControls.entry` (a slot link to `settings:controls`, attached to MCC's
    folder), and slot rows putting every setting of the main page, in order, into
    `settings:controls`: ModCore Settings' Controls tab.
 2. MCS loads `mcs_page.lua` in the menu state. `mc_dmm.lua` generates each page's
    manifest by `context.page` and supplies `load`/`apply` hooks for MCC's storage.
-3. Apply on any of the pages resolves mirrors, validates all maps together, and saves
-   `config.ini`; settings on the other pages keep their saved values.
-4. MCC receives the Apply notification (it subscribes to every page's id), rereads its
+3. Apply on either page resolves mirrors, validates all maps together, and saves
+   `config.ini`; settings on the other page keep their saved values.
+4. MCC receives the Apply notification (it subscribes to both pages' ids), rereads its
    config on the game thread, and replaces the runtime plan when native resources are ready.
 
 The main page holds the `controls:visuals` slot for MCT at the top (the placeholder
 remains if no valid rows arrive), the **Mappings** links (navigation rows with
 `mcLinkPage`, never stored), then the maps without a `page`. A map with a `page` is
-shown only on its inner page. MCC installs no DMM extension or `mod_settings.ini`.
+shown only on its tab of the Mappings page, in map order, followed by the Controller tab.
+The Mappings page's title row is the tab picker `MCC_Mappings_Tab` (navigation, never
+stored), and each tab's groups show only on it, so all keys share one page and one
+`mcConflictScope`: a key bound twice is marked across tabs. Each link is
+`mcLinkPage=ModCoreControls.mappings#<first row of its tab>`, which MCS opens with that
+row showing and selected. MCC installs no DMM extension or `mod_settings.ini`.
 
 In the Controls tab the rows stay the main page's: MCS edits them through its hooks,
 Apply saves them into MCC's `config.ini` and publishes under `ModCoreControls`, which MCC
 subscribes to. MCS keeps the hidden page in its menu, listed nowhere, so its
-`controls:visuals` slot fills inside the tab, its links open the inner pages and Back
+`controls:visuals` slot fills inside the tab, its links open the Mappings page and Back
 returns to the tab with the link selected. A ModCore Settings without the tab shows the
 main page on its own instead. Main page settings past 32 go into further row entries.
 
