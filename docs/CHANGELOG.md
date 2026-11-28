@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.4.1
+
+- Fixes custom quickslot keys failing, and the HUD falling back to the game's
+  numbered key hints, after loading a save following a shrine fast travel. When a
+  load keeps the player's input but replaces the HUD, MCC moves to the new HUD,
+  which shows the Default wheel with MCC's key hints and Hold underlines.
+
 ## v1.4.0
 
 - Requires UE4SS Lua Extensions 1.4.0 and ModCore Settings 1.10.0 or newer.

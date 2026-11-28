@@ -62,6 +62,26 @@ local function free()
     end
 end
 
+-- Builds a HUD's widget tree: both wheels' four key widgets, each in its wheel's overlay.
+local function buildHud(hud,n)
+    local keys={}
+    for kind,fields in pairs({ability={'WBP_AA_Quickslots','WBP_AA_Quickslots_Bindings'},
+        consumable={'WBP_HUD_Quickslots','WBP_HUD_Quickslots_Bindings'}}) do
+        local base='/Engine/Transient.HUD_'..n..'.'..fields[1]
+        local overlay=object('Overlay',base..'.Overlay',{Children={}})
+        local bindings=object('Bindings',base..'.'..fields[2])
+        for index,position in ipairs({'Left','Top','Right','Bottom'}) do
+            local key=object('RebelInputWidget',base..'.'..position,{Parent=overlay,X=index})
+            states[bindings][position]=key
+            local children=states[overlay].Children
+            children[#children+1]=key
+            keys[kind..position]=key
+        end
+        states[hud][fields[1]]=object('Wheel',base,{[fields[2]]=bindings})
+    end
+    return keys
+end
+
 -- One world's player stack, its applied game context, the overridden native
 -- action and the HUD's quickslot switcher.
 local world
@@ -80,24 +100,8 @@ local function newWorld(n)
         {Outer=player})
     local action=object('InputAction','/Game/Input_'..n..'.IA_Test')
     local hud=object('WBP_GameHUD_C','/Engine/Transient.HUD_'..n,{OwningPlayer=controller})
-    -- Both wheels' four key widgets, each in its wheel's overlay.
-    local keys={}
-    for kind,fields in pairs({ability={'WBP_AA_Quickslots','WBP_AA_Quickslots_Bindings'},
-        consumable={'WBP_HUD_Quickslots','WBP_HUD_Quickslots_Bindings'}}) do
-        local base='/Engine/Transient.HUD_'..n..'.'..fields[1]
-        local overlay=object('Overlay',base..'.Overlay',{Children={}})
-        local bindings=object('Bindings',base..'.'..fields[2])
-        for index,position in ipairs({'Left','Top','Right','Bottom'}) do
-            local key=object('RebelInputWidget',base..'.'..position,{Parent=overlay,X=index})
-            states[bindings][position]=key
-            local children=states[overlay].Children
-            children[#children+1]=key
-            keys[kind..position]=key
-        end
-        states[hud][fields[1]]=object('Wheel',base,{[fields[2]]=bindings})
-    end
     world={controller=controller,subsystem=subsystem,input=input,native=native,action=action,
-        hud=hud,keys=keys}
+        hud=hud,keys=buildHud(hud,n)}
     return world
 end
 
@@ -107,6 +111,7 @@ local function live(value)
     return value~=nil and states[value]~=nil and states[value].alive and value or nil
 end
 local hooks,preHooks={}, {}
+local notified,timers={}, {}
 local callbacks,closed={},0
 local bridge={}
 function bridge.GetCapabilities() return {api=6,enhanced_input=true,explicit_target=true,weak_handles=true} end
@@ -210,7 +215,8 @@ environment={
     inGameThread=function() return true end,
     hook=function(name,callback) hooks[name]=callback;return 1,2 end,
     preHook=function(name,callback) preHooks[name]=callback;return 3,4 end,
-    notify=function() return true end,
+    notify=function(class,callback) notified[class]=callback;return true end,
+    delay=function(_,callback) timers[#timers+1]=callback;return true end,
     unhook=function() return true end,
 }
 local jobs={}
@@ -292,6 +298,54 @@ assert(shared['MCC.Controls.SlotsGlobal.v1.data']:match(' 11000000$'),
     'ability slots 1 and 2 have a Global key: '..tostring(shared['MCC.Controls.SlotsGlobal.v1.data']))
 assert(shared['MCC.Controls.GroupFocus.v1.data']:match(' %- 1$'),
     'the attach publishes Default as a first activation: '..tostring(shared['MCC.Controls.GroupFocus.v1.data']))
+
+-- A load that keeps the player and its input replaces only the HUD: the game
+-- creates the new one while the old one still lives, builds its widget tree
+-- later, and adds its gameplay context for the same input component.
+local function runTimers()
+    local due=timers;timers={}
+    for _,callback in ipairs(due) do callback() end
+    drain()
+end
+runTimers()
+local function select(hud,abilities) states[hud].showsAbilities=abilities end
+select(second.hud,false)
+host.state.selectedGroup=2
+local thirdHud=object('WBP_GameHUD_C','/Engine/Transient.HUD_3',{OwningPlayer=second.controller})
+notified['/Game/_Dawnwalker/UI/_Unified/HUD/WBP_GameHUD.WBP_GameHUD_C'](thirdHud)
+drain()
+runTimers()
+assert(markOf(second.hud),'the old HUD is kept until the new one is built')
+local thirdKeys=buildHud(thirdHud,3)
+states[second.hud].alive=false
+hooks['/Script/DogwoodSystem.DWSystemBlueprintFunctionLibrary:AddInputMappingContext'](nil,nil,object('InputMappingContext','/Game/Input/IMC_OW.IMC_OW'))
+drain()
+for _=1,5 do runTimers() end
+assert(#reads==0,'freed objects read: '..table.concat(reads,', '))
+assert(host.ready,'the player keeps its input')
+assert(states[thirdHud].showsAbilities==true,'the new HUD shows the default group')
+assert(markOf(thirdHud),'the new HUD\'s Hold key is underlined')
+holdKey(press)
+assert(states[thirdKeys.abilityTop].Filled>0 and states[thirdKeys.abilityTop].Progress==0,
+    'the new HUD\'s rim fills and empties')
+
+-- The kept HUD dies with nothing newer announced: a failed key press finds the new one.
+local fourthHud=object('WBP_GameHUD_C','/Engine/Transient.HUD_4',{OwningPlayer=second.controller})
+local fourthKeys=buildHud(fourthHud,4)
+states[thirdHud].alive=false
+world.hud=fourthHud
+for index=#callbacks,1,-1 do
+    local entry=callbacks[index]
+    if entry.phase=='Triggered' and tostring(entry.path):find('IA_MCC_global_slot1',1,true) then
+        entry.callback({});break
+    end
+end
+drain()
+for _=1,5 do runTimers() end
+assert(#reads==0,'freed objects read: '..table.concat(reads,', '))
+assert(states[fourthHud].showsAbilities==true and markOf(fourthHud),'the lost HUD is replaced by the current one')
+holdKey(press)
+assert(states[fourthKeys.abilityTop].Filled>0,'the current HUD\'s rim fills')
 assert(host:stop())
 assert(#reads==0,'freed objects read: '..table.concat(reads,', '))
-print('PASS: a save load reads no collected object')
+print('PASS: a save load reads no collected object, and a replaced HUD is bound again')

@@ -76,6 +76,8 @@ Controls attach when the game sets up the player's input: after starting or load
 a game and after a death, seconds before the loading screen fades out. An inherited
 key or overridden action not available yet is tried again shortly after. After a load
 the Default wheel is shown as soon as the HUD exists, even before the keys attach.
+A load that keeps the player's input but gives it a new HUD, as after a fast travel,
+keeps the keys attached; the new HUD shows Default and MCC's key hints once it is built.
 Use a full game restart after changing Lua files.
 
 ## Wheel focus events

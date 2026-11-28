@@ -220,6 +220,8 @@ local function defaultEnvironment()
         hook=function(name,callback) return RegisterHook(name,function() end,callback) end,
         preHook=function(name,callback) return RegisterHook(name,callback) end,
         unhook=rawget(_G,'UnregisterHook'),
+        -- UE4SS keeps a notification for the process: callers ignore it once stopped.
+        notify=function(class,callback) NotifyOnNewObject(class,callback);return true end,
         inGameThread=rawget(_G,'IsInGameThread'),
         -- On the game thread: ExecuteWithDelay runs its callback on UE4SS's async thread,
         -- in this mod's Lua state while the game thread may use it (ModCore Templates'
@@ -368,7 +370,7 @@ function M.new(queue,log,service,environment)
     api={enabled=false,ready=false,generation=0,active={},state={},phase='pending'}
     local wakeQueued,busy,pendingWake,internalDepth=false,false,false,0
     local indicatorsQueued=false
-    local wake,scheduleRetry,retryPresentation
+    local wake,scheduleRetry,retryPresentation,rebindHud
     -- The game setting up its gameplay input is when the player is ready. Set once
     -- its hook is in.
     local setupHooked=false
@@ -504,22 +506,30 @@ function M.new(queue,log,service,environment)
         local ok,value=pcall(function() return object[method](object) end)
         return ok and e.unwrap(value) or nil
     end
-    local function ownerHud(live)
+    -- 'owner' when the HUD's owning player is the controller, 'world' when it has no
+    -- owner yet but lives in the controller's world, else nil.
+    local function hudBelongs(hud,live)
+        if not (e.valid(hud) and (e.full(hud) or ''):find('/Engine/Transient',1,true)) then return nil end
+        local owner=property(hud,'OwningPlayer') or call(hud,'GetOwningPlayer')
+        if e.valid(owner) then
+            return (owner==live.controller or e.path(owner)==e.path(live.controller)) and 'owner' or nil
+        end
         local controllerWorld=call(live.controller,'GetWorld')
+        local hudWorld=e.valid(controllerWorld) and call(hud,'GetWorld')
+        if e.valid(hudWorld) and (hudWorld==controllerWorld or e.path(hudWorld)==e.path(controllerWorld)) then
+            return 'world'
+        end
+    end
+    -- Its wheels exist once the HUD's widget tree is built, after the HUD is created.
+    local function hudBuilt(hud)
+        return e.valid(property(hud,'WBP_AA_Quickslots')) and e.valid(property(hud,'WBP_HUD_Quickslots'))
+    end
+    local function ownerHud(live)
         local worldCandidate,count=nil,0
         for _,hud in ipairs(e.all and e.all('WBP_GameHUD_C') or {}) do
-            if e.valid(hud) and (e.full(hud) or ''):find('/Engine/Transient',1,true) then
-                local owner=property(hud,'OwningPlayer') or call(hud,'GetOwningPlayer')
-                if e.valid(owner) then
-                    if owner==live.controller or e.path(owner)==e.path(live.controller) then return hud end
-                elseif e.valid(controllerWorld) then
-                    local hudWorld=call(hud,'GetWorld')
-                    if e.valid(hudWorld) and (hudWorld==controllerWorld
-                        or e.path(hudWorld)==e.path(controllerWorld)) then
-                        count=count+1;worldCandidate=hud
-                    end
-                end
-            end
+            local belongs=hudBelongs(hud,live)
+            if belongs=='owner' then return hud end
+            if belongs=='world' then count=count+1;worldCandidate=hud end
         end
         if count==1 then return worldCandidate end
     end
@@ -797,9 +807,16 @@ function M.new(queue,log,service,environment)
         table.sort(missing)
         return targets,selected,missing
     end
+    -- The game HUD created last, as a weak handle. A save load can replace the HUD
+    -- while the player and its input live on, and the old HUD may still be alive
+    -- when the new one is created.
+    local freshHud
     local function bindOwner(live)
-        -- The kept HUD while it lives; scanning for it reads every live object.
-        live.hud=service:hud() or ownerHud(live)
+        -- The newest HUD once built and the player's; else the kept HUD while it
+        -- lives; scanning for it reads every live object.
+        local fresh=e.live(freshHud)
+        if fresh and not (hudBuilt(fresh) and hudBelongs(fresh,live)) then fresh=nil end
+        live.hud=fresh or service:hud() or ownerHud(live)
         local ok,why=service:bind(live,api.generation)
         if ok==false then log.debug('quickslot HUD pending: ',why) end
     end
@@ -832,6 +849,8 @@ function M.new(queue,log,service,environment)
                     local ok,result=pcall(Quickslots.deliver,api.state,binding,phase,service)
                     if not ok or result==false then
                         log.warn('input callback failed: ',binding.id,' ',phase,': ',ok and 'not handled' or result)
+                        -- The kept HUD is gone: find the player's current one.
+                        if not service:hud() and rebindHud then rebindHud('HUD lost') end
                     end
                 end
             end
@@ -1281,6 +1300,47 @@ function M.new(queue,log,service,environment)
         end
         arm()
     end
+    -- A new HUD, or the kept one gone, while the player keeps its input: no input
+    -- setup wakes MCC, so the attached player is bound to the new HUD here, once
+    -- its widget tree is built, after 100 ms, 250 ms, 500 ms, 1 s and 2 s. The new
+    -- HUD shows Default, as after a load, and gets MCC's key hints and underlines.
+    local hudStep,hudArmed=0,false
+    rebindHud=function(reason)
+        if hudArmed or type(e.delay)~='function' or api.phase=='stopped' then return end
+        hudStep=0
+        local before=e.keep(service:hud())
+        local function arm()
+            hudStep=hudStep+1
+            local ms=PRESENT_RETRIES[hudStep]
+            if not ms then return log.debug('no game HUD to bind after ',reason) end
+            hudArmed=true
+            local ok,result=pcall(e.delay,ms,function()
+                local queued,why=pcall(queue,function()
+                    hudArmed=false
+                    if api.phase~='ready' or not api.enabled then return end
+                    if busy then return arm() end
+                    local live=liveOwner()
+                    if not live then return end
+                    bindOwner(live)
+                    local hud=service:hud()
+                    if not (hud and hudBuilt(hud)) then return arm() end
+                    -- The previous HUD lives on and nothing newer is built yet.
+                    if sameObject(e.live(before),hud) and not sameObject(e.live(freshHud),hud) then
+                        return arm()
+                    end
+                    log.debug('game HUD bound after ',reason,' on try ',hudStep)
+                    pcall(Quickslots.cancel,api.state,service)
+                    updateIndicators(true)
+                end)
+                if not queued or why==false then hudArmed=false;log.warn('HUD rebind failed to queue: ',why) end
+            end)
+            if not ok or result==false then
+                hudArmed=false
+                log.warn('HUD rebind registration failed: ',result)
+            end
+        end
+        arm()
+    end
     local RETRIES=5
     local retryArmed=false
     scheduleRetry=function()
@@ -1394,7 +1454,11 @@ function M.new(queue,log,service,environment)
         local function inputSetUp(name)
             if api.phase=='stopped' or not api.enabled then return end
             local live=api.ready and not ownerStale and liveOwner()
-            if live and e.path(currentComponent(live.controller))==api.componentPath then return end
+            if live and e.path(currentComponent(live.controller))==api.componentPath then
+                -- The player keeps its input; a load may still have replaced its HUD.
+                if not service:hud() then rebindHud('input setup') end
+                return
+            end
             log.debug('woken: game added ',name)
             keysStale,overridesStale,ownerStale=true,true,true
             api.retryStep=0
@@ -1414,6 +1478,22 @@ function M.new(queue,log,service,environment)
             ownerStale=true
             wake()
         end)
+        -- A new game HUD. It is only kept here; its widget tree is built after this.
+        if type(e.notify)=='function' then
+            local ok,why=pcall(e.notify,'/Game/_Dawnwalker/UI/_Unified/HUD/WBP_GameHUD.WBP_GameHUD_C',function(created)
+                if api.phase=='stopped' then return end
+                local hud=e.unwrap(created)
+                if (e.full(hud) or ''):find('Default__',1,true) then return end
+                local handle=e.keep(hud)
+                if not handle then return end
+                local queued,queueWhy=pcall(queue,function()
+                    freshHud=handle
+                    if api.phase=='ready' then rebindHud('new game HUD') end
+                end)
+                if not queued or queueWhy==false then log.warn('new HUD wake failed: ',queueWhy) end
+            end)
+            if not ok or why==false then log.warn('game HUD notification unavailable: ',why) end
+        end
         -- New keys from the game's settings.
         register('hook','/Script/RebelInput.RebelInputMappingSubsystem:ApplyPendingKeyboardMappings',function()
             log.debug('woken: game key mappings applied')
